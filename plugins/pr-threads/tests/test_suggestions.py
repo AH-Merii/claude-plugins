@@ -212,6 +212,11 @@ class AcceptByContentTest(unittest.TestCase):
                 ("rewritten, a copy one line below", rewrite(at + n + 1)),
                 ("deleted, a copy one line above where it was", delete(at - 1)),
                 ("deleted, a copy one line below where it was", delete(at + 1)),
+                # the target rewritten, and a line on its other side edited or removed
+                ("rewritten, a copy directly above, the line below edited",
+                 rewrite(at)[:at + 2 * n] + ["edited\n"] + rewrite(at)[at + 2 * n + 1:]),
+                ("rewritten, a copy directly below, the line above removed",
+                 rewrite(at + n)[:at - 1] + rewrite(at + n)[at:]),
             ]
             for name, lines in refused:
                 with self.subTest(name, target=f"{start}-{end}"):
