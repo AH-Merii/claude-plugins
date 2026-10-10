@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from helpers import FakeGh, Repo, pr_table, thread
+from helpers import FakeGh, Repo, pages, pr_table, thread
 from helpers import threads_response as response
 
 from pr_threads.review import review_body
@@ -38,6 +38,17 @@ class HandoffTest(unittest.TestCase):
     def test_reviews_without_a_verdict_are_ignored(self):
         human = {"state": "COMMENTED", "body": "nice work", "submitted_at": "2026-10-10T12:00:00Z"}
         reviews = [review("pass", "2026-10-10T10:00:00Z"), human]
+        self.assertEqual(handoff(response(), reviews)["state"], "pass")
+
+    def test_a_dismissed_review_no_longer_counts(self):
+        reviews = [review("pass", "2026-10-10T10:00:00Z", state="APPROVED"),
+                   review("changes", "2026-10-10T11:00:00Z", state="DISMISSED")]
+        self.assertEqual(handoff(response(), reviews)["state"], "pass")
+
+    def test_a_pending_review_is_not_submitted_yet(self):
+        # GitHub shows a draft review only to its author, with no submitted_at
+        pending = {"state": "PENDING", "body": review_body("changes", "summary")}
+        reviews = [review("pass", "2026-10-10T10:00:00Z", state="APPROVED"), pending]
         self.assertEqual(handoff(response(), reviews)["state"], "pass")
 
 
@@ -124,7 +135,7 @@ class StatusCliTest(unittest.TestCase):
         self.addCleanup(self.gh.cleanup)
 
     def status(self, reviews, *threads):
-        self.gh.set_answer("GET /reviews", json.dumps(reviews))
+        self.gh.set_answer("GET /reviews", pages=pages(reviews))
         self.gh.set_answer("graphql reviewThreads", json.dumps(response(*threads)))
         return self.gh.run("--pr", "5", "status").stdout.lower()
 
@@ -135,6 +146,17 @@ class StatusCliTest(unittest.TestCase):
                           thread("T1", resolved=True))
         self.assertIn("changes", out)
         self.assertNotRegex(out, r"\bpass\b")
+
+    def test_reads_past_the_first_page_of_reviews(self):
+        # 30 reviews to a page, oldest first, so the latest verdict is on page 2
+        older = [review("changes", f"2026-10-09T10:{m:02d}:00Z", state="CHANGES_REQUESTED")
+                 for m in range(30)]
+        newer = [review("pass", "2026-10-10T10:00:00Z", state="APPROVED"),
+                 review("changes", "2026-10-10T11:00:00Z", state="DISMISSED"),
+                 {"state": "PENDING", "body": review_body("changes", "summary")}]
+        out = self.status(older + newer)
+        self.assertRegex(out, r"\bpass\b")
+        self.assertNotRegex(out, r"\bchanges\b")
 
     def test_reports_how_many_threads_are_still_open(self):
         out = self.status([{"state": "APPROVED", "body": "", "submitted_at": "2026-10-10T10:00:00Z"}],

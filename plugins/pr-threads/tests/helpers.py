@@ -407,6 +407,23 @@ FAKE_GH = textwrap.dedent('''\
         sys.stdout.write(stdout)
         sys.exit(code)
 
+    def answer_pages(pages):
+        """A paginated REST answer, one JSON array per page, oldest items first.
+
+        Without --paginate gh gets page 1 only. With it gh fetches every page and joins
+        the arrays into one, prints each page through --jq, or wraps them with --slurp.
+        """
+        if "--paginate" not in args:
+            answer_with(pages[0], 0)
+        path = option(args, "--jq", "-q")
+        if path is not None:
+            sys.stdout.write("".join(jq(json.loads(page), path) + "\\n" for page in pages))
+        elif "--slurp" in args:
+            sys.stdout.write(json.dumps([json.loads(page) for page in pages]))
+        else:
+            sys.stdout.write(json.dumps([item for page in pages for item in json.loads(page)]))
+        sys.exit(0)
+
     with open(os.environ["FAKE_GH_TABLE"]) as f:
         table = json.load(f)
     for key, answer in table.items():
@@ -414,6 +431,8 @@ FAKE_GH = textwrap.dedent('''\
                             and rest_match(key)) \\
                 or (key.startswith("graphql ") and record["endpoint"] == "graphql"
                     and re.search(r"\\b" + re.escape(key[8:]) + r"\\b", (body or {}).get("query", ""))):
+            if "pages" in answer:
+                answer_pages(answer["pages"])
             stdout, code = answer.get("stdout", ""), answer.get("exit", 0)
             if record["endpoint"] == "graphql" and code == 0 and stdout:
                 missing = unselected(json.loads(stdout), query)
@@ -492,10 +511,11 @@ class FakeGh:
         with open(self.table, "w") as f:
             json.dump(table, f)
 
-    def set_answer(self, key, stdout="", exit=0):
+    def set_answer(self, key, stdout="", exit=0, pages=None):
+        """Answer `key` with stdout and exit, or, for a paginated REST list, with `pages`."""
         with open(self.table) as f:
             table = json.load(f)
-        table[key] = {"stdout": stdout, "exit": exit}
+        table[key] = {"pages": pages} if pages is not None else {"stdout": stdout, "exit": exit}
         self._write_table(table)
 
     def run(self, *args, check=True, input_text=""):
@@ -536,6 +556,11 @@ class FakeGh:
 
     def fail_uploads(self):
         open(self.uploads + ".fail", "w").close()
+
+
+def pages(items, size=30):
+    """`items` split into JSON pages the way a REST list returns them: 30 to a page by default."""
+    return [json.dumps(items[i:i + size]) for i in range(0, len(items), size)] or ["[]"]
 
 
 def thread(id, resolved=False, outdated=False, line=10, start=None, comments=(("bot", "hi"),),
