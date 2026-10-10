@@ -5,8 +5,9 @@ Routes: "pr view <n>", "repo view", "<METHOD> <endpoint part>" for REST, and
 "graphql <field>" for GraphQL. Known review mutations are answered with their real
 shape, so a reply or resolve never gets a thread listing back. GraphQL that GitHub
 would reject (conflicting response names, a thread under the wrong input key) fails,
-and so does a canned GraphQL answer holding a field the query doesn't select. A key whose endpoint
-part ends in "$" only matches that exact endpoint.
+and so does a canned GraphQL answer holding a field the query doesn't select. A canned
+reviewThreads list is served a page at a time, by the query's `first` and `after`, like
+GitHub's connections. A key whose endpoint part ends in "$" only matches that exact endpoint.
 
 Like real gh it expands {owner}/{repo} in api endpoints, builds nested payloads from
 `key[sub]=v` and `key[]=v` fields, applies simple `.a.b` paths given to --jq/-q
@@ -235,6 +236,65 @@ def thread_input(field, field_args, variables):
         fail(f"{field} needs its thread as input.{key}")
     return value
 
+MAX_PAGE = 100
+
+
+def connection_args(query, field, variables):
+    """(first, after) given to `field` in the query, as literals or $variables."""
+    m = re.search(r"\b" + field + r"\s*\(([^)]*)\)", query)
+    text = m.group(1) if m else ""
+
+    def arg(name):
+        found = re.search(r"\b" + name + r'\s*:\s*(?:"([^"]*)"|\$(\w+)|(\w+))', text)
+        if not found:
+            return None
+        literal, var, bare = found.groups()
+        value = variables.get(var) if var else literal if literal is not None else bare
+        return None if value in (None, "null") else value
+
+    return arg("first"), arg("after")
+
+
+def page_threads(answer, query, variables):
+    """Cut the canned reviewThreads down to the page the query asked for, as GitHub does.
+
+    GitHub requires `first` (at most 100) and answers `after` an endCursor with the next
+    page; pageInfo says whether more remain. Cursors here are "cursor:<index>".
+    """
+    found = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k == "reviewThreads" and isinstance(v, dict) and "nodes" in v:
+                    found.append(v)
+                else:
+                    walk(v)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v)
+    walk(answer.get("data"))
+    for conn in found:
+        first, after = connection_args(query, "reviewThreads", variables)
+        if first is None:
+            fail("You must provide a `first` or `last` value to properly paginate "
+                 "the `reviewThreads` connection.")
+        first = int(first)
+        if not 0 <= first <= MAX_PAGE:
+            fail(f"Requesting {first} records on the `reviewThreads` connection exceeds "
+                 f"the `first` limit of {MAX_PAGE} records.")
+        start = 0
+        if after is not None:
+            if not re.fullmatch(r"cursor:\d+", str(after)):
+                fail(f"`{after}` does not appear to be a valid cursor.")
+            start = int(after.split(":")[1])
+        nodes = conn["nodes"]
+        end = min(start + first, len(nodes))
+        conn["nodes"] = nodes[start:end]
+        conn["pageInfo"] = {"hasNextPage": end < len(nodes),
+                            "endCursor": f"cursor:{end}" if end > start else None}
+
+
 def mutation_answer(field, tid):
     if field == "resolveReviewThread":
         return {"thread": {"id": tid, "isResolved": True}}
@@ -398,7 +458,10 @@ def main(args):
                 # gh issue comment prints the new comment's URL, not the API's JSON
                 stdout = json.loads(stdout)["html_url"] + "\n" if code == 0 and stdout else ""
             if record["endpoint"] == "graphql" and code == 0 and stdout:
-                missing = unselected(json.loads(stdout), query)
+                paged = json.loads(stdout)
+                page_threads(paged, query, variables)
+                stdout = json.dumps(paged)
+                missing = unselected(paged, query)
                 if missing:
                     fail("the query never selects " + ", ".join(missing))
             answer_with(stdout, code)

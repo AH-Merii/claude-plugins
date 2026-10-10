@@ -195,6 +195,12 @@ class StatusCliTest(unittest.TestCase):
         got = json.loads(self.gh.run("--pr", "5", "status", "--json").stdout)
         self.assertEqual((got["state"], got["open"]), ("approved", 2), "resolved threads aren't counted")
 
+    def test_counts_an_open_thread_past_the_first_page_of_threads(self):
+        # GitHub serves at most 100 threads a page, so the open one is on page 2
+        self.status([bot("pass", "2026-10-10T10:00:00Z")], *[True] * 100, False)
+        got = json.loads(self.gh.run("--pr", "5", "status", "--json").stdout)
+        self.assertEqual((got["state"], got["open"]), ("approved", 1))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -109,11 +109,15 @@ class AcceptCliTest(unittest.TestCase):
         self.addCleanup(self.repo.cleanup)
         self.reviewed = self.repo.head
 
-    def accept_thread(self, body, line=10, start=None, outdated=False):
-        """Accept T1, a thread made on the reviewed commit, with `body` as its comment."""
+    def accept_thread(self, body, line=10, start=None, outdated=False, before=()):
+        """Accept T1, a thread made on the reviewed commit, with `body` as its comment.
+
+        `before` are threads GitHub lists ahead of T1.
+        """
         gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
         self.addCleanup(gh.cleanup)
         gh.set_answer("graphql reviewThreads", json.dumps(response(
+            *before,
             thread("T1", outdated=outdated, line=line, start=start, comments=(("bot", body),),
                    commit=self.reviewed))))
         return gh, gh.run("--pr", "5", "accept", "T1", check=False)
@@ -159,6 +163,13 @@ class AcceptCliTest(unittest.TestCase):
         _, out = self.accept_outdated(self.MULTI_LINE, line=22, start=21)
         self.assertRangeReplaced(out)
         self.assertIn("edited 28", self.repo.read("app.py"))
+
+    def test_finds_its_thread_past_the_first_page_of_threads(self):
+        # GitHub serves at most 100 threads a page, so T1 is on page 2
+        others = [thread(f"T{i}", resolved=True, commit=self.reviewed) for i in range(100, 200)]
+        _, out = self.accept_thread(self.SUGGESTION, before=others)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertEqual(self.repo.read("app.py").splitlines()[9], "fixed 10")
 
     def test_thread_without_a_suggestion_is_refused(self):
         before = self.repo.read("app.py")

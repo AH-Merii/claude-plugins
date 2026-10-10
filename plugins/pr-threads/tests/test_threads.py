@@ -65,6 +65,13 @@ class AuthorCliTest(unittest.TestCase):
         self.assertEqual({k: outdated[k] for k in ("path", "line", "start_line", "outdated")},
                          {"path": "app.py", "line": 12, "start_line": None, "outdated": True})
 
+    def test_open_thread_past_the_first_page_is_listed(self):
+        # GitHub serves at most 100 threads a page, so T100 is on page 2
+        settled = [thread(f"T{i}", resolved=True) for i in range(100)]
+        self.gh.set_answer("graphql reviewThreads", json.dumps(response(*settled, thread("T100"))))
+        got = json.loads(self.gh.run("--pr", "5", "threads", "--json").stdout)
+        self.assertEqual([t["id"] for t in got], ["T100"])
+
     def test_outdated_threads_are_flagged_in_the_output(self):
         self.gh.set_answer("graphql reviewThreads", json.dumps(response(thread("T1", outdated=True, line=12))))
         out = self.gh.run("--pr", "5", "threads").stdout
