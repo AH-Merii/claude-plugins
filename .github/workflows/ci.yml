@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: Unit tests (changed plugins)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run offline unit tests for each changed plugin
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Live tests (e.g. pr-threads) only run when PR_THREADS_LIVE=1; keep them off.
+          unset PR_THREADS_LIVE
+          plugins=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" -- plugins/ | cut -d/ -f2 | sort -u)
+          if [ -z "$plugins" ]; then
+            echo "No plugin changed; nothing to test."
+            exit 0
+          fi
+          status=0
+          for name in $plugins; do
+            if [ ! -d "plugins/$name/tests" ]; then
+              echo "::notice::plugins/$name has no tests/ directory; skipping."
+              continue
+            fi
+            echo "::group::plugins/$name"
+            python3 -m unittest discover -s "plugins/$name/tests" || status=1
+            echo "::endgroup::"
+          done
+          exit "$status"
