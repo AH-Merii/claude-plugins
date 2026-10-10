@@ -3,6 +3,7 @@
 
 Covers `gh pr comment`, `gh pr review`, `gh issue comment`, `gh api` writes to the review and
 comment REST endpoints, and the review and comment GraphQL mutations. Reads are never blocked.
+Heredoc bodies and quoted arguments are data, unless the heredoc is fed to a shell.
 A command shlex can't split is checked roughly, line by line: any `gh` in it counts.
 Known gap: a GraphQL query read from a file (`-F query=@file`) can't be classified.
 """
@@ -168,7 +169,43 @@ def check_rough(command):
     return None
 
 
+HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)(\w+)\2")
+
+
+def heredoc_runner(line, at):
+    """The program a heredoc starting at `line[at:]` is fed to, e.g. `cat` or `bash`."""
+    words = strip_prefix(re.split(r"[;&|()]", line[:at])[-1].split())
+    return os.path.basename(words[0]) if words else ""
+
+
+def split_heredocs(command):
+    """(command lines, heredoc bodies that are commands): a body fed to a shell is commands.
+
+    Other heredoc bodies are data and are dropped. A heredoc whose delimiter never comes
+    keeps its lines, so a stray `<<` can't hide what follows it.
+    """
+    lines, kept, scripts, i = command.split("\n"), [], [], 0
+    while i < len(lines):
+        line = lines[i]
+        kept.append(line)
+        i += 1
+        for m in HEREDOC.finditer(line):
+            strip, end = m[1] == "-", m[3]
+            close = next((j for j in range(i, len(lines))
+                          if (lines[j].lstrip("\t") if strip else lines[j]) == end), None)
+            if close is None:
+                break
+            if heredoc_runner(line, m.start()) in SHELLS:
+                scripts.append("\n".join(lines[i:close]))
+            i = close + 1
+    return "\n".join(kept), scripts
+
+
 def check(command):
+    command, scripts = split_heredocs(command)
+    for script in scripts:
+        if hit := check(script):
+            return hit
     try:
         tokens = tokenize(command)
     except ValueError:
