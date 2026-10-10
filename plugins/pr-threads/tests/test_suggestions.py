@@ -184,6 +184,67 @@ class AcceptByContentTest(unittest.TestCase):
                         self.accept(start, end, replacement)
                     self.assertEqual(self.repo.read("app.py"), before, "a refused accept leaves the file alone")
 
+    def test_a_change_next_to_the_target_refuses_rather_than_guess(self):
+        # When the reviewed lines changed and a copy of their old text sits right next to
+        # them, the diff can line the copy up as the original (myers and histogram agree), so
+        # it no longer shows that the reviewed lines survived. Any change touching or next to
+        # the target is that ambiguous: accept refuses rather than edit a copy. Changes and
+        # copies a few lines away leave the target clear, and still apply to it.
+        for start, end, _, replacement in self.TARGETS:
+            at, n = start - 1, end - start + 1
+            block = self.block(start, end)
+            rewritten = [f"rewritten {line}" for line in block]
+
+            def rewrite(index):
+                lines = self.pushed.splitlines(keepends=True)
+                lines[at:at + n] = rewritten
+                return self.with_inserts(lines, [(index, block)])
+
+            def delete(index):
+                lines = self.pushed.splitlines(keepends=True)
+                del lines[at:at + n]
+                return self.with_inserts(lines, [(index, block)])
+
+            refused = [
+                ("rewritten, a copy directly above", rewrite(at)),
+                ("rewritten, a copy one line above", rewrite(at - 1)),
+                ("rewritten, a copy directly below", rewrite(at + n)),
+                ("rewritten, a copy one line below", rewrite(at + n + 1)),
+                ("deleted, a copy one line above where it was", delete(at - 1)),
+                ("deleted, a copy one line below where it was", delete(at + 1)),
+            ]
+            for name, lines in refused:
+                with self.subTest(name, target=f"{start}-{end}"):
+                    before = "".join(lines)
+                    self.repo.write("app.py", before)
+                    with self.assertRaises(StaleSuggestion, msg="applied to a copy of the reviewed lines"):
+                        self.accept(start, end, replacement)
+                    self.assertEqual(self.repo.read("app.py"), before, "a refused accept leaves the file alone")
+
+            # (name, inserts into the reviewed file, lines removed above the target)
+            applied = [
+                ("untouched, a copy three lines above", [(at - 3, block)], 0),
+                ("untouched, a copy three lines below", [(at + n + 3, block)], 0),
+                ("untouched, copies at both ends", [(0, block), (len(self.pushed.splitlines()), block)], 0),
+                ("a line added three lines above", [(at - 3, ["inserted\n"])], 0),
+                ("a line added three lines below", [(at + n + 3, ["inserted\n"])], 0),
+                ("a line removed four lines above", [], 1),
+            ]
+            for name, inserts, removed in applied:
+                with self.subTest(name, target=f"{start}-{end}"):
+                    lines = self.pushed.splitlines(keepends=True)
+                    if removed:
+                        del lines[at - 4]
+                    lines = self.with_inserts(lines, [(i - removed, new) for i, new in inserts])
+                    target = at - removed + sum(len(new) for i, new in inserts if i <= at)
+                    self.repo.write("app.py", "".join(lines))
+                    try:
+                        self.accept(start, end, replacement)
+                    except StaleSuggestion as e:
+                        self.fail(f"refused, though nothing next to the reviewed lines changed: {e}")
+                    lines[target:target + n] = [replacement]
+                    self.assertEqual(self.repo.read("app.py"), "".join(lines), "applied to the reviewed lines")
+
     def test_a_change_to_the_target_itself_still_refuses_wherever_it_moved(self):
         changes = [
             ("rewritten in place", lambda t: t.replace("changed 10\n", "rewritten 10\n")
