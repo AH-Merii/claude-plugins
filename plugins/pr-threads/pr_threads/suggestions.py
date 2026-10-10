@@ -42,24 +42,62 @@ def parse_suggestion(body):
     return None
 
 
+LOCAL_HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@", re.M)
+
+
+def follow(repo, commit, path, start, end):
+    """Where lines start..end of `path` at `commit` are in the local file now, or None.
+
+    The lines are followed through the diff from `commit` to the working tree, so edits
+    elsewhere only shift them. None if any of them changed: a copy of their text elsewhere
+    is other code. The histogram diff anchors on unique lines, so it doesn't mistake a
+    copy for the original.
+    """
+    out = git(repo, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames",
+              "--diff-algorithm=histogram", "-U0", commit, "--", path)
+    shift = 0
+    for old, old_n, new_n in LOCAL_HUNK.findall(out.stdout):
+        old, old_n, new_n = int(old), int(old_n or 1), int(new_n or 1)
+        # a hunk removing nothing inserts after line `old`
+        first, last = (old + 1, old) if old_n == 0 else (old, old + old_n - 1)
+        if last < start:
+            shift += new_n - old_n
+        elif first > end:
+            break
+        else:
+            return None
+    return start + shift
+
+
 def accept(repo, commit, path, start, end, replacement):
     """Replace lines start..end of `path`, as they were at `commit`, with `replacement`.
 
-    Refused, leaving the file alone, unless the local file still has those exact lines at
-    those exact line numbers.
+    The lines are found where local edits since `commit` moved them. Refused, leaving the
+    file alone, if those lines themselves changed. Every other byte stays as it was: line
+    endings, and a missing final newline.
     """
     shown = git(repo, "show", f"{commit}:{path}", check=False)
     if shown.returncode:
         raise StaleSuggestion(f"can't read {path} at the reviewed commit {commit[:12]}: fetch it first")
-    target = shown.stdout.splitlines(keepends=True)[start - 1:end]
     file = os.path.join(repo, path)
     try:
-        with open(file) as f:
-            lines = f.readlines()
+        with open(file, "rb") as f:
+            data = f.read()
     except FileNotFoundError:
         raise StaleSuggestion(f"{path} no longer exists locally") from None
-    if lines[start - 1:end] != target or len(target) != end - start + 1:
+    at = None
+    if len(shown.stdout.splitlines()) >= end:
+        at = follow(repo, commit, path, start, end)
+    if at is None:
         raise StaleSuggestion(f"{path}:{start}-{end} changed since the review at {commit[:12]}, "
                               "so the suggestion no longer applies: make the change by hand")
-    with open(file, "w") as f:
-        f.writelines(lines[:start - 1] + [replacement] + lines[end:])
+    lines = re.findall(rb"[^\n]*\n|[^\n]+\Z", data)
+    new = replacement.encode()
+    ends = [line for line in lines if line.endswith(b"\n")]
+    if ends and all(line.endswith(b"\r\n") for line in ends):
+        new = new.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
+    out = b"".join(lines[:at - 1] + [new] + lines[at - 1 + end - start + 1:])
+    if not data.endswith(b"\n") and out.endswith(b"\n"):
+        out = out[:-2] if out.endswith(b"\r\n") else out[:-1]
+    with open(file, "wb") as f:
+        f.write(out)

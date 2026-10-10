@@ -32,6 +32,9 @@ pr-threads post NUMBER BODY [--attach ...]                        # issue or PR 
 Without `--pr`, the current branch's PR is used. Staged comments live in
 `$XDG_STATE_HOME/pr-threads/` (default `~/.local/state`) until a submit succeeds.
 
+`accept` follows the reviewed lines through your local edits, refuses if those lines
+changed, and keeps the file's line endings.
+
 ## Requirements
 
 - `python3` (tested on 3.14) and [`gh`](https://cli.github.com) 2.99 or newer, logged in.
