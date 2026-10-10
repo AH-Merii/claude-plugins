@@ -27,6 +27,10 @@ class SubmitTest(unittest.TestCase):
         (review,) = gh.review_posts()
         self.assertEqual(len(review["comments"]), 2)
         self.assertEqual(review["commit_id"], self.repo.head)
+        (suggestion,) = [c for c in review["comments"] if "```suggestion" in c["body"]]
+        self.assertEqual((suggestion["path"], suggestion.get("start_line"), suggestion["line"]),
+                         ("app.py", 21, 22), "the replacement covers both lines, not just the last")
+        self.assertIn("```suggestion\nx = 1\n```", suggestion["body"])
 
     def test_bot_verdicts_are_formal_review_states(self):
         for verdict, event in (("changes", "REQUEST_CHANGES"), ("pass", "APPROVE")):

@@ -15,6 +15,16 @@ class RoundTripTest(unittest.TestCase):
                 body = suggestion_body("Use this instead.", replacement)
                 self.assertEqual(parse_suggestion(body), replacement)
 
+    def test_body_written_on_github_is_read(self):
+        # GitHub's own syntax, as the web UI stores it: a ```suggestion fence, CRLF line ends
+        for body in ["Name these.\n\n```suggestion\nx = 1\n```\n",
+                     "Name these.\r\n\r\n```suggestion\r\nx = 1\r\n```"]:
+            with self.subTest(body=body):
+                self.assertEqual(parse_suggestion(body), "x = 1\n")
+
+    def test_written_body_uses_githubs_suggestion_fence(self):
+        self.assertIn("```suggestion\nx = 1\n```", suggestion_body("Name these.", "x = 1\n"))
+
     def test_comment_without_a_suggestion_has_none(self):
         self.assertIsNone(parse_suggestion("Looks wrong, see `foo`."))
         self.assertIsNone(parse_suggestion("```python\nprint(1)\n```"))
