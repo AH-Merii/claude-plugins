@@ -5,7 +5,7 @@ My Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
 | Name | Type | Use it when… |
 |------|------|--------------|
 | [screen-lab](plugins/screen-lab) | skill | an agent needs to see what a terminal app really renders: screenshots, GIFs, hover and click tests in Ghostty on a spare niri screen |
-| [gitbutler-guard](mods/gitbutler-guard) | hooks | an agent works in a GitButler workspace: blocks git write commands in favour of `but`, and keeps the GitButler skill in step with your `but` CLI |
+| [gitbutler-guard](plugins/gitbutler-guard) | hooks | an agent works in a GitButler workspace: blocks git write commands in favour of `but`, and keeps the GitButler skill in step with your `but` CLI |
 
 ## Install
 

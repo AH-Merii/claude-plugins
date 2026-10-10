@@ -12,9 +12,9 @@
     },
     {
       "name": "gitbutler-guard",
-      "source": "./mods/gitbutler-guard",
+      "source": "./plugins/gitbutler-guard",
       "category": "development",
-      "tags": ["mod", "hooks", "gitbutler", "git", "version-control"]
+      "tags": ["hooks", "gitbutler", "git", "version-control"]
     }
   ]
 }

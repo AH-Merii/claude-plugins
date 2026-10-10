@@ -1,4 +1,4 @@
-"""Run with: python3 -m unittest discover mods/gitbutler-guard/tests"""
+"""Run with: python3 -m unittest discover -s plugins/gitbutler-guard/tests"""
 import json
 import os
 import subprocess

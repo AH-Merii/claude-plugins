@@ -35,5 +35,5 @@ when `CLAUDE_CONFIG_DIR` isn't set.
 ## Tests
 
 ```sh
-python3 -m unittest discover -s mods/gitbutler-guard/tests
+python3 -m unittest discover -s plugins/gitbutler-guard/tests
 ```
