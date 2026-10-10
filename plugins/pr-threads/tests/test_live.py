@@ -11,7 +11,7 @@ import tempfile
 import time
 import unittest
 
-from helpers import BOT, BOT_SLUG, GIT_REPO_VARS, PLUGIN, numbered
+from helpers import GIT_REPO_VARS, PLUGIN, numbered
 
 REPO = os.environ.get("PR_THREADS_LIVE_REPO", "AH-Merii/test")
 
@@ -25,9 +25,19 @@ def sh(*args, cwd=None, input_text=None, env=None):
     return out.stdout.strip()
 
 
+def real_bot_slug():
+    """The real reviewer app's slug, from the app.json reviewer-setup.py saved."""
+    folder = os.environ.get("CLAUDE_REVIEWER_DIR") or os.path.expanduser("~/.config/claude-reviewer")
+    with open(os.path.join(folder, "app.json")) as f:
+        return json.load(f)["slug"]
+
+
 @unittest.skipUnless(os.environ.get("PR_THREADS_LIVE") == "1", "set PR_THREADS_LIVE=1 to run")
 class LiveRoundTest(unittest.TestCase):
     def setUp(self):
+        # the bot as GraphQL shows a comment's author, and as REST shows its reviews
+        self.bot_slug = real_bot_slug()
+        self.bot = self.bot_slug + "[bot]"
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.dir = os.path.join(self.tmp.name, "clone")
@@ -78,7 +88,7 @@ class LiveRoundTest(unittest.TestCase):
         self.cli("submit", "changes", "Two points.")
 
         (first,) = self.reviews()
-        self.assertEqual((first["user"]["login"], first["state"]), (BOT, "CHANGES_REQUESTED"))
+        self.assertEqual((first["user"]["login"], first["state"]), (self.bot, "CHANGES_REQUESTED"))
 
         threads = json.loads(self.cli("threads", "--json"))
         self.assertEqual(sorted((t["path"], t["line"]) for t in threads),
@@ -99,7 +109,7 @@ class LiveRoundTest(unittest.TestCase):
         self.cli("verify", by_line[6], fixed, "Suggestion applied.")
         last = {t["id"]: t["comments"][-1] for t in json.loads(self.cli("threads", "--json"))}
         self.assertEqual({id: c["author"] for id, c in last.items()},
-                         {by_line[3]: BOT_SLUG, by_line[6]: BOT_SLUG}, "the bot wrote each verification")
+                         {by_line[3]: self.bot_slug, by_line[6]: self.bot_slug}, "the bot wrote each verification")
         self.cli("resolve", by_line[3], by_line[6])
         self.assertEqual(json.loads(self.cli("threads", "--json")), [])
         me = sh("gh", "api", "user", "--jq", ".login")
@@ -117,7 +127,7 @@ class LiveRoundTest(unittest.TestCase):
         self.cli("submit", "changes", "One point.")
         (comment,) = json.loads(sh("gh", "api", "-H", "Accept: application/vnd.github.full+json",
                                    f"repos/{REPO}/pulls/{self.pr}/comments"))
-        self.assertEqual(comment["user"]["login"], BOT)
+        self.assertEqual(comment["user"]["login"], self.bot)
         self.assertIn("user-attachments", comment["body"])
         self.assertIn("<img", comment["body_html"], "GitHub rendered it as an image, not a link")
 

@@ -91,11 +91,11 @@ class Repo:
 FAKE_GH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fake_gh.py")
 
 
-# the reviewer bot's login, as GitHub's REST API shows it on its reviews
-BOT = "ah-merii-claude-reviewer[bot]"
-
-# the same bot as GraphQL shows a comment's author: the app's slug, without "[bot]"
-BOT_SLUG = "ah-merii-claude-reviewer"
+# A made-up reviewer app, so code that hardcodes the real bot's login fails: the code
+# under test must learn the slug from app.json. GraphQL shows a bot comment's author as
+# the bare slug; the REST API shows the bot's reviews under "<slug>[bot]".
+BOT_SLUG = "acme-test-reviewer"
+BOT = BOT_SLUG + "[bot]"
 
 INSTALL_URL = "https://github.com/apps/reviewer/installations/new"
 
