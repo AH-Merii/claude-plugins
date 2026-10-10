@@ -3,7 +3,7 @@ import unittest
 
 from helpers import Repo, git
 
-from pr_review.anchor import LocalDiffers, NotInDiff, NotPushed, anchor, check_synced
+from pr_threads.anchor import LocalDiffers, NotInDiff, NotPushed, anchor, check_synced
 
 
 class AnchorTest(unittest.TestCase):

@@ -4,7 +4,7 @@ import unittest
 
 from helpers import FakeGh, Repo, pr_table
 
-from pr_review.threads import open_threads
+from pr_threads.threads import open_threads
 
 
 def thread(id, resolved=False, outdated=False, line=10, start=None, comments=(("bot", "hi"),)):
