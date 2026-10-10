@@ -129,6 +129,54 @@ class FindViolationTest(unittest.TestCase):
                 self.assertIn(verb, find_violation(command))
 
 
+class DataIsNotCommandsTest(unittest.TestCase):
+    """Text in a heredoc body or a quoted argument is data, not a command the shell runs.
+
+    So mentions of PR writes there are allowed: notes, test corpora, suggested code. The
+    command a heredoc belongs to, and every command after its closing line, is still checked.
+    """
+
+    HEREDOCS = [
+        "cat > notes.md <<EOF\ngh pr comment 5 --body hi\nEOF",
+        "cat > notes.md <<'EOF'\ngh api -X POST repos/o/r/pulls/1/comments -f body=x\nEOF",
+        "cat > notes.md <<\"END\"\ngh issue comment 7 --body x\nEND",
+        "cat <<-EOF > notes.md\n\tgh pr review 5 --approve\n\tEOF",
+        "pr-threads --pr 5 suggest x.py:3 'Use this.' <<'EOF'\ngh api -X POST repos/o/r/pulls/1/comments\nEOF",
+        "pr-threads --pr 5 suggest tests/test_guard.py:20 'Add a case.' <<'EOF'\n"
+        "    \"gh pr review 5 --approve\",\n    \"gh api graphql -f query='mutation { addComment }'\",\nEOF",
+        # an odd quote in the body, which shlex can't split
+        "cat > notes.md <<'EOF'\nit's gh pr comment 5 -b hi\nEOF",
+        "cat > a.md <<A\ngh pr comment 1 -b x\nA\ncat > b.md <<B\ngh pr review 1 --approve\nB",
+    ]
+    QUOTED = [
+        "pr-threads --pr 5 comment a.py:3 'Run this instead:\ngh pr comment 5 --body hi'",
+        "pr-threads --pr 5 comment a.py:3 \"Don't use\ngh api -X POST repos/o/r/pulls/1/reviews\"",
+        "gh pr create --title t --body 'Use gh pr comment 5 --body x, not gh api -X POST repos/o/r/pulls/5/reviews'",
+        "git commit -m 'guard: deny\n\ngh pr review 5 --approve'",
+    ]
+    WRITE = "gh pr comment 5 -b x"
+
+    def test_writes_mentioned_in_heredoc_bodies_and_quotes_are_allowed(self):
+        for command in self.HEREDOCS + self.QUOTED:
+            with self.subTest(command=command):
+                self.assertIsNone(find_violation(command))
+
+    def test_real_commands_around_the_data_are_still_denied(self):
+        for command in self.HEREDOCS + self.QUOTED:
+            with self.subTest(command=command, where="on the line after"):
+                self.assertIsNotNone(find_violation(command + "\n" + self.WRITE))
+        for command in [
+            # on the heredoc's own line, after or before the redirection
+            "cat > n.md <<EOF && gh pr comment 5 -b x\nhi\nEOF",
+            "gh pr comment 5 --body-file - <<'EOF'\nhi\nEOF",
+            # the body of a heredoc fed to a shell is commands
+            "bash <<'EOF'\ngh pr comment 5 -b x\nEOF",
+            "sh -s <<EOF\ngh pr review 5 --approve\nEOF",
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNotNone(find_violation(command))
+
+
 class HookProcessTest(unittest.TestCase):
     def run_hook(self, stdin):
         return subprocess.run([sys.executable, os.path.join(HOOKS, "pr_guard.py")],
