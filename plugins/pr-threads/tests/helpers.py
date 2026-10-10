@@ -87,7 +87,8 @@ FAKE_GH = textwrap.dedent('''\
     Like real gh it expands {owner}/{repo} in api endpoints, builds nested payloads from
     `key[sub]=v` and `key[]=v` fields, applies simple `.a.b` paths given to --jq/-q
     (anything else fails loudly), and treats `gh issue comment N` as the POST to
-    issues/N/comments it is.
+    issues/N/comments it is: it uploads any --attach as the user, puts the image in the
+    body, and prints the comment URL.
     """
     import json, os, re, sys
 
@@ -321,11 +322,36 @@ FAKE_GH = textwrap.dedent('''\
 
     args = sys.argv[1:]
     if args[:2] == ["issue", "comment"]:
-        positionals, method, body = [a for a in args[2:3]], "POST", None
-        text = option(args, "--body", "-b")
-        source = option(args, "--body-file", "-F")
-        if source is not None:
-            text = sys.stdin.read() if source == "-" else read(source)
+        positionals, method, text, attach, i = [], "POST", None, [], 2
+        while i < len(args):
+            arg, _, value = args[i].partition("=") if args[i].startswith("--") else (args[i], "", "")
+            if arg in ("-b", "--body", "-F", "--body-file", "--attach", "-R", "--repo") and not value:
+                value, i = args[i + 1], i + 1
+            if arg in ("-b", "--body"):
+                text = value
+            elif arg in ("-F", "--body-file"):
+                text = sys.stdin.read() if value == "-" else read(value)
+            elif arg == "--attach":
+                attach.append(value)
+            elif not arg.startswith("-"):
+                positionals.append(arg)
+            i += 1
+        text = text or ""
+        # gh uploads each --attach as the user first, then rewrites a reference to it in
+        # the body or appends the image; a failed upload means nothing is posted
+        for item in attach:
+            path, _, alt = item.partition("#")
+            if not os.path.isfile(path):
+                fail(f"{path}: no such file")
+            with open(os.environ["FAKE_UPLOAD_LOG"], "a") as f:
+                f.write(json.dumps({"file": path, "gh_token": token()}) + "\\n")
+            if os.path.exists(os.environ["FAKE_UPLOAD_LOG"] + ".fail"):
+                fail(f"failed to upload {path}")
+            url = "https://github.com/user-attachments/assets/" + os.path.basename(path)
+            if f"]({path})" in text:
+                text = text.replace(f"]({path})", f"]({url})")
+            else:
+                text += f"\\n\\n![{alt or os.path.basename(path)}]({url})"
         body = {"body": text}
     else:
         positionals, method, body = parse(args[1:] if args[:1] == ["api"] else args)
@@ -434,6 +460,9 @@ FAKE_GH = textwrap.dedent('''\
             if "pages" in answer:
                 answer_pages(answer["pages"])
             stdout, code = answer.get("stdout", ""), answer.get("exit", 0)
+            if args[:2] == ["issue", "comment"]:
+                # gh issue comment prints the new comment's URL, not the API's JSON
+                stdout = json.loads(stdout)["html_url"] + "\\n" if code == 0 and stdout else ""
             if record["endpoint"] == "graphql" and code == 0 and stdout:
                 missing = unselected(json.loads(stdout), query)
                 if missing:
