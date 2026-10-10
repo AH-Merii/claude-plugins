@@ -209,6 +209,18 @@ class SubmitMovedHeadTest(MovedHeadCase):
                 self.assertNotEqual(out.returncode, 0)
                 self.assertSaysTheHeadMoved(out.stderr, reviewed)
 
+    def test_changes_still_goes_out_on_the_staged_head(self):
+        # requesting changes on the reviewed commit approves nothing, and its comments are
+        # pinned there, so a moved head is no reason to hold it back
+        for move in self.MOVES:
+            with self.subTest(move=move):
+                gh, reviewed = self.staged_then_moved(move)
+                out = gh.run("--pr", "5", "submit", "changes", "Summary.", check=False)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                (review,) = gh.review_posts()
+                self.assertEqual((review["event"], review["commit_id"]), ("REQUEST_CHANGES", reviewed))
+                self.assertEqual([c["body"] for c in review["comments"]], ["Why change this?"])
+
 
 class StagedQueueTest(MovedHeadCase):
     """There is always a way out of staged state: `discard` clears a PR's staged comments.
