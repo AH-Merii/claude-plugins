@@ -98,6 +98,10 @@ FAKE_GH = textwrap.dedent('''\
         with open(path) as f:
             return f.read()
 
+    def token():
+        """The token gh would send to github.com: GH_TOKEN, else GITHUB_TOKEN."""
+        return os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
+
     def typed(value):
         if value.startswith("@"):
             return read(value[1:])
@@ -209,7 +213,7 @@ FAKE_GH = textwrap.dedent('''\
     if args[:1] == ["api"] and positionals:
         positionals[0] = positionals[0].replace("{owner}", OWNER).replace("{repo}", REPO)
     record = {"argv": args, "method": None, "endpoint": None, "body": body, "fields": [],
-              "gh_token": os.environ.get("GH_TOKEN")}
+              "gh_token": token()}
     if args[:2] == ["issue", "comment"]:
         endpoint = f"repos/{OWNER}/{REPO}/issues/{positionals[0]}/comments"
         record.update(method="POST", endpoint=endpoint)
@@ -275,8 +279,10 @@ FAKE_UPLOAD = textwrap.dedent('''\
     """Stands in for the image upload: records who uploaded what, prints the asset URL."""
     import json, os, sys
     path = sys.argv[1]
+    # the token gh would use, so a bot token passed either way is caught
+    token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
     with open(os.environ["FAKE_UPLOAD_LOG"], "a") as f:
-        f.write(json.dumps({"file": path, "gh_token": os.environ.get("GH_TOKEN")}) + "\\n")
+        f.write(json.dumps({"file": path, "gh_token": token}) + "\\n")
     if os.path.exists(os.environ["FAKE_UPLOAD_LOG"] + ".fail"):
         sys.exit(1)
     print("https://github.com/user-attachments/assets/" + os.path.basename(path))
@@ -339,7 +345,9 @@ class FakeGh:
                "FAKE_GH_LOG": self.log, "FAKE_GH_TABLE": self.table,
                "PR_THREADS_TOKEN_CMD": self.token_cmd, "PR_THREADS_UPLOAD_CMD": self.upload_cmd,
                "FAKE_UPLOAD_LOG": self.uploads, "PYTHONPATH": PLUGIN}
-        env.pop("GH_TOKEN", None)
+        # gh reads any of these; a token from the developer's shell would hide who posted
+        for name in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+            env.pop(name, None)
         out = subprocess.run([sys.executable, "-m", "pr_threads", *args], cwd=self.repo,
                              capture_output=True, text=True, env=env, input=input_text)
         if check and out.returncode != 0:
