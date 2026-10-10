@@ -45,9 +45,8 @@ class AuthorCliTest(unittest.TestCase):
                   "addPullRequestReview", "addPullRequestReviewComment"}
         (reply,) = [c for c in self.gh.calls()[before:] if writes & set(c["fields"])]
         self.assertEqual(reply["fields"], ["addPullRequestReviewThreadReply"])
-        sent = json.dumps(reply["body"])
-        self.assertIn("T1", sent)
-        self.assertIn("fixed in abc123", sent)
+        self.assertEqual(reply["threads"], ["T1"])
+        self.assertIn("fixed in abc123", json.dumps(reply["body"]))
         for call in self.gh.calls():
             self.assertIsNone(call["gh_token"], "author commands must not post as the bot")
 

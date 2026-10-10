@@ -110,9 +110,7 @@ class ResolveTest(unittest.TestCase):
         self.gh.run("--pr", "5", "resolve", "T1", "T2", "T3")
         (call,) = self.gh.calls("graphql")
         self.assertEqual(call["fields"], ["resolveReviewThread"] * 3)
-        sent = json.dumps(call)
-        for thread_id in ("T1", "T2", "T3"):
-            self.assertIn(thread_id, sent)
+        self.assertEqual(sorted(call["threads"]), ["T1", "T2", "T3"], "each names its own thread")
         self.assertEqual(call["gh_token"], "BOT_TOKEN")
 
 

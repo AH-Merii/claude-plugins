@@ -79,7 +79,8 @@ FAKE_GH = textwrap.dedent('''\
 
     Routes: "pr view <n>", "repo view", "<METHOD> <endpoint part>" for REST, and
     "graphql <field>" for GraphQL. Known review mutations are answered with their real
-    shape, so a reply or resolve never gets a thread listing back. A key whose endpoint
+    shape, so a reply or resolve never gets a thread listing back. GraphQL that GitHub
+    would reject (conflicting response names, a thread under the wrong input key) fails. A key whose endpoint
     part ends in "$" only matches that exact endpoint.
 
     Like real gh it expands {owner}/{repo} in api endpoints, builds nested payloads from
@@ -270,9 +271,45 @@ FAKE_GH = textwrap.dedent('''\
             i += 1
         return found
 
-    def mutation_answer(field, args):
-        thread = re.search(r'(?:threadId|pullRequestReviewThreadId)\\s*:\\s*"([^"]+)"', args)
-        tid = thread.group(1) if thread else None
+    # the input key GitHub's schema gives each review-thread mutation for the thread
+    THREAD_INPUT = {"resolveReviewThread": "threadId", "unresolveReviewThread": "threadId",
+                    "addPullRequestReviewThreadReply": "pullRequestReviewThreadId"}
+
+    def selections(query, variables):
+        """Top-level selections, merged and checked the way GitHub validates them.
+
+        Two selections with one response name (the alias, else the field name) are merged
+        only when they are the same field with the same arguments; anything else is the
+        fieldConflict GitHub rejects. Review-thread mutations must name their thread under
+        the input key the schema gives them, as a literal or a $variable.
+        """
+        merged = {}
+        for alias, field, field_args in top_fields(query):
+            same = (field, " ".join(field_args.split()))
+            if alias in merged and merged[alias][:2] != same:
+                fail(f"Field '{alias}' has a field or argument conflict")
+            merged[alias] = same + (field_args,)
+        found = []
+        for alias, (field, _, field_args) in merged.items():
+            tid = thread_input(field, field_args, variables) if field in THREAD_INPUT else None
+            found.append((alias, field, tid))
+        return found
+
+    def thread_input(field, field_args, variables):
+        key = THREAD_INPUT[field]
+        whole = re.search(r"\\binput\\s*:\\s*\\$(\\w+)", field_args)
+        if whole:
+            given = variables.get(whole.group(1))
+            value = given.get(key) if isinstance(given, dict) else None
+        else:
+            m = re.search(r"\\b" + key + r'\\s*:\\s*(?:"((?:[^"\\\\]|\\\\.)*)"|\\$(\\w+))', field_args)
+            value = None if m is None else m.group(1) if m.group(1) is not None \\
+                else variables.get(m.group(2))
+        if not isinstance(value, str) or not value:
+            fail(f"{field} needs its thread as input.{key}")
+        return value
+
+    def mutation_answer(field, tid):
         if field == "resolveReviewThread":
             return {"thread": {"id": tid, "isResolved": True}}
         if field == "unresolveReviewThread":
@@ -294,7 +331,7 @@ FAKE_GH = textwrap.dedent('''\
     if args[:1] == ["api"] and positionals:
         positionals[0] = positionals[0].replace("{owner}", OWNER).replace("{repo}", REPO)
     record = {"argv": args, "method": None, "endpoint": None, "body": body, "fields": [],
-              "gh_token": token()}
+              "threads": [], "gh_token": token()}
     if args[:2] == ["issue", "comment"]:
         endpoint = f"repos/{OWNER}/{REPO}/issues/{positionals[0]}/comments"
         record.update(method="POST", endpoint=endpoint)
@@ -308,14 +345,32 @@ FAKE_GH = textwrap.dedent('''\
         fields = top_fields(query) if "{" in query else []
         record.update(method="POST", endpoint="graphql", fields=[f for _, f, _ in fields])
         route = "graphql " + ",".join(record["fields"])
+        # with --input the body is the request itself; otherwise gh sends fields as variables
+        if option(args, "--input") is not None:
+            variables = (body or {}).get("variables") or {}
+        else:
+            variables = {k: v for k, v in (body or {}).items() if k not in ("query", "operationName")}
     elif args[:1] == ["api"] and positionals:
         record.update(method=method, endpoint=positionals[0])
         route = f"{method} {positionals[0]}"
     else:
         route = " ".join(args)
     record["route"] = route
-    with open(os.environ["FAKE_GH_LOG"], "a") as f:
-        f.write(json.dumps(record) + "\\n")
+
+    def log(**extra):
+        with open(os.environ["FAKE_GH_LOG"], "a") as f:
+            f.write(json.dumps({**record, **extra}) + "\\n")
+
+    picked = []
+    if record["endpoint"] == "graphql" and "{" in query:
+        try:
+            picked = selections(query, variables)
+        except SystemExit:
+            log(rejected=True)
+            raise
+        # which thread each review-thread mutation named, under the schema's own key
+        record["threads"] = [tid for _, field, tid in picked if field in THREAD_INPUT]
+    log()
 
     def rest_match(key):
         verb, _, part = key.partition(" ")
@@ -342,8 +397,8 @@ FAKE_GH = textwrap.dedent('''\
             answer_with(answer.get("stdout", ""), answer.get("exit", 0))
     if record["endpoint"] == "graphql":
         data = {}
-        for alias, field, field_args in top_fields((body or {}).get("query", "")):
-            answer = mutation_answer(field, field_args)
+        for alias, field, tid in picked:
+            answer = mutation_answer(field, tid)
             if answer is None:
                 break
             data[alias] = answer

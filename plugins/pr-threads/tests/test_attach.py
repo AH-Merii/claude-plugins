@@ -77,7 +77,7 @@ class AttachTest(unittest.TestCase):
 
     def test_reply_carries_its_image_and_is_not_sent_if_the_upload_fails(self):
         self.gh.run("--pr", "5", "reply", "T1", "Fixed, see after.", "--attach", "after.png")
-        sent = [c for c in self.gh.calls() if "T1" in json.dumps(c)]
+        sent = [c for c in self.gh.calls() if "T1" in c["threads"]]
         self.assertTrue(any("user-attachments/assets/after.png" in json.dumps(c) for c in sent))
         self.gh.fail_uploads()
         before = len(self.gh.calls())
