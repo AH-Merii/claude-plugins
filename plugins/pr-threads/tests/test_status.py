@@ -178,7 +178,7 @@ class HumanVerdictTest(unittest.TestCase):
 
 
 class VerdictRoundTripTest(unittest.TestCase):
-    """What submit writes is what handoff reads, as the bot and in the fallback."""
+    """What submit writes is what handoff reads: as the bot, in the fallback, and --as-me."""
 
     STATES = {"APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED", "COMMENT": "COMMENTED"}
 
@@ -186,21 +186,31 @@ class VerdictRoundTripTest(unittest.TestCase):
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
 
-    def posted_review(self, verdict, token):
+    def posted_review(self, verdict, token, *flags):
         gh = FakeGh(self.repo.path, pr_table(self.repo), token=token)
         self.addCleanup(gh.cleanup)
-        gh.run("--pr", "5", "submit", verdict, "Summary.")
+        gh.run("--pr", "5", "submit", verdict, "Summary.", *flags)
         (sent,) = gh.review_posts()
-        # GitHub stores the event as a review state
-        return {"state": self.STATES[sent["event"]], "body": sent.get("body", ""),
+        (post,) = [c for c in gh.calls("POST") if c["body"] == sent]
+        # GitHub stores the event as a review state, under the login whose token sent it
+        user = {"login": BOT, "type": "Bot"} if post["gh_token"] else {"login": USER, "type": "User"}
+        return {"user": user, "state": self.STATES[sent["event"]], "body": sent.get("body", ""),
                 "submitted_at": "2026-10-10T10:00:00Z"}
 
     def test_each_verdict_reads_back_the_same(self):
-        for token in ("BOT_TOKEN", None):
+        for token, flags in (("BOT_TOKEN", ()), (None, ()), ("BOT_TOKEN", ("--as-me",))):
             for verdict in ("pass", "changes"):
-                with self.subTest(verdict=verdict, bot=bool(token)):
-                    got = handoff(response(), [self.posted_review(verdict, token)])
+                with self.subTest(verdict=verdict, bot=bool(token), flags=flags):
+                    got = handoff(response(), [self.posted_review(verdict, token, *flags)])
                     self.assertEqual(got["state"], verdict)
+
+    def test_a_pass_given_as_me_is_the_users_own(self):
+        # so open threads make it approved, not a pass
+        mine = self.posted_review("pass", "BOT_TOKEN", "--as-me")
+        self.assertEqual(mine["user"]["login"], USER)
+        got = handoff(response(thread("T1")), [mine])
+        self.assertEqual((got["state"], got["open"]), ("approved", 1))
+        self.assertEqual(handoff(response(thread("T1", resolved=True)), [mine])["state"], "pass")
 
     def test_bot_change_request_holds_even_with_no_open_threads(self):
         got = handoff(response(), [review("changes", "2026-10-10T10:00:00Z", state="CHANGES_REQUESTED")])

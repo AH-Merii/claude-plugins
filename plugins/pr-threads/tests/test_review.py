@@ -53,6 +53,51 @@ class SubmitTest(unittest.TestCase):
         self.assertIn("bot", out.stderr.lower(), "the fallback is explained, not silent")
         self.assertIn(INSTALL_URL, out.stderr, "and says how to set the bot up for this repo")
 
+    # The user gives a verdict in chat and Claude records it on the PR as the user. GitHub
+    # refuses APPROVE and REQUEST_CHANGES from a PR's author, so it is a comment review whose
+    # first line is the keyword.
+    def test_as_me_posts_one_comment_review_led_by_the_keyword(self):
+        for verdict in ("pass", "changes"):
+            with self.subTest(verdict=verdict):
+                gh = self.gh()
+                gh.run("--pr", "5", "submit", verdict, "--as-me")
+                (review,) = gh.review_posts()
+                self.assertEqual(review["event"], "COMMENT")
+                self.assertEqual(review["body"].splitlines()[0], verdict)
+                (post,) = gh.calls("POST")
+                self.assertEqual(post["body"], review, "the review is the only thing posted")
+
+    def test_as_me_keeps_the_users_words_after_the_keyword(self):
+        gh = self.gh()
+        gh.run("--pr", "5", "submit", "changes", "Rename this first.", "--as-me")
+        (review,) = gh.review_posts()
+        first, *rest = review["body"].splitlines()
+        self.assertEqual(first, "changes")
+        self.assertIn("Rename this first.", "\n".join(rest))
+
+    def test_as_me_uses_the_users_login_and_never_mints_a_bot_token(self):
+        for token in ("BOT_TOKEN", None):
+            with self.subTest(bot_installed=bool(token)):
+                gh = self.gh(token=token)
+                out = gh.run("--pr", "5", "submit", "pass", "--as-me")
+                (review,) = gh.review_posts()
+                self.assertEqual(review["event"], "COMMENT")
+                self.assertEqual({c["gh_token"] for c in gh.calls()}, {None},
+                                 "no request carries GH_TOKEN or GITHUB_TOKEN")
+                self.assertEqual(gh.token_mints(), 0, "the bot's token command never runs")
+                self.assertNotIn(INSTALL_URL, out.stderr, "there is no fallback to explain")
+
+    def test_as_me_leaves_the_bots_staged_comments_to_the_bot(self):
+        gh = self.gh()
+        self.stage_two(gh)
+        gh.run("--pr", "5", "submit", "pass", "--as-me")
+        (mine,) = gh.review_posts()
+        self.assertEqual(mine.get("comments", []), [], "the bot's comments don't go out under the user's login")
+        gh.run("--pr", "5", "submit", "changes", "Two things to fix.")
+        bots = gh.review_posts()[-1]
+        self.assertEqual(bots["event"], "REQUEST_CHANGES")
+        self.assertEqual(len(bots["comments"]), 2, "they stay staged for the bot, and --as-me staged none")
+
     def test_failed_submit_keeps_the_staged_comments(self):
         gh = self.gh()
         self.stage_two(gh)
