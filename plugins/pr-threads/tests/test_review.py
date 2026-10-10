@@ -1,5 +1,6 @@
 """#9: comments are collected across separate commands and submitted as one review."""
 import json
+import re
 import unittest
 
 from helpers import INSTALL_URL, FakeGh, Repo, assert_keeps_local_work, assert_moves_to_pr_head, git, pr_table
@@ -185,19 +186,28 @@ class MovedHeadCase(unittest.TestCase):
 
 
 class SubmitMovedHeadTest(MovedHeadCase):
-    """submit never posts a verdict for a head the reviewer didn't review."""
+    """submit never passes a head the reviewer didn't review.
 
-    def test_submit_refuses_once_the_pr_head_moved_past_the_staged_comments(self):
+    Once the PR head moved past the staged comments, `pass` is refused. `changes` may still
+    go out, on the staged head its comments are pinned to: asking for changes on an older
+    commit approves nothing.
+    """
+
+    def assertSaysTheHeadMoved(self, message, reviewed):
+        shas = re.findall(r"\b[0-9a-f]{7,40}\b", message)
+        names_a_head = any(h.startswith(sha) for sha in shas for h in (reviewed, self.repo.head))
+        self.assertTrue(names_a_head or re.search(r"\b(moved|new commits?|since)\b", message, re.I),
+                        f"the refusal doesn't say the PR has new commits: {message}")
+
+    def test_pass_is_refused_once_the_pr_head_moved_past_the_staged_comments(self):
         for move in self.MOVES:
-            for verdict in ("pass", "changes"):
-                with self.subTest(move=move, verdict=verdict):
-                    gh, reviewed = self.staged_then_moved(move)
-                    out = gh.run("--pr", "5", "submit", verdict, "Summary.", check=False)
-                    self.assertEqual(gh.review_posts(), [], f"a {verdict} verdict went out on "
-                                     f"{reviewed[:12]}, though the PR is now at {self.repo.head[:12]}")
-                    self.assertNotEqual(out.returncode, 0)
-                    self.assertRegex(out.stderr.lower(), r"\bhead\b.*\b(moved|changed)\b|"
-                                     r"\b(moved|changed)\b.*\bhead\b", "the refusal says the head moved")
+            with self.subTest(move=move):
+                gh, reviewed = self.staged_then_moved(move)
+                out = gh.run("--pr", "5", "submit", "pass", "Summary.", check=False)
+                self.assertEqual(gh.review_posts(), [], f"a pass went out on {reviewed[:12]}, "
+                                 f"though the PR is now at {self.repo.head[:12]}")
+                self.assertNotEqual(out.returncode, 0)
+                self.assertSaysTheHeadMoved(out.stderr, reviewed)
 
 
 class StagedQueueTest(MovedHeadCase):
@@ -225,7 +235,7 @@ class StagedQueueTest(MovedHeadCase):
     def test_refusals_caused_by_staged_state_name_discard(self):
         for move in self.MOVES:
             for args in (("comment", "app.py:10", "More."), ("suggest", "app.py:10", "More."),
-                         ("submit", "changes", "Summary.")):
+                         ("submit", "pass", "Summary.")):
                 with self.subTest(move=move, verb=args[0]):
                     gh, _ = self.staged_then_moved(move)
                     out = gh.run("--pr", "5", *args, check=False, input_text="x = 1\n")
@@ -256,7 +266,7 @@ class StagedQueueTest(MovedHeadCase):
         for name, stuck in cases:
             with self.subTest(name):
                 gh, _ = stuck()
-                gh.run("--pr", "5", "submit", "changes", "S.", check=False)
+                gh.run("--pr", "5", "submit", "pass", "S.", check=False)
                 gh.run("--pr", "5", "discard")
                 gh.set_answer("POST /reviews", json.dumps({"html_url": "https://github.com/o/r/pull/5"}))
                 gh.run("--pr", "5", "comment", "app.py:10", "Fresh look.")
