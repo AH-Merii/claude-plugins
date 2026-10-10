@@ -27,8 +27,15 @@ BLOCKED = {
     "rebase": "`but pull` (onto the target), `but move` / `but squash` / `but reword` (history edits)",
     "stash": '`but commit -b <branch> -m "wip" <ids>`, then `but uncommit` it later',
     "cherry-pick": "`but pick`",
+    "branch": "`but branch new <name>` to create, `but branch delete <branch>` to delete, "
+              "`but reword <branch> -m <new-name>` to rename, `but move` to restack",
 }
-READ_ONLY_STASH = {"list", "show"}
+
+BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
+                "-u", "--set-upstream-to", "--unset-upstream", "--edit-description", "-t", "--track",
+                "--no-track", "--create-reflog", "--recurse-submodules"}
+BRANCH_LIST = {"-l", "--list", "-a", "--all", "-r", "--remotes", "--show-current", "-v", "--verbose",
+               "--contains", "--no-contains", "--merged", "--no-merged", "--points-at"}
 
 SEPARATORS = {";", "&", "&&", "|", "||", "|&", "(", ")", "\n"}
 WRAPPERS = {"sudo", "env", "command", "builtin", "exec", "nohup", "time", "nice"}
@@ -85,6 +92,47 @@ def parse_git(args, cwd):
     return None, [], repo
 
 
+def parse_opts(args, takes_value=""):
+    """Split a subcommand's args into (flags, operands).
+
+    Short flags are split (`-dr` -> `-d`, `-r`) and `--opt=value` counts as `--opt`.
+    Options named in `takes_value` (space-separated) skip their value.
+    """
+    takes_value = set(takes_value.split())
+    flags, operands = set(), []
+    args = iter(args)
+    for arg in args:
+        if arg == "--":
+            operands.extend(args)
+        elif arg.startswith("--"):
+            name = arg.split("=", 1)[0]
+            flags.add(name)
+            if name in takes_value and "=" not in arg:
+                next(args, None)
+        elif arg.startswith("-") and len(arg) > 1:
+            for j, ch in enumerate(arg[1:], 2):
+                flags.add("-" + ch)
+                if "-" + ch in takes_value:
+                    if j == len(arg):
+                        next(args, None)
+                    break
+        else:
+            operands.append(arg)
+    return flags, operands
+
+
+def branch_read_only(args):
+    flags, operands = parse_opts(args, "-u --set-upstream-to --sort --format --points-at")
+    return not flags & BRANCH_WRITE and (bool(flags & BRANCH_LIST) or not operands)
+
+
+# git subcommand -> test for the read-only forms of a blocked command
+READ_ONLY = {
+    "stash": lambda args: bool(args) and args[0] in {"list", "show"},
+    "branch": branch_read_only,
+}
+
+
 def in_workspace(path, cache):
     if path not in cache:
         try:
@@ -114,7 +162,7 @@ def find_violation(command, cwd):
         sub, rest, repo = parse_git(seg[1:], cwd)
         if sub not in BLOCKED:
             continue
-        if sub == "stash" and rest and rest[0] in READ_ONLY_STASH:
+        if sub in READ_ONLY and READ_ONLY[sub](rest):
             continue
         if in_workspace(repo, cache):
             return sub, BLOCKED[sub]

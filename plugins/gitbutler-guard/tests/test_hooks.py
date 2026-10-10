@@ -48,6 +48,32 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
+    def advice(self, command):
+        return git_guard.find_violation(command, self.workspace)[1]
+
+    def test_blocks_branch_writes(self):
+        for cmd in ["git branch x", "git branch x HEAD~1", "git branch -d x", "git branch -D x",
+                    "git branch --delete x", "git branch -dr origin/x", "git branch -m x y",
+                    "git branch -M y", "git branch --move x y", "git branch -c x y",
+                    "git branch -f x HEAD~1", "git branch --force x", "git branch -u origin/x",
+                    "git branch --set-upstream-to=origin/x", "git branch --unset-upstream",
+                    "git branch --edit-description", "git branch -v --delete x",
+                    f"cd {self.plain} && env GIT_TRACE=0 git -C {self.workspace} branch -D x"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.blocked(cmd), "branch")
+        self.assertIn("but branch new", self.advice("git branch x"))
+        self.assertIn("but branch delete", self.advice("git branch -D x"))
+        self.assertIn("but reword", self.advice("git branch -m x y"))
+
+    def test_allows_branch_listing(self):
+        for cmd in ["git branch", "git branch -a", "git branch -r", "git branch -vv",
+                    "git branch --show-current", "git branch --list x", "git branch -l 'feat/*'",
+                    "git branch --contains", "git branch --contains abc", "git branch --no-merged main",
+                    "git branch --points-at HEAD", "git branch --sort -committerdate",
+                    "git branch --format '%(refname)'", "git -c color.ui=never branch -a"]:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(self.blocked(cmd))
+
     def test_finds_git_inside_compound_commands(self):
         self.assertEqual(self.blocked("ls && git add f"), "add")
         self.assertEqual(self.blocked("echo hi; git commit -m x"), "commit")
