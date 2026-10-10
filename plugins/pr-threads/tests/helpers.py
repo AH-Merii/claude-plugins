@@ -80,7 +80,8 @@ FAKE_GH = textwrap.dedent('''\
     Routes: "pr view <n>", "repo view", "<METHOD> <endpoint part>" for REST, and
     "graphql <field>" for GraphQL. Known review mutations are answered with their real
     shape, so a reply or resolve never gets a thread listing back. GraphQL that GitHub
-    would reject (conflicting response names, a thread under the wrong input key) fails. A key whose endpoint
+    would reject (conflicting response names, a thread under the wrong input key) fails,
+    and so does a canned GraphQL answer holding a field the query doesn't select. A key whose endpoint
     part ends in "$" only matches that exact endpoint.
 
     Like real gh it expands {owner}/{repo} in api endpoints, builds nested payloads from
@@ -380,6 +381,25 @@ FAKE_GH = textwrap.dedent('''\
             return route.rstrip("/").endswith(part[:-1])
         return part in route
 
+    def unselected(answer, query):
+        """Keys of a canned GraphQL answer that the query never selects.
+
+        GitHub only returns what a query asks for, so a test can only rely on a fixture
+        key (isOutdated, originalStartLine, oid, pageInfo, ...) the query names.
+        """
+        missing = set()
+        def walk(node):
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    if not re.search(r"\\b" + re.escape(k) + r"\\b", query):
+                        missing.add(k)
+                    walk(v)
+            elif isinstance(node, list):
+                for v in node:
+                    walk(v)
+        walk(answer.get("data"))
+        return sorted(missing)
+
     def answer_with(stdout, code):
         path = option(args, "--jq", "-q")
         if path is not None and code == 0 and stdout:
@@ -394,7 +414,12 @@ FAKE_GH = textwrap.dedent('''\
                             and rest_match(key)) \\
                 or (key.startswith("graphql ") and record["endpoint"] == "graphql"
                     and re.search(r"\\b" + re.escape(key[8:]) + r"\\b", (body or {}).get("query", ""))):
-            answer_with(answer.get("stdout", ""), answer.get("exit", 0))
+            stdout, code = answer.get("stdout", ""), answer.get("exit", 0)
+            if record["endpoint"] == "graphql" and code == 0 and stdout:
+                missing = unselected(json.loads(stdout), query)
+                if missing:
+                    fail("the query never selects " + ", ".join(missing))
+            answer_with(stdout, code)
     if record["endpoint"] == "graphql":
         data = {}
         for alias, field, tid in picked:
