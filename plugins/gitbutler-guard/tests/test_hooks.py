@@ -126,6 +126,15 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
+    def test_blocks_update_ref(self):
+        for cmd in ["git update-ref refs/heads/x HEAD", "git update-ref -d refs/heads/x",
+                    "git update-ref --stdin", "git update-ref -m msg HEAD abc"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.blocked(cmd), "update-ref")
+        self.assertEqual(self.blocked(f"exec git -C {self.workspace} update-ref HEAD abc",
+                                      cwd=self.plain), "update-ref")
+        self.assertIn("no update-ref command", self.advice("git update-ref HEAD abc"))
+
     def test_finds_git_inside_compound_commands(self):
         self.assertEqual(self.blocked("ls && git add f"), "add")
         self.assertEqual(self.blocked("echo hi; git commit -m x"), "commit")

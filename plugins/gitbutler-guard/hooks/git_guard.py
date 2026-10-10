@@ -39,6 +39,9 @@ UNSUPPORTED = {
           "Delete with plain `rm <path>`; `but commit` picks up the deletion.",
     "mv": "`but` has no mv command, and GitButler doesn't use the index `git mv` stages into. "
           "Rename with plain `mv <old> <new>`; `but commit` picks up the rename.",
+    "update-ref": "`but` has no update-ref command, and moving refs behind GitButler's back "
+                  "desyncs the workspace from its branch metadata. Change history with `but move`, "
+                  "`but uncommit` or `but undo`.",
 }
 
 BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
