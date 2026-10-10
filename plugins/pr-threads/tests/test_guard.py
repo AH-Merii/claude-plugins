@@ -177,6 +177,110 @@ class DataIsNotCommandsTest(unittest.TestCase):
                 self.assertIsNotNone(find_violation(command))
 
 
+class CommentsTest(unittest.TestCase):
+    """#14: a `#` comment ends at the newline, and the next line is a command of its own.
+
+    As in the shell, `#` starts a comment only at the start of a word and outside quotes, and
+    the comment's own text is never a command. A word starts after whitespace and right after
+    an operator: `bash -c 'echo a;# c; echo HIT'` prints only `a`. Any run of separators
+    (`;`, `&&`, `|`, newlines, parentheses) splits commands, wherever a line ends.
+    """
+
+    # one write of each kind the guard denies; comments are handled once, in tokenize
+    WRITES = [
+        "gh pr comment 5 --body 'looks wrong'",
+        "gh api -X POST repos/o/r/pulls/5/reviews --input review.json",
+        "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"T1\"}) { thread { id } } }'",
+        # shlex can't split this, so the rough line-by-line check sees it
+        "gh pr comment 5 --body 'unterminated",
+    ]
+
+    # a line ending in a comment, before the write on the next line
+    COMMENTED = [
+        "git push  # publish first",
+        "cd repo # go there",
+        "git fetch origin #sync",
+        "git commit -qm wip # don't forget",
+        "cd repo # go there\ngit status # check",
+    ]
+
+    def test_command_after_a_commented_line_is_checked(self):
+        for line in self.COMMENTED:
+            for command in self.WRITES:
+                with self.subTest(line=line, command=command):
+                    self.assertIsNotNone(find_violation(line + "\n" + command))
+
+    def test_hash_inside_a_word_is_not_a_comment(self):
+        for command in [
+            "git checkout fix#12 && gh pr comment 12 -b done",
+            "echo issue#5; gh pr review 5 --approve",
+            "git log --grep=issue#5 | head; gh api repos/o/r/issues/5/comments -f body=x",
+            # a length in bash, not a comment
+            "echo ${#files[@]}; gh pr comment 5 -b x",
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNotNone(find_violation(command))
+
+    def test_separators_ending_a_line_split_commands(self):
+        for command in [
+            "git push &&\ngh pr comment 5 -b x",
+            "git push;\ngh pr comment 5 -b x",
+            "git push |\ngh pr comment 5 -b x",
+            "git push\n\ngh pr comment 5 -b x",
+            "git push\n\n\ngh pr comment 5 -b x",
+            "(cd x);gh pr comment 5 -b x",
+            "(cd x)\ngh pr comment 5 -b x",
+            "cd repo;# go there\ngh pr comment 5 -b x",
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNotNone(find_violation(command))
+
+    # regression guards: the guard already gets these right
+
+    def test_hash_right_after_an_operator_starts_a_comment(self):
+        """Wrong fixes that start a comment only after whitespace fail these."""
+        self.assertIsNotNone(find_violation("cd repo;# don't\ngh pr comment 5 -b x  # it's done"))
+        for command in ["git push;# done; gh pr comment 5 -b x",
+                        "git push&&# then; gh pr review 5 --approve"]:
+            with self.subTest(command=command):
+                self.assertIsNone(find_violation(command))
+
+    def test_hash_in_quotes_is_not_a_comment(self):
+        for command in [
+            "echo 'a # b'; gh pr comment 5 -b x",
+            "gh pr comment 5 --body \"fixes #5\"",
+            "git commit -m 'see #5' && gh pr review 5 --approve",
+            # the write's body spans lines, so a wrongly stripped `#` can't fall back to the rough check
+            "git commit -m 'refs #5' && gh pr comment 5 --body 'Fixed.\nThanks'",
+            "git commit -m \"refs #5\" && gh pr comment 5 --body \"Fixed.\nThanks\"",
+            # a quote in heredoc data opens nothing for the command lines after it
+            "cat > body.md <<'EOF'\nIt's fixed: the cache is warmed first.\nEOF\n"
+            "git commit -qam 'Fix #12' && gh pr comment 5 --body-file body.md",
+            "cat > notes.md <<EOF\nUse a 6\" pipe\nEOF\ngit commit -m \"refs #5\" && gh pr review 5 --approve",
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNotNone(find_violation(command))
+
+    def test_text_inside_a_comment_is_not_checked(self):
+        for command in [
+            "echo hi # gh pr comment 1",
+            "# gh pr review 5 --approve",
+            "git push # then gh api -X POST repos/o/r/issues/15/comments -f body=x",
+            "cd repo # don't gh pr comment 5 -b x",
+            "git push # done; gh pr comment 5 -b x",
+            "git push\n# done; gh pr comment 5 -b x",
+            "git push # publish first\ngh pr view 5 --comments",
+        ]:
+            with self.subTest(command=command):
+                self.assertIsNone(find_violation(command))
+
+    def test_write_after_a_comment_only_line_is_denied(self):
+        for command in ["# publish first\ngh pr comment 5 -b x",
+                        "cd repo; # go there\ngh pr comment 5 -b x"]:
+            with self.subTest(command=command):
+                self.assertIsNotNone(find_violation(command))
+
+
 class HookProcessTest(unittest.TestCase):
     def run_hook(self, stdin):
         return subprocess.run([sys.executable, os.path.join(HOOKS, "pr_guard.py")],
