@@ -65,12 +65,14 @@ class PostTest(unittest.TestCase):
         gh.fail_uploads()
         out = gh.run("post", "7", "See image.", "--attach", "after.png", check=False)
         self.assertNotEqual(out.returncode, 0)
+        self.assertEqual(len(gh.upload_calls()), 1, "the upload was tried, and its failure stopped the post")
         self.assertEqual(self.posts(gh), [])
 
     def test_a_rejected_post_is_reported_as_a_failure(self):
         gh = self.fake({"repo view": pr_table(self.repo)["repo view"]})
         gh.set_answer("POST /comments", exit=1)
         out = gh.run("post", "7", "Will be refused.", check=False)
+        self.assertEqual(len(self.posts(gh)), 1, "the post was sent, and GitHub refused it")
         self.assertNotEqual(out.returncode, 0)
 
 

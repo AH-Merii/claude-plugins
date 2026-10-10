@@ -94,9 +94,15 @@ class SubmitTest(unittest.TestCase):
 
     def test_comment_on_a_locally_edited_file_is_refused(self):
         gh = self.gh()
-        self.repo.write("app.py", "inserted\n" + self.repo.read("app.py"))
+        pushed = self.repo.read("app.py")
+        self.repo.write("app.py", "inserted\n" + pushed)
         out = gh.run("--pr", "5", "comment", "app.py:10", "Hmm.", check=False)
         self.assertNotEqual(out.returncode, 0)
+        self.assertIn("app.py", out.stderr)
+        self.assertRegex(out.stderr.lower(), r"uncommitted|modified|local", "the refusal says why")
+        self.repo.write("app.py", pushed)
+        gh.run("--pr", "5", "submit", "pass", "Nothing staged.")
+        self.assertEqual(gh.review_posts()[-1].get("comments", []), [], "the refused comment was not staged")
 
 
 if __name__ == "__main__":
