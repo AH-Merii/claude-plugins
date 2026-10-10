@@ -150,6 +150,32 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
+    def test_blocks_config_writes(self):
+        for cmd in ["git config user.name x", "git config --global user.email a@b",
+                    "git config set user.name x", "git config unset user.name", "git config edit",
+                    "git config rename-section a b", "git config remove-section a",
+                    "git config --unset user.name", "git config --unset-all x.y",
+                    "git config --add x.y z", "git config --replace-all x.y z",
+                    "git config --rename-section a b", "git config --remove-section a",
+                    "git config -e", "git config --global --edit",
+                    "git config --file .gitmodules submodule.x.url u",
+                    "git config --type bool core.x true",
+                    f"cd {self.plain} && nohup git -C {self.workspace} config core.hooksPath x"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.blocked(cmd), "config")
+        self.assertIn("but config user set", self.advice("git config user.name x"))
+
+    def test_allows_config_reads(self):
+        for cmd in ["git config", "git config --get user.name", "git config --get-all x.y",
+                    "git config --get-regexp '^user'", "git config --list", "git config -l",
+                    "git config --global --list --show-origin", "git config get user.name",
+                    "git config get --all x.y", "git config list", "git config user.name",
+                    "git config --global user.name", "git config --file .gitmodules submodule.x.url",
+                    "git config --type bool core.bare", "git config --default x --get core.foo",
+                    "git -c core.x=y config --get core.x"]:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(self.blocked(cmd))
+
     def test_finds_git_inside_compound_commands(self):
         self.assertEqual(self.blocked("ls && git add f"), "add")
         self.assertEqual(self.blocked("echo hi; git commit -m x"), "commit")

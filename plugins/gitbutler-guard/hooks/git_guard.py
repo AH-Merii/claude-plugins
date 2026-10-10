@@ -31,7 +31,7 @@ BLOCKED = {
               "`but reword <branch> -m <new-name>` to rename, `but move` to restack",
     "clean": "`but discard <id>` on the untracked files (not `but clean`, which removes empty branches)",
 }
-# git subcommand -> why it's blocked and what to do, for writes `but` has no command for
+# git subcommand -> why it's blocked and what to do, where `but` has no direct equivalent
 UNSUPPORTED = {
     "tag": "`but` has no tag command, and a tag on a workspace commit goes stale once GitButler "
            "rewrites it (amend, squash, move, pull). Ask the user to tag released commits.",
@@ -45,6 +45,9 @@ UNSUPPORTED = {
     "notes": "`but` has no notes command, and notes hang off commit hashes that GitButler rewrites "
              "(amend, squash, move, pull), so they'd be orphaned. Put the context in the commit "
              "message with `but reword`.",
+    "config": "Use `but config` for user, target, forge and push-remote settings (e.g. "
+              "`but config user set name \"<name>\"`). Other git config is shared with GitButler "
+              "and every agent in this repo, so ask the user before changing it.",
 }
 
 BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
@@ -52,6 +55,11 @@ BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--cop
                 "--no-track", "--create-reflog", "--recurse-submodules"}
 BRANCH_LIST = {"-l", "--list", "-a", "--all", "-r", "--remotes", "--show-current", "-v", "--verbose",
                "--contains", "--no-contains", "--merged", "--no-merged", "--points-at"}
+CONFIG_SUBCOMMANDS = {"get", "list", "set", "unset", "rename-section", "remove-section", "edit"}
+CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color",
+               "--get-colorbool", "-l", "--list"}
+CONFIG_WRITE = {"--add", "--replace-all", "--unset", "--unset-all", "--rename-section",
+                "--remove-section", "-e", "--edit"}
 READ_ONLY_NOTES = {"list", "show", "get-ref"}
 DRY_RUN = {"-n", "--dry-run"}
 TAG_WRITE = {"-a", "--annotate", "-s", "--sign", "-u", "--local-user", "-f", "--force", "-d",
@@ -164,6 +172,17 @@ def notes_read_only(args):
     return not operands or operands[0] in READ_ONLY_NOTES
 
 
+def config_read_only(args):
+    flags, operands = parse_opts(args, "-f --file --blob --type --default --comment --value --url")
+    if flags & CONFIG_WRITE:
+        return False
+    if flags & CONFIG_READ:
+        return True
+    if operands and operands[0] in CONFIG_SUBCOMMANDS:
+        return operands[0] in {"get", "list"}
+    return len(operands) < 2  # `git config <name>` reads, `git config <name> <value>` writes
+
+
 # git subcommand -> test for the read-only forms of a blocked command
 READ_ONLY = {
     "stash": lambda args: bool(args) and args[0] in {"list", "show"},
@@ -172,6 +191,7 @@ READ_ONLY = {
     "rm": dry_run,
     "mv": dry_run,
     "notes": notes_read_only,
+    "config": config_read_only,
     "clean": lambda args: dry_run(args, "-e --exclude"),
 }
 
