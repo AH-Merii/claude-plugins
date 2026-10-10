@@ -22,7 +22,10 @@ class NoPrForBranchTest(unittest.TestCase):
         ("threads",),
         ("accept", "T1"),
         ("status",),
+        ("discard",),
     ]
+    # advice to pass it, not just the option's name (argparse's usage line has "[--pr PR]")
+    ADVICE = r"(?i)\b(pass|use|give|add|with)\b[^.\n]*--pr\b"
 
     def setUp(self):
         self.repo = Repo()
@@ -41,7 +44,7 @@ class NoPrForBranchTest(unittest.TestCase):
                     before = self.repo.read("app.py")
                     out = gh.run(*args, check=False, input_text="x = 1\n")
                     self.assertNotEqual(out.returncode, 0)
-                    self.assertRegex(out.stderr, r"--pr\b", "the refusal says to pass --pr N")
+                    self.assertRegex(out.stderr, self.ADVICE, "the refusal says to pass --pr N")
                     self.assertEqual([c["route"] for c in gh.calls() if c["method"] == "POST"], [],
                                      "nothing was posted or queried")
                     self.assertEqual(gh.upload_calls(), [], "nothing was uploaded")
