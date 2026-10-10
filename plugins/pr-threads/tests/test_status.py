@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from helpers import BOT, FakeGh, Repo, pages, pr_table, thread
+from helpers import BOT, FakeGh, Repo, pages, pr_table, resolved_response, thread
 from helpers import threads_response as response
 
 from pr_threads.review import review_body
@@ -162,16 +162,17 @@ class StatusCliTest(unittest.TestCase):
         self.gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
         self.addCleanup(self.gh.cleanup)
 
-    def status(self, reviews, *threads):
+    def status(self, reviews, *resolved):
+        """Run status on `reviews` and threads whose isResolved are `resolved`."""
         self.gh.set_answer("GET /reviews", pages=pages(reviews))
-        self.gh.set_answer("graphql reviewThreads", json.dumps(response(*threads)))
+        self.gh.set_answer("graphql reviewThreads", json.dumps(resolved_response(*resolved)))
         return self.gh.run("--pr", "5", "status").stdout.lower()
 
     def test_reports_the_latest_verdict_from_the_pr(self):
         out = self.status([review("pass", "2026-10-10T10:00:00Z", state="APPROVED"),
                            {"state": "CHANGES_REQUESTED", "body": "Rename first.",
                             "submitted_at": "2026-10-10T11:00:00Z"}],
-                          thread("T1", resolved=True))
+                          True)
         self.assertIn("changes", out)
         self.assertNotRegex(out, r"\bpass\b")
 
@@ -188,7 +189,7 @@ class StatusCliTest(unittest.TestCase):
 
     def test_reports_how_many_threads_are_still_open(self):
         out = self.status([{"state": "APPROVED", "body": "", "submitted_at": "2026-10-10T10:00:00Z"}],
-                          thread("T1"), thread("T2"), thread("T3", resolved=True))
+                          False, False, True)
         self.assertIn("approved", out)
         self.assertRegex(out, r"\b2\b")
         got = json.loads(self.gh.run("--pr", "5", "status", "--json").stdout)

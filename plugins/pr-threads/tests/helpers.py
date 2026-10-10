@@ -222,6 +222,15 @@ def threads_response(*threads):
         "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": list(threads)}}}}}
 
 
+def resolved_response(*resolved):
+    """A reviewThreads response with only what `status` needs: isResolved per thread.
+
+    The fake gh fails a canned answer holding a field the query never selects, so a
+    full thread() fixture would force status to select every thread field.
+    """
+    return threads_response(*({"isResolved": r} for r in resolved))
+
+
 def pr_table(repo, number=5):
     """Answers for the lookups every CLI run makes about PR `number`."""
     meta = {"number": number, "baseRefOid": repo.base, "headRefOid": repo.head,
