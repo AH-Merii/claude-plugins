@@ -5,6 +5,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+from unittest import mock
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PLUGIN)
@@ -12,6 +13,16 @@ sys.path.insert(0, PLUGIN)
 GIT_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+
+def isolate_git(test):
+    """Give in-process code under test the same git config CI has: none of the developer's."""
+    home = tempfile.TemporaryDirectory()
+    test.addCleanup(home.cleanup)
+    patcher = mock.patch.dict(os.environ, {**GIT_ENV, "HOME": home.name,
+                                           "XDG_CONFIG_HOME": os.path.join(home.name, ".config")})
+    patcher.start()
+    test.addCleanup(patcher.stop)
 
 
 def git(repo, *args):

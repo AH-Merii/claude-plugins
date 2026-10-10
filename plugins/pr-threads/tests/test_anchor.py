@@ -1,13 +1,14 @@
 """#7: local path:line is pinned to a line GitHub accepts in the PR diff, or refused up front."""
 import unittest
 
-from helpers import Repo, git
+from helpers import Repo, git, isolate_git
 
 from pr_threads.anchor import LocalDiffers, NotInDiff, NotPushed, anchor, check_synced
 
 
 class AnchorTest(unittest.TestCase):
     def setUp(self):
+        isolate_git(self)
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
 
@@ -67,6 +68,7 @@ class AnchorTest(unittest.TestCase):
 
 class SyncTest(unittest.TestCase):
     def setUp(self):
+        isolate_git(self)
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
 

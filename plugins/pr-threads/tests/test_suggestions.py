@@ -1,7 +1,9 @@
 """#9 writes suggested changes; #8 accepts them into the local file."""
+import json
 import unittest
 
-from helpers import Repo, git
+from helpers import FakeGh, Repo, git, isolate_git, pr_table, thread
+from helpers import threads_response as response
 
 from pr_threads.suggestions import StaleSuggestion, accept, parse_suggestion, suggestion_body
 
@@ -32,6 +34,7 @@ class RoundTripTest(unittest.TestCase):
 
 class AcceptTest(unittest.TestCase):
     def setUp(self):
+        isolate_git(self)
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
 
@@ -72,6 +75,7 @@ class OutdatedAcceptTest(unittest.TestCase):
     """An outdated thread points at originalLine in the commit it was written on."""
 
     def setUp(self):
+        isolate_git(self)
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
         self.reviewed = self.repo.head
