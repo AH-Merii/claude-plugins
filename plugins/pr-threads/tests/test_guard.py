@@ -1,4 +1,7 @@
-"""Guard hook: PR review and comment writes typed by an agent go through pr-threads instead."""
+"""Guard hook: PR review and comment writes typed by an agent go through pr-threads instead.
+
+Known gap: a GraphQL query read from a file (`-F query=@file`) can't be classified and goes through.
+"""
 import json
 import os
 import subprocess
@@ -22,6 +25,8 @@ DENIED = [
     "gh api repos/o/r/issues/5/comments -F body=@note.md",
     "gh api --method PATCH repos/o/r/pulls/comments/123 -f body=edited",
     "gh api -X DELETE repos/o/r/issues/comments/77",
+    "gh issue comment 5 --body 'see above'",
+    "gh issue comment 12 -F note.md",
     "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"T1\"}) { thread { id } } }'",
     "gh api graphql -f query='mutation { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: \"T1\", body: \"ok\"}) { comment { id } } }'",
     "gh api graphql -f query='mutation($id: ID!) { addPullRequestReview(input: {pullRequestId: $id, event: COMMENT}) { pullRequestReview { id } } }'",
@@ -37,6 +42,8 @@ ALLOWED = [
     "gh pr create --draft --title 'feat: x' --body 'y'",
     "gh pr edit 5 --body 'new description'",
     "gh issue create --title 'feat(x): y' --body 'z'",
+    "gh issue view 5 --comments",
+    "gh issue list --state open",
     "but pr new my-branch -m 'feat: x'",
     "python3 -m pr_threads --pr 5 comment app.py:10 'why?'",
     "pr-threads --pr 5 resolve T1 T2",
@@ -72,6 +79,8 @@ class FindViolationTest(unittest.TestCase):
             ("gh pr review 5 --approve", "submit"),
             ("gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"T\"}) { thread { id } } }'", "resolve"),
             ("gh api graphql -f query='mutation { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: \"T\", body: \"x\"}) { comment { id } } }'", "reply"),
+            ("gh issue comment 5 --body x", "post"),
+            ("gh api repos/o/r/issues/5/comments -f body=x", "post"),
         ]:
             with self.subTest(command=command):
                 self.assertIn("pr-threads", find_violation(command))
