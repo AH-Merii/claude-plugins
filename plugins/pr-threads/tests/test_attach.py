@@ -3,7 +3,7 @@ import json
 import os
 import unittest
 
-from helpers import FakeGh, Repo, pr_table
+from helpers import FakeGh, Repo, pr_table, write_png
 
 from pr_threads.suggestions import parse_suggestion
 
@@ -14,9 +14,7 @@ class AttachTest(unittest.TestCase):
         self.addCleanup(self.repo.cleanup)
         self.gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
         self.addCleanup(self.gh.cleanup)
-        for name in ("before.png", "after.png"):
-            with open(os.path.join(self.repo.path, name), "wb") as f:
-                f.write(b"\x89PNG\r\n\x1a\n")
+        write_png(self.repo.path, "before.png", "after.png")
 
     def submitted_comments(self):
         return self.gh.review_posts()[-1].get("comments", [])

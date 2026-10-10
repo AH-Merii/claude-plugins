@@ -11,10 +11,9 @@ import tempfile
 import time
 import unittest
 
-from helpers import GIT_REPO_VARS, PLUGIN, numbered
+from helpers import BOT, GIT_REPO_VARS, PLUGIN, numbered
 
 REPO = os.environ.get("PR_THREADS_LIVE_REPO", "AH-Merii/test")
-BOT = "ah-merii-claude-reviewer[bot]"
 
 
 def sh(*args, cwd=None, input_text=None, env=None):

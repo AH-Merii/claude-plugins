@@ -3,7 +3,7 @@ import json
 import os
 import unittest
 
-from helpers import FakeGh, Repo, pr_table
+from helpers import FakeGh, Repo, pr_table, write_png
 
 POSTED = {"stdout": json.dumps({"html_url": "https://github.com/o/r/issues/7#issuecomment-1"})}
 
@@ -46,9 +46,7 @@ class PostTest(unittest.TestCase):
 
     def test_attachments_are_uploaded_as_the_user_and_kept_in_order(self):
         gh = self.fake({"repo view": pr_table(self.repo)["repo view"]})
-        for name in ("before.png", "after.png"):
-            with open(os.path.join(self.repo.path, name), "wb") as f:
-                f.write(b"\x89PNG\r\n\x1a\n")
+        write_png(self.repo.path, "before.png", "after.png")
         gh.run("post", "7", "Repro below.", "--attach", "before.png", "--attach", "after.png#fixed")
         uploads = gh.upload_calls()
         self.assertEqual([os.path.basename(u["file"]) for u in uploads], ["before.png", "after.png"])
@@ -60,8 +58,7 @@ class PostTest(unittest.TestCase):
 
     def test_failed_upload_posts_nothing(self):
         gh = self.fake({"repo view": pr_table(self.repo)["repo view"]})
-        with open(os.path.join(self.repo.path, "after.png"), "wb") as f:
-            f.write(b"\x89PNG\r\n\x1a\n")
+        write_png(self.repo.path, "after.png")
         gh.fail_uploads()
         out = gh.run("post", "7", "See image.", "--attach", "after.png", check=False)
         self.assertNotEqual(out.returncode, 0)

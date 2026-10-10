@@ -2,14 +2,11 @@
 import json
 import unittest
 
-from helpers import FakeGh, Repo, pages, pr_table, thread
+from helpers import BOT, FakeGh, Repo, pages, pr_table, thread
 from helpers import threads_response as response
 
 from pr_threads.review import review_body
 from pr_threads.status import handoff
-
-
-BOT = "ah-merii-claude-reviewer[bot]"
 
 
 def review(verdict, at, state="COMMENTED"):

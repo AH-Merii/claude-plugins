@@ -90,6 +90,9 @@ class Repo:
 FAKE_GH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fake_gh.py")
 
 
+# the reviewer bot's login, as GitHub shows it on its reviews
+BOT = "ah-merii-claude-reviewer[bot]"
+
 INSTALL_URL = "https://github.com/apps/reviewer/installations/new"
 
 
@@ -182,6 +185,13 @@ class FakeGh:
 
     def fail_uploads(self):
         open(self.uploads + ".fail", "w").close()
+
+
+def write_png(directory, *names):
+    """Write each of `names` into `directory` as a file that starts like a PNG."""
+    for name in names:
+        with open(os.path.join(directory, name), "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n")
 
 
 def pages(items, size=30):
