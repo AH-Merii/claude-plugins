@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- shoop v1: paper boat folded from a PR diff -->
+  <defs>
+    <clipPath id="sail"><path d="M64 16 L92 74 H36 Z"/></clipPath>
+    <clipPath id="hull"><path d="M10 74 H118 L98 104 H30 Z"/></clipPath>
+  </defs>
+  <g stroke="#2b2b3a" stroke-width="4" stroke-linejoin="round" stroke-linecap="round">
+    <!-- sail: added lines -->
+    <path d="M64 16 L92 74 H36 Z" fill="#fafaf7"/>
+    <g clip-path="url(#sail)" stroke="none" fill="#2ea043">
+      <rect x="30" y="38" width="70" height="6"/>
+      <rect x="30" y="50" width="70" height="6"/>
+      <rect x="30" y="62" width="70" height="6"/>
+    </g>
+    <path d="M64 16 V74" fill="none" stroke-width="2"/>
+    <path d="M64 16 L92 74 H36 Z" fill="none"/>
+    <!-- hull: removed lines -->
+    <path d="M10 74 H118 L98 104 H30 Z" fill="#fafaf7"/>
+    <g clip-path="url(#hull)" stroke="none" fill="#e5534b">
+      <rect x="0" y="82" width="128" height="6"/>
+      <rect x="0" y="93" width="128" height="6"/>
+    </g>
+    <path d="M10 74 H118 L98 104 H30 Z" fill="none"/>
+    <!-- water -->
+    <path d="M8 116 q10 -6 20 0 t20 0 t20 0 t20 0 t20 0 t20 0" fill="none" stroke-width="3"/>
+  </g>
+</svg>

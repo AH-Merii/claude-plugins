@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- shoop v3: a paper boat folded from a PR diff, with a loop in its wake -->
+  <circle cx="64" cy="64" r="62" fill="#2f5bd3"/>
+  <!-- wake: a wave that loops back on itself -->
+  <path d="M22 104 q4 -3 8 0 C36 108 50 108 50 114 A6 6 0 1 1 42 108 C48 102 54 102 60 104 q8 5 16 0 t16 0 t12 0" fill="none" stroke="#fafaf7" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <g transform="translate(0 -5) rotate(-6 64 70)" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <!-- sail: the + side of the diff, folded down the middle -->
+    <path d="M64 16 L101 74 H27 Z" fill="#fafaf7"/>
+    <path d="M64 16 V72" stroke="#2f5bd3" stroke-width="2"/>
+    <g stroke="#2ea043" stroke-width="6">
+      <path d="M50 40 v10 M45 45 h10 M61 45 H78"/>
+      <path d="M41 56 v10 M36 61 h10 M52 61 H88"/>
+    </g>
+    <!-- hull: the − side of the diff, with a face at the bow -->
+    <path d="M10 64 L30 72 H98 L118 64 L100 98 H28 Z" fill="#fafaf7"/>
+    <g stroke="#e5534b" stroke-width="6">
+      <path d="M24 84 h10 M41 84 H70"/>
+    </g>
+    <g fill="#2f5bd3">
+      <circle cx="84" cy="82" r="3.5"/>
+      <circle cx="98" cy="82" r="3.5"/>
+    </g>
+    <path d="M86 89 q5 4 10 0" stroke="#2f5bd3" stroke-width="2.5"/>
+  </g>
+</svg>

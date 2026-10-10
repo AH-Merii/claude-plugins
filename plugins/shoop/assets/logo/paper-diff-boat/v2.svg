@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <!-- shoop v2: paper boat folded from a PR diff, on a sea badge -->
+  <circle cx="64" cy="64" r="62" fill="#3d6df2"/>
+  <path d="M22 110 q7 -5 14 0 t14 0 t14 0 t14 0 t14 0 t14 0" fill="none" stroke="#fafaf7" stroke-width="4" stroke-linecap="round"/>
+  <g transform="rotate(-6 64 74)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- sail: the + side of the diff -->
+    <path d="M64 12 L100 74 H28 Z" fill="#fafaf7"/>
+    <g stroke="#2ea043" stroke-width="5" fill="none">
+      <path d="M55 35 v6 M52 38 h6 M62 38 H74"/>
+      <path d="M48 47 v6 M45 50 h6 M55 50 H79"/>
+      <path d="M41 59 v6 M38 62 h6 M48 62 H86"/>
+    </g>
+    <path d="M64 12 V74" stroke="#3d6df2" stroke-width="2"/>
+    <!-- hull: the − side of the diff -->
+    <path d="M8 66 L30 74 H98 L120 66 L100 100 H28 Z" fill="#fafaf7"/>
+    <g stroke="#e5534b" stroke-width="5" fill="none">
+      <path d="M26 84 h6 M39 84 H96"/>
+      <path d="M31 93 h6 M44 93 H80"/>
+    </g>
+    <path d="M30 74 L64 98 L98 74" fill="none" stroke="#3d6df2" stroke-width="2"/>
+  </g>
+</svg>
