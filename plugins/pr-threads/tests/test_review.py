@@ -4,6 +4,8 @@ import unittest
 
 from helpers import INSTALL_URL, FakeGh, Repo, git, pr_table
 
+from pr_threads.suggestions import parse_suggestion
+
 
 class SubmitTest(unittest.TestCase):
     def setUp(self):
@@ -142,6 +144,55 @@ class SubmitTest(unittest.TestCase):
         self.repo.write("app.py", pushed)
         gh.run("--pr", "5", "submit", "pass", "Nothing staged.")
         self.assertEqual(gh.review_posts()[-1].get("comments", []), [], "the refused comment was not staged")
+
+
+class SuggestInputTest(unittest.TestCase):
+    """suggest never posts a deletion by accident.
+
+    An empty or blank replacement, from stdin or from --replacement, is refused unless
+    --delete asks for the deletion. A bare `suggest a.py:3 "new code"` from a tool whose
+    stdin is empty is the accident this prevents.
+    """
+
+    BLANK = ["", " \n", "\n\n", "\t\n"]
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+
+    def gh(self):
+        gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
+        self.addCleanup(gh.cleanup)
+        return gh
+
+    def submitted(self, gh):
+        gh.run("--pr", "5", "submit", "changes", "S.")
+        return gh.review_posts()[-1].get("comments", [])
+
+    def test_blank_replacement_is_refused_and_nothing_is_staged(self):
+        cases = [("stdin", (), text) for text in self.BLANK] + \
+                [("--replacement", ("--replacement", text), "") for text in ("", "   ", "\n")]
+        for source, extra, stdin in cases:
+            with self.subTest(source=source, replacement=extra[1:] or stdin):
+                gh = self.gh()
+                out = gh.run("--pr", "5", "suggest", "app.py:21-22", "Name these.", *extra,
+                             check=False, input_text=stdin)
+                self.assertNotEqual(out.returncode, 0, f"staged as a deletion: {out.stdout}")
+                self.assertIn("--delete", out.stderr, "the refusal says how to ask for a deletion")
+                self.assertEqual(self.submitted(gh), [], "nothing was staged")
+
+    def test_deletion_is_staged_when_asked_for(self):
+        gh = self.gh()
+        gh.run("--pr", "5", "suggest", "app.py:21-22", "Drop these.", "--delete")
+        (comment,) = self.submitted(gh)
+        self.assertEqual(parse_suggestion(comment["body"]), "")
+        self.assertEqual((comment.get("start_line"), comment["line"]), (21, 22))
+
+    def test_replacement_can_come_from_an_argument(self):
+        gh = self.gh()
+        gh.run("--pr", "5", "suggest", "app.py:21-22", "Name these.", "--replacement", "x = 1")
+        (comment,) = self.submitted(gh)
+        self.assertEqual(parse_suggestion(comment["body"]), "x = 1\n")
 
 
 if __name__ == "__main__":
