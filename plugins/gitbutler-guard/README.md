@@ -4,8 +4,10 @@ Hooks that keep an agent on GitButler's `but` CLI. Two jobs:
 
 - **Block git writes in GitButler workspaces.** A `PreToolUse` hook on Bash denies `git add`,
   `commit`, `push`, `pull`, `checkout`, `switch`, `restore`, `reset`, `merge`, `rebase`,
-  `stash` and `cherry-pick`, and tells the agent which `but` command to run instead.
-  Read-only git (`log`, `show`, `blame`, `diff`, `status`, `stash list`) still works.
+  `stash`, `cherry-pick`, `rm`, `mv`, `clean` and `update-ref`, plus the writing forms of
+  `branch`, `tag`, `notes` and `config`. It tells the agent which `but` command to run
+  instead, or why there isn't one. Read-only git (`log`, `show`, `blame`, `diff`, `status`,
+  `stash list`, listing branches and tags, `notes show`, `config --get`, dry runs) still works.
 - **Keep the GitButler skill current.** At session start, a hook compares the skill in your
   Claude config's `skills/gitbutler/` with `but --version`. If it's missing or a different
   version, it reinstalls it with `but skill install --path`.
