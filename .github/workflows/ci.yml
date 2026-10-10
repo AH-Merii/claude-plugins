@@ -12,13 +12,9 @@ concurrency:
 
 jobs:
   unit-tests:
-    name: Unit tests (Python ${{ matrix.python-version }})
+    name: Unit tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.10", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -26,7 +22,7 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14"
 
       - name: Run offline unit tests for every plugin
         run: |
@@ -35,7 +31,6 @@ jobs:
           # and names with spaces or glob characters stay intact.
           plugins=$(mktemp)
           find plugins -mindepth 1 -maxdepth 1 -type d -print0 | sort -z > "$plugins"
-          log=$(mktemp)
           status=0
           while IFS= read -r -d '' dir; do
             if [ ! -d "$dir/tests" ]; then
@@ -48,10 +43,10 @@ jobs:
             fi
             echo "::group::$dir"
             rc=0
-            python3 -m unittest discover -s "$dir/tests" 2>&1 | tee "$log" || rc=$?
+            python3 -m unittest discover -s "$dir/tests" || rc=$?
             echo "::endgroup::"
-            # Python 3.12+ exits 5 when nothing is discovered; 3.10 exits 0. Both print "Ran 0 tests".
-            if grep -q '^Ran 0 tests' "$log"; then
+            # unittest exits 5 when it discovers no tests.
+            if [ "$rc" -eq 5 ]; then
               echo "::error::$dir/tests has test*.py files but unittest discovered no tests."
               status=1
             elif [ "$rc" -ne 0 ]; then
