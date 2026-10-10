@@ -36,6 +36,8 @@ UNSUPPORTED = {
            "rewrites it (amend, squash, move, pull). Ask the user to tag released commits.",
     "rm": "`but` has no rm command, and GitButler doesn't use the index `git rm` stages into. "
           "Delete with plain `rm <path>`; `but commit` picks up the deletion.",
+    "mv": "`but` has no mv command, and GitButler doesn't use the index `git mv` stages into. "
+          "Rename with plain `mv <old> <new>`; `but commit` picks up the rename.",
 }
 
 BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
@@ -155,6 +157,7 @@ READ_ONLY = {
     "branch": branch_read_only,
     "tag": tag_read_only,
     "rm": dry_run,
+    "mv": dry_run,
 }
 
 

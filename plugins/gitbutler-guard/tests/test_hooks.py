@@ -102,6 +102,18 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
+    def test_blocks_mv(self):
+        for cmd in ["git mv a b", "git mv -f a b", "git mv -k a b dir",
+                    "GIT_DIR=.git command git mv a b"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.blocked(cmd), "mv")
+        self.assertIn("plain `mv <old> <new>`", self.advice("git mv a b"))
+
+    def test_allows_mv_dry_run(self):
+        for cmd in ["git mv -n a b", "git mv --dry-run a b"]:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(self.blocked(cmd))
+
     def test_finds_git_inside_compound_commands(self):
         self.assertEqual(self.blocked("ls && git add f"), "add")
         self.assertEqual(self.blocked("echo hi; git commit -m x"), "commit")
