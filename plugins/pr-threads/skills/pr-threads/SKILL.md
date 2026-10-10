@@ -8,6 +8,9 @@ description: Review a GitHub pull request, or act on a review of one, through th
 `pr-threads [--pr N] <verb> ...` works on the current branch's PR unless `--pr` is given.
 Code is always named by local `path:line` or `path:start-end`, as in your checkout.
 
+In a GitButler workspace the checked-out branch is `gitbutler/workspace`, which has no PR,
+so always pass `--pr N` there.
+
 ## Reviewer
 
 1. Check out the PR branch at its pushed head. Comments are refused while the local
@@ -16,10 +19,12 @@ Code is always named by local `path:line` or `path:start-end`, as in your checko
 2. Stage comments. Nothing is posted yet, and they survive across commands:
    - `pr-threads comment app.py:10 "Why change this?"`
    - `pr-threads suggest app.py:21-22 "Name these."` with the replacement lines on stdin
-     (a heredoc). They replace the whole range; an empty replacement deletes it.
+     (a heredoc) or in `--replacement TEXT`. They replace the whole range; `--delete`
+     suggests deleting it.
 3. `pr-threads submit changes "Summary."` or `pr-threads submit pass "Summary."` posts
    every staged comment as one review from the reviewer bot. If it fails, the staged
-   comments are kept; fix the cause and submit again.
+   comments are kept; fix the cause and submit again. If they went stale (the PR head
+   moved) or GitHub rejects them, `pr-threads discard` drops them.
 4. Next round, after the author pushes: check their replies with `pr-threads threads`, then
    `pr-threads resolve T1 T2 ...` for every thread that is settled, in one call.
 

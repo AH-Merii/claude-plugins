@@ -79,16 +79,18 @@ def stage(args, replacement=None):
     check_files(args.attach)
     repo = gh.repo()
     pr = gh.pull_request(args.pr)
+    staged = load_staged(repo, pr["number"])
+    if staged["comments"] and staged["head"] != pr["headRefOid"]:
+        raise Refusal(f"the PR head moved to {pr['headRefOid'][:12]} since the staged comments were "
+                      f"pinned on {staged['head'][:12]}: send them with `pr-threads submit changes`, "
+                      "or drop them with `pr-threads discard`, before adding more")
     root = toplevel()
     check_synced(root, pr["headRefName"], pr["headRefOid"])
     rel = os.path.relpath(os.path.abspath(path), root)
     pinned = anchor(root, pr["baseRefOid"], pr["headRefOid"], rel, start, end)
+    # upload last: nothing may refuse after it, since an uploaded image can't be deleted
     text = with_images(args.body, attachments(args.attach))
     pinned["body"] = text if replacement is None else suggestion_body(text, replacement)
-    staged = load_staged(repo, pr["number"])
-    if staged["comments"] and staged["head"] != pr["headRefOid"]:
-        raise Refusal("the PR head moved since the staged comments were pinned: "
-                      "submit them before adding more")
     staged = {"head": pr["headRefOid"], "comments": staged["comments"] + [pinned]}
     save_staged(repo, pr["number"], staged)
     print(f"staged {args.location} ({len(staged['comments'])} pending); "
@@ -99,8 +101,21 @@ def cmd_comment(args):
     stage(args)
 
 
+def replacement(args):
+    """The suggested lines, from stdin or --replacement, never both; empty only with --delete."""
+    flag = "--delete" if args.delete else "--replacement" if args.replacement is not None else None
+    piped = "" if flag and sys.stdin.isatty() else sys.stdin.read()
+    if flag and piped:
+        raise Refusal(f"replacement lines came on stdin and with {flag}: pick one")
+    text = "" if args.delete else piped if args.replacement is None else args.replacement
+    if not text and not args.delete:
+        raise Refusal("the replacement is empty: give it on stdin or with --replacement, "
+                      "or pass --delete to suggest deleting the lines")
+    return text
+
+
 def cmd_suggest(args):
-    stage(args, replacement=sys.stdin.read())
+    stage(args, replacement=replacement(args))
 
 
 def cmd_submit(args):
@@ -108,15 +123,35 @@ def cmd_submit(args):
     token = gh.bot_token(repo)
     pr = gh.pull_request(args.pr)
     staged = load_staged(repo, pr["number"])
+    if args.verdict == "pass" and staged["comments"] and staged["head"] != pr["headRefOid"]:
+        # changes may still go out on the staged head: asking for changes there approves nothing
+        raise Refusal(f"the PR head moved to {pr['headRefOid'][:12]} since the staged comments were "
+                      f"pinned on {staged['head'][:12]}, so a pass would approve commits nobody "
+                      "reviewed: submit `changes` on the staged head, or drop the comments with "
+                      "`pr-threads discard` and review the new head")
     review = {"commit_id": staged["head"] if staged["comments"] else pr["headRefOid"],
               "event": EVENTS[args.verdict],
               "body": with_images(args.body, attachments(args.attach))}
     if staged["comments"]:
         review["comments"] = staged["comments"]
-    url = gh.submit_review(repo, pr["number"], review, token)
+    try:
+        url = gh.submit_review(repo, pr["number"], review, token)
+    except gh.GhError as e:
+        if not staged["comments"]:
+            raise
+        raise Refusal(f"{e}\nthe staged comments are kept: fix the cause and submit again, or "
+                      "if GitHub rejects them, drop them with `pr-threads discard`") from None
     if staged["comments"]:
         os.remove(staged_path(repo, pr["number"]))
     print(f"submitted {args.verdict} with {len(staged['comments'])} comments: {url}")
+
+
+def cmd_discard(args):
+    repo, number = gh.repo(), pr_number(args)
+    count = len(load_staged(repo, number)["comments"])
+    if count:
+        os.remove(staged_path(repo, number))
+    print(f"discarded {count} staged comment{'' if count == 1 else 's'} on PR {number}")
 
 
 def cmd_resolve(args):
@@ -193,9 +228,13 @@ def parser():
     v = verb("suggest", cmd_suggest, "stage a suggested change; replacement on stdin", attach=True)
     v.add_argument("location")
     v.add_argument("body")
+    lines = v.add_mutually_exclusive_group()
+    lines.add_argument("--replacement", metavar="TEXT", help="the replacement, instead of stdin")
+    lines.add_argument("--delete", action="store_true", help="suggest deleting the lines")
     v = verb("submit", cmd_submit, "post the staged comments as one review, as the bot", attach=True)
     v.add_argument("verdict", choices=EVENTS)
     v.add_argument("body")
+    verb("discard", cmd_discard, "drop this PR's staged comments")
     v = verb("resolve", cmd_resolve, "resolve threads as the bot, in one request")
     v.add_argument("threads", nargs="+")
     v = verb("threads", cmd_threads, "list open threads at local path:line")

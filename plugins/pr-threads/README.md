@@ -20,7 +20,9 @@ requests as threads pinned to local `path:line`:
 ```
 pr-threads [--pr N] comment path:line[-end] BODY [--attach FILE[#ALT]]...
 pr-threads [--pr N] suggest path:line[-end] BODY [--attach ...]   < replacement
+pr-threads [--pr N] suggest path:line[-end] BODY --replacement TEXT | --delete
 pr-threads [--pr N] submit pass|changes SUMMARY [--attach ...]    # as the bot
+pr-threads [--pr N] discard                                       # drop staged comments
 pr-threads [--pr N] resolve THREAD...                             # as the bot, one request
 pr-threads [--pr N] threads [--json]
 pr-threads [--pr N] reply THREAD BODY [--attach ...]
@@ -29,11 +31,16 @@ pr-threads [--pr N] status [--json]
 pr-threads post NUMBER BODY [--attach ...]                        # issue or PR conversation
 ```
 
-Without `--pr`, the current branch's PR is used. Staged comments live in
-`$XDG_STATE_HOME/pr-threads/` (default `~/.local/state`) until a submit succeeds.
+Without `--pr`, the current branch's PR is used; where the branch has none (a GitButler
+workspace is always on `gitbutler/workspace`), pass `--pr N`. Staged comments live in
+`$XDG_STATE_HOME/pr-threads/` (default `~/.local/state`) until a submit succeeds, or
+`discard` drops them. Once the PR head moves past them, `submit pass` is refused, since it
+would approve commits nobody reviewed; `submit changes` still goes out on the staged head.
 
-`accept` follows the reviewed lines through your local edits, refuses if those lines
-changed, and keeps the file's line endings.
+`suggest` takes the replacement on stdin or from `--replacement`, never both, and refuses
+an empty one unless `--delete` asks for the deletion. `accept` follows the reviewed lines
+through your local edits, refuses if those lines changed, and keeps the file's line
+endings.
 
 ## Requirements
 

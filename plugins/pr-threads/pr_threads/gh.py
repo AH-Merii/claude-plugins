@@ -100,8 +100,14 @@ def repo():
 def pull_request(number=None):
     """The PR's number, base and head commits and head branch (the current branch's PR by default)."""
     which = [str(number)] if number else []
-    return json.loads(gh("pr", "view", *which, "--json",
-                         "number,baseRefOid,headRefOid,headRefName"))
+    try:
+        return json.loads(gh("pr", "view", *which, "--json",
+                             "number,baseRefOid,headRefOid,headRefName"))
+    except GhError as e:
+        if number:
+            raise
+        # a GitButler workspace is always on gitbutler/workspace, which has no PR
+        raise Refusal(f"{e}\nthe current branch has no PR: pass its number with --pr N") from None
 
 
 def submit_review(repo, number, review, token):
