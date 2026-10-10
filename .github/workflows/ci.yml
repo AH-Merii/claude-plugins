@@ -6,64 +6,56 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   unit-tests:
-    name: Unit tests (changed plugins)
+    name: Unit tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0
           persist-credentials: false
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.14"
+          python-version: ${{ matrix.python-version }}
 
-      - name: Run offline unit tests for each changed plugin
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      - name: Run offline unit tests for every plugin
         run: |
-          range="$BASE_SHA...$HEAD_SHA"
-          # NUL-separated plugin names, so spaces and glob characters stay intact.
-          list_plugins() {
-            if ! git diff --quiet "$range" -- .github/workflows/ci.yml; then
-              # The workflow itself changed: test every plugin.
-              find plugins -mindepth 1 -maxdepth 1 -type d -printf '%f\0' | sort -z
-            else
-              # Only plugins with a changed file at plugins/<name>/<something>.
-              git -c core.quotePath=false diff --name-only -z "$range" \
-                | grep -zE '^plugins/[^/]+/.' | cut -z -d/ -f2 | sort -zu
-            fi
-          }
+          set -o pipefail
+          # List plugins up front, NUL-separated, so a listing failure fails the job
+          # and names with spaces or glob characters stay intact.
+          plugins=$(mktemp)
+          find plugins -mindepth 1 -maxdepth 1 -type d -print0 | sort -z > "$plugins"
+          log=$(mktemp)
           status=0
-          tested=0
-          while IFS= read -r -d '' name; do
-            tested=1
-            dir="plugins/$name/tests"
-            if [ ! -d "$dir" ]; then
-              echo "::notice::plugins/$name has no tests/ directory; skipping."
+          while IFS= read -r -d '' dir; do
+            if [ ! -d "$dir/tests" ]; then
+              echo "::notice::$dir has no tests/ directory; skipping."
               continue
             fi
-            if [ -z "$(find "$dir" -name 'test*.py' -print -quit)" ]; then
-              echo "::notice::$dir has no test*.py files; skipping."
+            if [ -z "$(find "$dir/tests" -name 'test*.py' -print -quit)" ]; then
+              echo "::notice::$dir/tests has no test*.py files; skipping."
               continue
             fi
-            echo "::group::plugins/$name"
+            echo "::group::$dir"
             rc=0
-            python3 -m unittest discover -s "$dir" || rc=$?
+            python3 -m unittest discover -s "$dir/tests" 2>&1 | tee "$log" || rc=$?
             echo "::endgroup::"
-            if [ "$rc" -eq 5 ]; then
-              # unittest exits 5 when it discovers nothing, yet test*.py files exist.
-              echo "::error::$dir has test*.py files but unittest discovered no tests."
+            # Python 3.12+ exits 5 when nothing is discovered; 3.10 exits 0. Both print "Ran 0 tests".
+            if grep -q '^Ran 0 tests' "$log"; then
+              echo "::error::$dir/tests has test*.py files but unittest discovered no tests."
               status=1
             elif [ "$rc" -ne 0 ]; then
               status=1
             fi
-          done < <(list_plugins)
-          if [ "$tested" -eq 0 ]; then
-            echo "No plugin changed; nothing to test."
-          fi
+          done < "$plugins"
           exit "$status"
