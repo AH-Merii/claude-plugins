@@ -30,12 +30,22 @@ BLOCKED = {
     "branch": "`but branch new <name>` to create, `but branch delete <branch>` to delete, "
               "`but reword <branch> -m <new-name>` to rename, `but move` to restack",
 }
+# git subcommand -> why it's blocked, for writes `but` has no command for
+UNSUPPORTED = {
+    "tag": "`but` has no tag command, and a tag on a workspace commit goes stale once GitButler "
+           "rewrites it (amend, squash, move, pull). Ask the user to tag released commits.",
+}
 
 BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
                 "-u", "--set-upstream-to", "--unset-upstream", "--edit-description", "-t", "--track",
                 "--no-track", "--create-reflog", "--recurse-submodules"}
 BRANCH_LIST = {"-l", "--list", "-a", "--all", "-r", "--remotes", "--show-current", "-v", "--verbose",
                "--contains", "--no-contains", "--merged", "--no-merged", "--points-at"}
+TAG_WRITE = {"-a", "--annotate", "-s", "--sign", "-u", "--local-user", "-f", "--force", "-d",
+             "--delete", "-m", "--message", "-F", "--file", "-e", "--edit", "--trailer",
+             "--cleanup", "--create-reflog"}
+TAG_LIST = {"-l", "--list", "-n", "--contains", "--no-contains", "--merged", "--no-merged",
+            "--points-at", "-v", "--verify"}
 
 SEPARATORS = {";", "&", "&&", "|", "||", "|&", "(", ")", "\n"}
 WRAPPERS = {"sudo", "env", "command", "builtin", "exec", "nohup", "time", "nice"}
@@ -126,10 +136,17 @@ def branch_read_only(args):
     return not flags & BRANCH_WRITE and (bool(flags & BRANCH_LIST) or not operands)
 
 
+def tag_read_only(args):
+    flags, operands = parse_opts(args, "-u --local-user -m --message -F --file --trailer --cleanup "
+                                       "--sort --format --points-at")
+    return not flags & TAG_WRITE and (bool(flags & TAG_LIST) or not operands)
+
+
 # git subcommand -> test for the read-only forms of a blocked command
 READ_ONLY = {
     "stash": lambda args: bool(args) and args[0] in {"list", "show"},
     "branch": branch_read_only,
+    "tag": tag_read_only,
 }
 
 
@@ -147,7 +164,7 @@ def in_workspace(path, cache):
 
 
 def find_violation(command, cwd):
-    """Return (subcommand, replacement) for the first blocked git command, else None."""
+    """Return (subcommand, advice) for the first blocked git command, else None."""
     cache = {}
     for seg in segments(tokenize(command)):
         seg = strip_prefix(seg)
@@ -160,12 +177,12 @@ def find_violation(command, cwd):
         if os.path.basename(seg[0]) != "git":
             continue
         sub, rest, repo = parse_git(seg[1:], cwd)
-        if sub not in BLOCKED:
+        if sub not in BLOCKED and sub not in UNSUPPORTED:
             continue
         if sub in READ_ONLY and READ_ONLY[sub](rest):
             continue
         if in_workspace(repo, cache):
-            return sub, BLOCKED[sub]
+            return sub, f"Use {BLOCKED[sub]} instead." if sub in BLOCKED else UNSUPPORTED[sub]
     return None
 
 
@@ -178,9 +195,9 @@ def main():
     except Exception:
         return 0
     if hit:
-        sub, replacement = hit
+        sub, advice = hit
         reason = (
-            f"`git {sub}` is blocked in this GitButler workspace. Use {replacement} instead. "
+            f"`git {sub}` is blocked in this GitButler workspace. {advice} "
             "Read-only git (log, show, blame, diff, status) is still allowed; "
             "see the GitButler `but` skill for syntax."
         )

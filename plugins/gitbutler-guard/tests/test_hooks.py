@@ -74,6 +74,22 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
+    def test_blocks_tag_writes(self):
+        for cmd in ["git tag v1", "git tag v1 HEAD~1", "git tag -a v1 -m msg", "git tag -s v1",
+                    "git tag -f v1", "git tag -d v1", "git tag --delete v1", "git tag -m msg v1",
+                    "git -c tag.gpgSign=false tag v1"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.blocked(cmd), "tag")
+        self.assertIn("no tag command", self.advice("git tag v1"))
+
+    def test_allows_tag_listing(self):
+        for cmd in ["git tag", "git tag -l", "git tag -l 'v1.*'", "git tag --list", "git tag -n",
+                    "git tag -n3", "git tag --contains HEAD", "git tag --points-at HEAD",
+                    "git tag --merged main", "git tag --sort=-v:refname",
+                    "git tag --sort -creatordate", "git tag -v v1"]:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(self.blocked(cmd))
+
     def test_finds_git_inside_compound_commands(self):
         self.assertEqual(self.blocked("ls && git add f"), "add")
         self.assertEqual(self.blocked("echo hi; git commit -m x"), "commit")
