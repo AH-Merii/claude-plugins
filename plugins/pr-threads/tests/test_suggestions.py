@@ -102,21 +102,30 @@ class AcceptCliTest(unittest.TestCase):
     """`accept <thread>` finds the suggestion and where it was made from the thread itself."""
 
     SUGGESTION = "Clearer name.\n\n```suggestion\nfixed 10\n```\n"
+    MULTI_LINE = "Name these.\n\n```suggestion\nx = 1\n```\n"
 
     def setUp(self):
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
         self.reviewed = self.repo.head
 
-    def accept_outdated(self):
-        """The author pushed after the review; the thread now only knows its original place."""
-        git(self.repo.path, "commit", "-qam", "after the review")
-        self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
+    def accept_thread(self, body, line=10, start=None, outdated=False):
+        """Accept T1, a thread made on the reviewed commit, with `body` as its comment."""
         gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
         self.addCleanup(gh.cleanup)
         gh.set_answer("graphql reviewThreads", json.dumps(response(
-            thread("T1", outdated=True, line=10, comments=(("bot", self.SUGGESTION),), commit=self.reviewed))))
+            thread("T1", outdated=outdated, line=line, start=start, comments=(("bot", body),),
+                   commit=self.reviewed))))
         return gh, gh.run("--pr", "5", "accept", "T1", check=False)
+
+    def thread_reads(self, gh):
+        return [c for c in gh.calls() if "reviewThreads" in json.dumps(c["body"])]
+
+    def accept_outdated(self, body=SUGGESTION, line=10, start=None):
+        """The author pushed after the review; the thread now only knows its original place."""
+        git(self.repo.path, "commit", "-qam", "after the review")
+        self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
+        return self.accept_thread(body, line, start, outdated=True)
 
     def test_applies_at_the_original_line_of_the_reviewed_commit(self):
         self.repo.write("app.py", self.repo.read("app.py").replace("line 28\n", "edited 28\n"))
@@ -129,9 +138,35 @@ class AcceptCliTest(unittest.TestCase):
     def test_lines_rewritten_since_the_reviewed_commit_are_refused(self):
         # against the current head these lines look untouched; only the reviewed commit shows the clash
         self.repo.write("app.py", self.repo.read("app.py").replace("changed 10\n", "rewritten 10\n"))
-        _, out = self.accept_outdated()
+        gh, out = self.accept_outdated()
         self.assertNotEqual(out.returncode, 0)
+        self.assertTrue(self.thread_reads(gh), "it read the thread before refusing")
         self.assertIn("rewritten 10", self.repo.read("app.py"))
+
+    def assertRangeReplaced(self, out):
+        """Lines 21-22 (`new a`, `new b`) became the one line `x = 1`."""
+        self.assertEqual(out.returncode, 0, out.stderr)
+        lines = self.repo.read("app.py").splitlines()
+        self.assertEqual(lines[20:22], ["x = 1", "line 21"])
+        self.assertEqual(len(lines), 31)
+
+    def test_multi_line_suggestion_replaces_its_whole_range(self):
+        _, out = self.accept_thread(self.MULTI_LINE, line=22, start=21)
+        self.assertRangeReplaced(out)
+
+    def test_outdated_multi_line_suggestion_replaces_its_original_range(self):
+        self.repo.write("app.py", self.repo.read("app.py").replace("line 28\n", "edited 28\n"))
+        _, out = self.accept_outdated(self.MULTI_LINE, line=22, start=21)
+        self.assertRangeReplaced(out)
+        self.assertIn("edited 28", self.repo.read("app.py"))
+
+    def test_thread_without_a_suggestion_is_refused(self):
+        before = self.repo.read("app.py")
+        gh, out = self.accept_thread("Looks wrong, see `foo`.")
+        self.assertNotEqual(out.returncode, 0)
+        self.assertTrue(self.thread_reads(gh), "it read the thread before refusing")
+        self.assertIn("suggestion", out.stderr.lower(), "the refusal says why")
+        self.assertEqual(self.repo.read("app.py"), before)
 
 
 if __name__ == "__main__":
