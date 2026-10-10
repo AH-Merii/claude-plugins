@@ -1,6 +1,6 @@
 # claude-plugins
 
-AH-Merii's Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
+My Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
 
 | Name | Type | Use it when… |
 |------|------|--------------|
