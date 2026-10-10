@@ -90,6 +90,18 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
+    def test_blocks_rm(self):
+        for cmd in ["git rm f", "git rm -r dir", "git rm --cached f", "git rm -f f", "git rm -- -n",
+                    "sudo git --no-pager rm f"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.blocked(cmd), "rm")
+        self.assertIn("plain `rm <path>`", self.advice("git rm f"))
+
+    def test_allows_rm_dry_run(self):
+        for cmd in ["git rm -n f", "git rm --dry-run -r dir", "git rm -rn dir"]:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(self.blocked(cmd))
+
     def test_finds_git_inside_compound_commands(self):
         self.assertEqual(self.blocked("ls && git add f"), "add")
         self.assertEqual(self.blocked("echo hi; git commit -m x"), "commit")

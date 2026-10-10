@@ -30,10 +30,12 @@ BLOCKED = {
     "branch": "`but branch new <name>` to create, `but branch delete <branch>` to delete, "
               "`but reword <branch> -m <new-name>` to rename, `but move` to restack",
 }
-# git subcommand -> why it's blocked, for writes `but` has no command for
+# git subcommand -> why it's blocked and what to do, for writes `but` has no command for
 UNSUPPORTED = {
     "tag": "`but` has no tag command, and a tag on a workspace commit goes stale once GitButler "
            "rewrites it (amend, squash, move, pull). Ask the user to tag released commits.",
+    "rm": "`but` has no rm command, and GitButler doesn't use the index `git rm` stages into. "
+          "Delete with plain `rm <path>`; `but commit` picks up the deletion.",
 }
 
 BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
@@ -41,6 +43,7 @@ BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--cop
                 "--no-track", "--create-reflog", "--recurse-submodules"}
 BRANCH_LIST = {"-l", "--list", "-a", "--all", "-r", "--remotes", "--show-current", "-v", "--verbose",
                "--contains", "--no-contains", "--merged", "--no-merged", "--points-at"}
+DRY_RUN = {"-n", "--dry-run"}
 TAG_WRITE = {"-a", "--annotate", "-s", "--sign", "-u", "--local-user", "-f", "--force", "-d",
              "--delete", "-m", "--message", "-F", "--file", "-e", "--edit", "--trailer",
              "--cleanup", "--create-reflog"}
@@ -142,11 +145,16 @@ def tag_read_only(args):
     return not flags & TAG_WRITE and (bool(flags & TAG_LIST) or not operands)
 
 
+def dry_run(args):
+    return bool(parse_opts(args)[0] & DRY_RUN)
+
+
 # git subcommand -> test for the read-only forms of a blocked command
 READ_ONLY = {
     "stash": lambda args: bool(args) and args[0] in {"list", "show"},
     "branch": branch_read_only,
     "tag": tag_read_only,
+    "rm": dry_run,
 }
 
 
