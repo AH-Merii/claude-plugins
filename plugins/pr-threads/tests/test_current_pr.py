@@ -25,7 +25,7 @@ class NoPrForBranchTest(unittest.TestCase):
         ("discard",),
     ]
     # --pr with a number or a placeholder for one; argparse's usage line "[--pr PR]" isn't advice
-    ADVICE = r"--pr[ =](?:N\b|NUMBER\b|<\w+>|\d+\b)"
+    ADVICE = r"(?i)--pr[ =](?:N\b|NUMBER\b|<\w+>|\d+\b)"
 
     def setUp(self):
         self.repo = Repo()
