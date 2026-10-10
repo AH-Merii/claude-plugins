@@ -359,7 +359,8 @@ class SuggestInputTest(unittest.TestCase):
                 gh = self.gh()
                 out = self.suggest(gh, *extra, stdin=stdin)
                 self.assertNotEqual(out.returncode, 0)
-                self.assertRegex(out.stderr, r"(?i)pick one|not both|one or the other",
+                self.assertRegex(out.stderr, r"(?i)pick one|not both|one or the other|only one"
+                                             r"|not allowed with|mutually exclusive",
                                  "the refusal says to pick one")
                 self.assertEqual(self.submitted(gh), [], "nothing was staged")
 
