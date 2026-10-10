@@ -283,6 +283,9 @@ FAKE_UPLOAD = textwrap.dedent('''\
     ''')
 
 
+INSTALL_URL = "https://github.com/apps/reviewer/installations/new"
+
+
 class FakeGh:
     """Puts a recording `gh`, a token command and an upload command on PATH for CLI runs.
 
@@ -300,7 +303,10 @@ class FakeGh:
         self.repo = repo
         self._write_table(table)
         self._exe("gh", FAKE_GH)
-        script = f"#!/bin/sh\necho {token}\n" if token else "#!/bin/sh\nexit 1\n"
+        # without a token, fail the way reviewer-token does when the app isn't installed
+        script = f"#!/bin/sh\necho {token}\n" if token else (
+            "#!/bin/sh\necho 'reviewer-token: bot is not installed on o/r' >&2\n"
+            f"echo 'install it: {INSTALL_URL}' >&2\nexit 1\n")
         self.token_cmd = self._exe("token", script)
         self.uploads = os.path.join(self.dir, "uploads.jsonl")
         self.upload_cmd = self._exe("upload", FAKE_UPLOAD)

@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from helpers import FakeGh, Repo, git, pr_table
+from helpers import INSTALL_URL, FakeGh, Repo, git, pr_table
 
 
 class SubmitTest(unittest.TestCase):
@@ -51,6 +51,7 @@ class SubmitTest(unittest.TestCase):
         self.assertIsNone(post["gh_token"])
         self.assertIn("changes", review["body"])
         self.assertIn("bot", out.stderr.lower(), "the fallback is explained, not silent")
+        self.assertIn(INSTALL_URL, out.stderr, "and says how to set the bot up for this repo")
 
     def test_failed_submit_keeps_the_staged_comments(self):
         gh = self.gh()
