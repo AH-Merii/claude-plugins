@@ -82,9 +82,10 @@ FAKE_GH = textwrap.dedent('''\
     shape, so a reply or resolve never gets a thread listing back. A key whose endpoint
     part ends in "$" only matches that exact endpoint.
 
-    Like real gh it expands {owner}/{repo} in api endpoints, applies simple `.a.b` paths
-    given to --jq/-q (anything else fails loudly), and treats `gh issue comment N` as the
-    POST to issues/N/comments it is.
+    Like real gh it expands {owner}/{repo} in api endpoints, builds nested payloads from
+    `key[sub]=v` and `key[]=v` fields, applies simple `.a.b` paths given to --jq/-q
+    (anything else fails loudly), and treats `gh issue comment N` as the POST to
+    issues/N/comments it is.
     """
     import json, os, re, sys
 
@@ -102,15 +103,88 @@ FAKE_GH = textwrap.dedent('''\
         """The token gh would send to github.com: GH_TOKEN, else GITHUB_TOKEN."""
         return os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
 
+    def fail(message, code=1):
+        sys.stderr.write("fake gh: " + message + "\\n")
+        sys.exit(code)
+
     def typed(value):
+        """-F's magic conversion: @file (or @- for stdin), true/false/null, integers, {owner}/{repo}."""
         if value.startswith("@"):
-            return read(value[1:])
+            return sys.stdin.read() if value == "@-" else read(value[1:])
         if value in ("true", "false", "null"):
             return {"true": True, "false": False, "null": None}[value]
-        try:
+        if re.fullmatch(r"[+-]?\\d+", value):
             return int(value)
-        except ValueError:
-            return value
+        return value.replace("{owner}", OWNER).replace("{repo}", REPO)
+
+    def nest(fields):
+        """Build the payload from (text, magic) fields the way gh's parseFields does.
+
+        `key[sub]=v` nests an object, `key[]=v` appends to an array, `key[]` alone is an
+        empty array, and `key[][sub]=v` starts a new array element once the last one already
+        has `sub`. Setting a plain key twice is an error, as in gh.
+        """
+        params = {}
+        for text, magic in fields:
+            keystack, start, value_at = [], 0, 0
+            for i, ch in enumerate(text):
+                if ch == "[":
+                    if start == 0:
+                        keystack.append(text[:i])
+                    start = i + 1
+                elif ch == "]":
+                    keystack.append(text[start:i])
+                elif ch == "=":
+                    if start == 0:
+                        keystack.append(text[:i])
+                    value_at = i + 1
+                    break
+            if not keystack:
+                fail(f"invalid key: {text!r}")
+            value = None
+            if value_at == 0:
+                if keystack[-1] != "":
+                    fail(f"field {text!r} requires a value separated by an '=' sign")
+            else:
+                value = text[value_at:]
+                if magic:
+                    value = typed(value)
+            dest, is_array, subkey = params, False, ""
+            for k in keystack:
+                if k == "":
+                    is_array = True
+                    continue
+                if subkey:
+                    if is_array:
+                        items = dest.setdefault(subkey, [])
+                        if not isinstance(items, list):
+                            fail(f"expected array type under {subkey!r}")
+                        last = items[-1] if items else None
+                        if isinstance(last, dict) and (k not in last or isinstance(last[k], list)):
+                            dest = last
+                        else:
+                            dest = {}
+                            items.append(dest)
+                        is_array = False
+                    else:
+                        child = dest.setdefault(subkey, {})
+                        if not isinstance(child, dict):
+                            fail(f"expected map type under {subkey!r}")
+                        dest = child
+                subkey = k
+            if is_array:
+                if value is None:
+                    dest[subkey] = []
+                else:
+                    items = dest.setdefault(subkey, [])
+                    if not isinstance(items, list):
+                        fail(f"expected array type under {subkey!r}")
+                    items.append(value)
+            elif subkey in dest:
+                fail(f"unexpected override existing field under {subkey!r}")
+            else:
+                dest[subkey] = value
+        return params
 
     def option(args, *names):
         for i, arg in enumerate(args[:-1]):
@@ -128,29 +202,36 @@ FAKE_GH = textwrap.dedent('''\
         return data if isinstance(data, str) else json.dumps(data)
 
     def parse(args):
-        """Split gh args into (positionals, method, body)."""
-        positionals, method, fields, raw = [], None, {}, None
+        """Split gh args into (positionals, method, body).
+
+        Takes options as `-X POST`, `-XPOST` or `--method=POST`, like gh's flag parser.
+        """
+        positionals, method, raw_fields, magic_fields, raw = [], None, [], [], None
         i = 0
         while i < len(args):
-            arg = args[i]
+            arg, value, step = args[i], None, 1
             if arg in VALUE_OPTS and i + 1 < len(args):
-                value = args[i + 1]
+                value, step = args[i + 1], 2
+            elif arg.startswith("--") and arg.partition("=")[0] in VALUE_OPTS:
+                arg, _, value = arg.partition("=")
+            elif not arg.startswith("--") and arg[:2] in VALUE_OPTS and len(arg) > 2:
+                arg, value = arg[:2], arg[2:]
+            if value is not None:
                 if arg in ("-X", "--method"):
                     method = value.upper()
                 elif arg in ("-f", "--raw-field"):
-                    key, _, val = value.partition("=")
-                    fields[key] = val
+                    raw_fields.append((value, False))
                 elif arg in ("-F", "--field"):
-                    key, _, val = value.partition("=")
-                    fields[key] = typed(val)
+                    magic_fields.append((value, True))
                 elif arg == "--input":
                     raw = sys.stdin.read() if value == "-" else read(value)
-                i += 2
             elif arg.startswith("-"):
-                i += 1
+                pass
             else:
                 positionals.append(arg)
-                i += 1
+            i += step
+        # gh adds every -f field before any -F field
+        fields = nest(raw_fields + magic_fields)
         body = json.loads(raw) if raw else (fields or None)
         return positionals, method or ("POST" if body is not None else "GET"), body
 
