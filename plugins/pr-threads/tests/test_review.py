@@ -146,6 +146,49 @@ class SubmitTest(unittest.TestCase):
         self.assertEqual(gh.review_posts()[-1].get("comments", []), [], "the refused comment was not staged")
 
 
+class MovedHeadCase(unittest.TestCase):
+    """A comment staged on the reviewed head, after which the PR head moves.
+
+    The author either pushes a commit on top or rewrites the PR and force-pushes; the
+    local branch follows the PR, so the clone is in sync with the new head.
+    """
+
+    MOVES = ("pushed on top", "force-pushed")
+
+    def staged_then_moved(self, move):
+        """(fake gh, reviewed head) with one comment staged, after the PR head moved by `move`."""
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
+        self.addCleanup(gh.cleanup)
+        gh.run("--pr", "5", "comment", "app.py:10", "Why change this?")
+        reviewed = self.repo.head
+        if move == "pushed on top":
+            self.repo.write("other.py", "pushed after the review\n")
+            git(self.repo.path, "commit", "-qam", "pushed after the review")
+        else:
+            git(self.repo.path, "commit", "-q", "--amend", "-m", "head, rewritten")
+        self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
+        gh.set_answer("pr view 5", pr_table(self.repo)["pr view 5"]["stdout"])
+        return gh, reviewed
+
+
+class SubmitMovedHeadTest(MovedHeadCase):
+    """submit never posts a verdict for a head the reviewer didn't review."""
+
+    def test_submit_refuses_once_the_pr_head_moved_past_the_staged_comments(self):
+        for move in self.MOVES:
+            for verdict in ("pass", "changes"):
+                with self.subTest(move=move, verdict=verdict):
+                    gh, reviewed = self.staged_then_moved(move)
+                    out = gh.run("--pr", "5", "submit", verdict, "Summary.", check=False)
+                    self.assertEqual(gh.review_posts(), [], f"a {verdict} verdict went out on "
+                                     f"{reviewed[:12]}, though the PR is now at {self.repo.head[:12]}")
+                    self.assertNotEqual(out.returncode, 0)
+                    self.assertRegex(out.stderr.lower(), r"\bhead\b.*\b(moved|changed)\b|"
+                                     r"\b(moved|changed)\b.*\bhead\b", "the refusal says the head moved")
+
+
 class SuggestInputTest(unittest.TestCase):
     """suggest never posts a deletion by accident.
 
