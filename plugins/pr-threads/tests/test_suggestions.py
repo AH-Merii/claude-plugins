@@ -1,5 +1,6 @@
 """#9 writes suggested changes; #8 accepts them into the local file."""
 import json
+import os
 import unittest
 
 from helpers import FakeGh, Repo, git, isolate_git, pr_table, thread
@@ -142,6 +143,65 @@ class AcceptByContentTest(unittest.TestCase):
                     with self.assertRaises(StaleSuggestion):
                         self.accept(start, end, replacement)
                     self.assertEqual(self.repo.read("app.py"), before, "a refused accept leaves the file alone")
+
+
+class AcceptLineEndingsTest(unittest.TestCase):
+    """accept changes only the target lines: every other byte of the file stays as it was.
+
+    Untouched lines keep their own endings (CRLF, LF or mixed), replacement lines take the
+    file's CRLF where the file uses only CRLF, and a missing final newline stays missing.
+    """
+
+    def setUp(self):
+        isolate_git(self)
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.files = 0
+
+    def commit_bytes(self, name, data):
+        with open(os.path.join(self.repo.path, name), "wb") as f:
+            f.write(data)
+        git(self.repo.path, "add", name)
+        git(self.repo.path, "commit", "-qm", f"add {name}")
+        return git(self.repo.path, "rev-parse", "HEAD")
+
+    def accepted(self, data, start, end, replacement):
+        """The bytes of a file holding `data` after accepting `replacement` for start..end."""
+        self.files += 1
+        name = f"f{self.files}.txt"  # a new file each time, so each case is its own commit
+        commit = self.commit_bytes(name, data)
+        accept(self.repo.path, commit, name, start, end, replacement)
+        with open(os.path.join(self.repo.path, name), "rb") as f:
+            return f.read()
+
+    def test_untouched_lines_keep_their_bytes(self):
+        cases = [
+            ("crlf", b"one\r\ntwo\r\nthree\r\n", 2, 2, "TWO\n", b"one\r\nTWO\r\nthree\r\n"),
+            ("crlf range", b"a\r\nb\r\nc\r\nd\r\n", 2, 3, "B\nC\nX\n", b"a\r\nB\r\nC\r\nX\r\nd\r\n"),
+            ("crlf deletion", b"a\r\nb\r\nc\r\n", 2, 2, "", b"a\r\nc\r\n"),
+            ("lf", b"one\ntwo\nthree\n", 2, 2, "TWO\n", b"one\nTWO\nthree\n"),
+        ]
+        for name, data, start, end, replacement, want in cases:
+            with self.subTest(name):
+                self.assertEqual(self.accepted(data, start, end, replacement), want)
+
+    def test_mixed_endings_are_left_alone_outside_the_target(self):
+        got = self.accepted(b"a\r\nb\nc\r\nd\n", 3, 3, "C\n")
+        lines = got.splitlines(keepends=True)
+        self.assertEqual((lines[0], lines[1], lines[3]), (b"a\r\n", b"b\n", b"d\n"))
+        self.assertEqual(lines[2].rstrip(b"\r\n"), b"C")
+        self.assertEqual(len(lines), 4)
+
+    def test_a_missing_final_newline_stays_missing(self):
+        # a suggestion's replacement always ends in a newline; the file's last line didn't
+        for name, data, start, end, replacement, want in [
+            ("last line replaced", b"one\ntwo\nthree", 3, 3, "THREE\n", b"one\ntwo\nTHREE"),
+            ("range to the end", b"one\ntwo\nthree", 2, 3, "X\nY\nZ\n", b"one\nX\nY\nZ"),
+            ("earlier line replaced", b"one\ntwo\nthree", 1, 1, "ONE\n", b"ONE\ntwo\nthree"),
+            ("crlf, last line replaced", b"one\r\ntwo", 2, 2, "TWO\n", b"one\r\nTWO"),
+        ]:
+            with self.subTest(name):
+                self.assertEqual(self.accepted(data, start, end, replacement), want)
 
 
 class OutdatedAcceptTest(unittest.TestCase):
