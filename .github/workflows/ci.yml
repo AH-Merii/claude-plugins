@@ -19,35 +19,51 @@ jobs:
 
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.12"
+          python-version: "3.14"
 
       - name: Run offline unit tests for each changed plugin
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # Live tests (e.g. pr-threads) only run when PR_THREADS_LIVE=1; keep them off.
-          unset PR_THREADS_LIVE
-          plugins=$(git diff --name-only "$BASE_SHA...$HEAD_SHA" -- plugins/ | cut -d/ -f2 | sort -u)
-          if [ -z "$plugins" ]; then
-            echo "No plugin changed; nothing to test."
-            exit 0
-          fi
+          range="$BASE_SHA...$HEAD_SHA"
+          # NUL-separated plugin names, so spaces and glob characters stay intact.
+          list_plugins() {
+            if ! git diff --quiet "$range" -- .github/workflows/ci.yml; then
+              # The workflow itself changed: test every plugin.
+              find plugins -mindepth 1 -maxdepth 1 -type d -printf '%f\0' | sort -z
+            else
+              # Only plugins with a changed file at plugins/<name>/<something>.
+              git -c core.quotePath=false diff --name-only -z "$range" \
+                | grep -zE '^plugins/[^/]+/.' | cut -z -d/ -f2 | sort -zu
+            fi
+          }
           status=0
-          for name in $plugins; do
-            if [ ! -d "plugins/$name/tests" ]; then
+          tested=0
+          while IFS= read -r -d '' name; do
+            tested=1
+            dir="plugins/$name/tests"
+            if [ ! -d "$dir" ]; then
               echo "::notice::plugins/$name has no tests/ directory; skipping."
+              continue
+            fi
+            if [ -z "$(find "$dir" -name 'test*.py' -print -quit)" ]; then
+              echo "::notice::$dir has no test*.py files; skipping."
               continue
             fi
             echo "::group::plugins/$name"
             rc=0
-            python3 -m unittest discover -s "plugins/$name/tests" || rc=$?
+            python3 -m unittest discover -s "$dir" || rc=$?
             echo "::endgroup::"
-            # unittest exits 5 when it finds no tests (e.g. a mod's claude plugin test files).
             if [ "$rc" -eq 5 ]; then
-              echo "::notice::plugins/$name/tests has no Python tests; skipping."
+              # unittest exits 5 when it discovers nothing, yet test*.py files exist.
+              echo "::error::$dir has test*.py files but unittest discovered no tests."
+              status=1
             elif [ "$rc" -ne 0 ]; then
               status=1
             fi
-          done
+          done < <(list_plugins)
+          if [ "$tested" -eq 0 ]; then
+            echo "No plugin changed; nothing to test."
+          fi
           exit "$status"
