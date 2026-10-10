@@ -25,11 +25,22 @@ jobs:
           python-version: "3.14"
 
       - name: Run offline unit tests for every plugin
+        shell: bash
         run: |
-          set -o pipefail
+          # Print an error for each folder under $1 that holds test*.py files but has
+          # no __init__.py: unittest discover never looks inside such folders.
+          undiscoverable() {
+            find "$1" -mindepth 1 -type d ! -name __pycache__ -print0 |
+              while IFS= read -r -d '' sub; do
+                if [ ! -f "$sub/__init__.py" ] && [ -n "$(find "$sub" -name 'test*.py' -print -quit)" ]; then
+                  echo "::error::$sub has test*.py files but no __init__.py, so unittest won't discover them."
+                fi
+              done
+          }
           # List plugins up front, NUL-separated, so a listing failure fails the job
           # and names with spaces or glob characters stay intact.
           plugins=$(mktemp)
+          trap 'rm -f "$plugins"' EXIT
           find plugins -mindepth 1 -maxdepth 1 -type d -print0 | sort -z > "$plugins"
           status=0
           while IFS= read -r -d '' dir; do
@@ -41,9 +52,16 @@ jobs:
               echo "::notice::$dir/tests has no test*.py files; skipping."
               continue
             fi
+            errors=$(undiscoverable "$dir/tests")
+            if [ -n "$errors" ]; then
+              echo "$errors"
+              status=1
+              continue
+            fi
             echo "::group::$dir"
             rc=0
-            python3 -m unittest discover -s "$dir/tests" || rc=$?
+            # </dev/null: the plugin list is this loop's stdin; tests must not read it.
+            python3 -m unittest discover -s "$dir/tests" </dev/null || rc=$?
             echo "::endgroup::"
             # unittest exits 5 when it discovers no tests.
             if [ "$rc" -eq 5 ]; then
