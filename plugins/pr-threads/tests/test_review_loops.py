@@ -147,6 +147,7 @@ class PushbackResolveTest(unittest.TestCase):
                 [(BOT_SLUG, "Cache this."), (USER, REASON), (BOT_SLUG, disputed()), (USER, "It is warm.")],
             "disputed after a withdrawal": [(BOT_SLUG, withdrawn()), (USER, "Thanks."), (BOT_SLUG, disputed())],
             "disputed after a verification": [(BOT_SLUG, verified()), (USER, "Not that."), (BOT_SLUG, disputed())],
+            "a verification pasted after the dispute": [(BOT_SLUG, disputed()), (USER, verified())],
         }
         ok = node("T_ok", (BOT_SLUG, "Rename this."), (BOT_SLUG, verified()))
         for name, comments in cases.items():
@@ -203,6 +204,8 @@ class StatusLoopTest(unittest.TestCase):
                 (False, [(BOT_SLUG, disputed()), (USER, "Warm, still slower."), (BOT_SLUG, withdrawn())]),
             "verified after the dispute":
                 (False, [(BOT_SLUG, disputed()), (BOT_SLUG, verified())]),
+            "a verification pasted after the dispute": (True, [(BOT_SLUG, disputed()), (USER, verified())]),
+            "a withdrawal pasted after the dispute": (True, [(BOT_SLUG, disputed()), (USER, withdrawn())]),
             "a dispute pasted by the author": (False, [(BOT_SLUG, "Cache this."), (USER, disputed())]),
             "pushback the bot hasn't answered": (False, [(BOT_SLUG, "Cache this."), (USER, REASON)]),
         }
