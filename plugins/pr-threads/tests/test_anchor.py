@@ -204,9 +204,34 @@ class SyncTest(unittest.TestCase):
             ("don't pull or push; reset to it", "reset", True),
             ("the PR head was force-pushed", "push", False),
             ("the pull request head moved", "pull", False),
+            ("move to it with gh pr checkout 5 --force", "checkout", True),
+            ("You can reset to it", "reset", True),
+            ("git switch --detach abc1234", "switch", True),
+            ("reset to it, or pull and merge it", "pull", True),
         ]:
             with self.subTest(message=message, verb=verb):
                 self.assertEqual(advises(message, verb), advice)
+
+    def test_divergence_checks_tell_safe_advice_from_harmful(self):
+        local = "abcdef1" + "0" * 33
+        moves = assert_moves_to_pr_head
+        keeps = lambda test, message: assert_keeps_local_work(test, message, local)  # noqa: E731
+        for check, message, ok in [
+            (moves, "the PR head was rewritten; don't pull or push: reset to it", True),
+            (moves, "the PR head was rewritten: move to it with gh pr checkout 5 --force", True),
+            (moves, "diverged: reset to it, or pull and merge it", False),
+            (keeps, "your commit abcdef1 isn't in the PR: rebase it onto the PR head", True),
+            (keeps, "abcdef1 isn't in the PR; check out the PR head on a new branch", True),
+            (keeps, "abcdef1 isn't in the PR: reset to the PR head", False),
+            (keeps, "abcdef1 isn't in the PR: gh pr checkout 5 --force", False),
+            (keeps, "abcdef1 isn't in the PR: git checkout -B feature origin/feature", False),
+        ]:
+            with self.subTest(check="moves" if check is moves else "keeps", message=message):
+                if ok:
+                    check(self, message)
+                else:
+                    with self.assertRaises(AssertionError):
+                        check(self, message)
 
     def test_pr_head_missing_locally_is_refused(self):
         with self.assertRaises(NotPulled) as caught:
