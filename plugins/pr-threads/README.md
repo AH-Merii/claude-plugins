@@ -48,7 +48,7 @@ python3 plugins/pr-threads/scripts/reviewer-setup.py [--owner LOGIN] [--org] [--
 ```
 
 It opens GitHub's "create app" page with a manifest filled in (private, `pull_requests:
-write` only). The owner defaults to `AH-Merii` (or `REVIEWER_APP_OWNER`), the name to
+write` only). The owner defaults to your `gh` login (or `REVIEWER_APP_OWNER`), the name to
 `<owner>-claude-reviewer` (or `REVIEWER_APP_NAME`), and `--org` creates it under an
 organisation. After you confirm, it saves `app.json` and `private-key.pem` to
 `${CLAUDE_REVIEWER_DIR:-~/.config/claude-reviewer}`. Then install the app on each repo it
