@@ -1,7 +1,7 @@
 """#9 writes suggested changes; #8 accepts them into the local file."""
 import unittest
 
-from helpers import Repo
+from helpers import Repo, git
 
 from pr_threads.suggestions import StaleSuggestion, accept, parse_suggestion, suggestion_body
 
@@ -56,6 +56,32 @@ class AcceptTest(unittest.TestCase):
         with self.assertRaises(StaleSuggestion):
             accept(self.repo.path, self.repo.head, "app.py", 10, 10, "fixed 10\n")
         self.assertEqual(self.repo.read("app.py"), before)
+
+
+class OutdatedAcceptTest(unittest.TestCase):
+    """An outdated thread points at originalLine in the commit it was written on."""
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.reviewed = self.repo.head
+
+    def commit_change(self, old, new):
+        self.repo.write("app.py", self.repo.read("app.py").replace(old, new))
+        git(self.repo.path, "commit", "-qam", "after the review")
+
+    def test_target_rewritten_by_a_later_commit_is_refused(self):
+        self.commit_change("changed 10\n", "rewritten 10\n")
+        before = self.repo.read("app.py")
+        with self.assertRaises(StaleSuggestion):
+            accept(self.repo.path, self.reviewed, "app.py", 10, 10, "fixed 10\n")
+        self.assertEqual(self.repo.read("app.py"), before)
+
+    def test_later_commit_elsewhere_still_applies_at_the_reviewed_lines(self):
+        self.commit_change("line 28\n", "edited 28\n")
+        accept(self.repo.path, self.reviewed, "app.py", 10, 10, "fixed 10\n")
+        lines = self.repo.read("app.py").splitlines()
+        self.assertEqual((lines[9], lines[29]), ("fixed 10", "edited 28"))
 
 
 if __name__ == "__main__":
