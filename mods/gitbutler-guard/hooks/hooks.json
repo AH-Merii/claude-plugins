@@ -1,0 +1,29 @@
+{
+  "description": "Block git write commands in GitButler workspaces and keep the GitButler skill in step with the but CLI",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/git_guard.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/skill_sync.py\"",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  }
+}

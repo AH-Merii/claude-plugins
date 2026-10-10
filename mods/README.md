@@ -1,6 +1,6 @@
 # mods
 
-One plugin per mod: live UI and hooks inside Claude Code. None yet.
+One plugin per mod: live UI and hooks inside Claude Code.
 
 ```
 mods/<name>/

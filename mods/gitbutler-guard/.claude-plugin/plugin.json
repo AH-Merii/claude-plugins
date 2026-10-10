@@ -1,0 +1,11 @@
+{
+  "name": "gitbutler-guard",
+  "displayName": "GitButler Guard",
+  "version": "0.1.0",
+  "description": "Block git write commands in GitButler workspaces and keep the GitButler `but` skill in step with the installed CLI",
+  "author": { "name": "AH-Merii (AbdulHamid Merii)", "url": "https://github.com/AH-Merii" },
+  "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/mods/gitbutler-guard",
+  "repository": "https://github.com/AH-Merii/claude-plugins",
+  "license": "MIT",
+  "keywords": ["mod", "hooks", "gitbutler", "git", "but", "version-control"]
+}

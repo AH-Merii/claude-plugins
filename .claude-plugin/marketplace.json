@@ -9,6 +9,12 @@
       "source": "./skills/screen-lab",
       "category": "development",
       "tags": ["skill", "testing", "tui", "terminal", "niri", "ghostty"]
+    },
+    {
+      "name": "gitbutler-guard",
+      "source": "./mods/gitbutler-guard",
+      "category": "development",
+      "tags": ["mod", "hooks", "gitbutler", "git", "version-control"]
     }
   ]
 }
