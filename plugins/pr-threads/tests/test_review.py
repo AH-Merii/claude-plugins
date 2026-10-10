@@ -189,6 +189,72 @@ class SubmitMovedHeadTest(MovedHeadCase):
                                      r"\b(moved|changed)\b.*\bhead\b", "the refusal says the head moved")
 
 
+class StagedQueueTest(MovedHeadCase):
+    """There is always a way out of staged state: `discard` clears a PR's staged comments.
+
+    Staged comments go stale when the PR head moves, and GitHub can reject a batch (422).
+    Either way comment, suggest and submit refuse; each such refusal names `discard`, and
+    after it the reviewer can stage and submit again.
+    """
+
+    # what gh prints when GitHub rejects the review, e.g. a comment off the diff
+    REJECTED = ('gh: Unprocessable Entity (HTTP 422)\n{"message":"Unprocessable Entity","errors":'
+                '["Pull request review thread line must be part of the diff"]}\n')
+
+    def rejected(self):
+        """(fake gh, reviewed head) after GitHub rejected the staged batch with a 422."""
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
+        self.addCleanup(gh.cleanup)
+        gh.run("--pr", "5", "comment", "app.py:10", "Why change this?")
+        gh.set_answer("POST /reviews", exit=1, stderr=self.REJECTED)
+        return gh, self.repo.head
+
+    def test_refusals_caused_by_staged_state_name_discard(self):
+        for move in self.MOVES:
+            for args in (("comment", "app.py:10", "More."), ("suggest", "app.py:10", "More."),
+                         ("submit", "changes", "Summary.")):
+                with self.subTest(move=move, verb=args[0]):
+                    gh, _ = self.staged_then_moved(move)
+                    out = gh.run("--pr", "5", *args, check=False, input_text="x = 1\n")
+                    self.assertNotEqual(out.returncode, 0, f"{args[0]} went through: {out.stdout}")
+                    self.assertIn("discard", out.stderr, "the refusal names the way out")
+        with self.subTest("submit rejected by GitHub"):
+            gh, _ = self.rejected()
+            out = gh.run("--pr", "5", "submit", "changes", "Summary.", check=False)
+            self.assertNotEqual(out.returncode, 0)
+            self.assertIn("discard", out.stderr, "the refusal names the way out")
+
+    def test_discard_clears_only_that_prs_staged_comments(self):
+        repo = Repo()
+        self.addCleanup(repo.cleanup)
+        gh = FakeGh(repo.path, {**pr_table(repo, 6), **pr_table(repo, 5)}, token="BOT_TOKEN")
+        self.addCleanup(gh.cleanup)
+        for number in ("5", "6"):
+            gh.run("--pr", number, "comment", "app.py:10", f"On PR {number}.")
+        gh.run("--pr", "5", "discard")
+        gh.run("--pr", "5", "submit", "pass", "Nothing left.")
+        self.assertEqual(gh.review_posts()[-1].get("comments", []), [])
+        gh.run("--pr", "6", "submit", "changes", "Still here.")
+        self.assertEqual([c["body"] for c in gh.review_posts()[-1]["comments"]], ["On PR 6."])
+
+    def test_after_discard_staging_and_submitting_work_again(self):
+        cases = [(move, lambda move=move: self.staged_then_moved(move)) for move in self.MOVES]
+        cases.append(("submit rejected by GitHub", self.rejected))
+        for name, stuck in cases:
+            with self.subTest(name):
+                gh, _ = stuck()
+                gh.run("--pr", "5", "submit", "changes", "S.", check=False)
+                gh.run("--pr", "5", "discard")
+                gh.set_answer("POST /reviews", json.dumps({"html_url": "https://github.com/o/r/pull/5"}))
+                gh.run("--pr", "5", "comment", "app.py:10", "Fresh look.")
+                gh.run("--pr", "5", "submit", "changes", "Again.")
+                review = gh.review_posts()[-1]
+                self.assertEqual(review["commit_id"], self.repo.head, "pinned on the current head")
+                self.assertEqual([c["body"] for c in review["comments"]], ["Fresh look."])
+
+
 class SuggestInputTest(unittest.TestCase):
     """suggest never posts a deletion by accident.
 
