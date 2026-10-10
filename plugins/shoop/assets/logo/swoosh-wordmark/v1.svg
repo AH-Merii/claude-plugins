@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 220">
+  <title>shoop</title>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round" transform="skewX(-12) translate(30 0)">
+    <!-- speed lines -->
+    <g stroke="#FF6B4A" stroke-width="10">
+      <path d="M8 88 H44"/>
+      <path d="M0 110 H40"/>
+      <path d="M12 132 H38"/>
+    </g>
+    <!-- letters -->
+    <g stroke="#7C5CFF" stroke-width="20">
+      <path d="M112 84 C102 70 72 68 68 88 C64 108 114 106 114 128 C114 152 76 156 62 138"/>
+      <path d="M146 30 V150 M146 104 C150 76 196 70 196 100 V150"/>
+      <path d="M422 70 V196 M422 110 C422 82 470 72 474 108 C478 146 432 150 422 122"/>
+    </g>
+    <!-- oo as infinity loop -->
+    <path stroke="#FF6B4A" stroke-width="20"
+      d="M310 110 C330 76 392 62 392 110 C392 158 330 144 310 110 C290 76 228 62 228 110 C228 158 290 144 310 110 Z"/>
+  </g>
+</svg>

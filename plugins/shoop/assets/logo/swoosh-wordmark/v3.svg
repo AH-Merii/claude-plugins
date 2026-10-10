@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 224">
+  <title>shoop</title>
+  <g transform="skewX(-12) translate(50 0)">
+    <!-- swoosh: the p's tail whips back under the word and trails off as speed streaks -->
+    <g fill="#FF6B4A">
+      <path d="M452 170 C452 206 320 212 150 194 C320 200 426 196 432 170 Z"/>
+      <path d="M48 80 A6 6 0 0 1 48 92 L0 87 A1 1 0 0 1 0 85 Z"/>
+      <path d="M44 104 A6 6 0 0 1 44 116 L-14 111 A1 1 0 0 1 -14 109 Z"/>
+      <path d="M46 128 A6 6 0 0 1 46 140 L8 135 A1 1 0 0 1 8 133 Z"/>
+    </g>
+    <!-- eye whites inside the loop -->
+    <g fill="#FFF4EC">
+      <ellipse cx="364" cy="110" rx="36" ry="32"/>
+      <ellipse cx="272" cy="110" rx="36" ry="32"/>
+    </g>
+    <g fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+      <g stroke="#7C5CFF">
+        <path d="M112 84 C102 70 72 68 68 88 C64 108 114 106 114 128 C114 152 76 156 62 138"/>
+        <path d="M146 30 V150 M146 104 C150 76 196 70 196 100 V150"/>
+        <path d="M442 70 V178 M442 102 C450 78 496 74 496 110 C496 146 452 148 442 124"/>
+      </g>
+      <!-- oo as an infinity loop -->
+      <path stroke="#FF6B4A"
+        d="M318 110 C332 84 352 70 370 70 C392 70 408 88 408 110 C408 132 392 150 370 150 C352 150 332 136 318 110
+           C304 84 284 70 266 70 C244 70 228 88 228 110 C228 132 244 150 266 150 C284 150 304 136 318 110 Z"/>
+    </g>
+    <!-- pupils, glancing ahead -->
+    <g fill="#1E1E2E">
+      <circle cx="284" cy="112" r="11"/>
+      <circle cx="384" cy="112" r="11"/>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 220">
+  <title>shoop</title>
+  <g transform="skewX(-12) translate(34 0)">
+    <!-- speed streaks: thin tail on the left, round head on the right -->
+    <g fill="#FF6B4A">
+      <path d="M48 80 A6 6 0 0 1 48 92 L0 87 A1 1 0 0 1 0 85 Z"/>
+      <path d="M44 104 A6 6 0 0 1 44 116 L-14 111 A1 1 0 0 1 -14 109 Z"/>
+      <path d="M46 128 A6 6 0 0 1 46 140 L8 135 A1 1 0 0 1 8 133 Z"/>
+    </g>
+    <g fill="none" stroke-width="20" stroke-linecap="round" stroke-linejoin="round">
+      <!-- s h p -->
+      <g stroke="#7C5CFF">
+        <path d="M112 84 C102 70 72 68 68 88 C64 108 114 106 114 128 C114 152 76 156 62 138"/>
+        <path d="M146 30 V150 M146 104 C150 76 196 70 196 100 V150"/>
+        <path d="M440 70 V196 M440 110 C440 82 488 72 492 108 C496 146 450 150 440 122"/>
+      </g>
+      <!-- oo as an infinity loop -->
+      <path stroke="#FF6B4A"
+        d="M318 110 C332 84 352 70 370 70 C392 70 408 88 408 110 C408 132 392 150 370 150 C352 150 332 136 318 110
+           C304 84 284 70 266 70 C244 70 228 88 228 110 C228 132 244 150 266 150 C284 150 304 136 318 110 Z"/>
+    </g>
+    <!-- pupils: the loop peeks ahead -->
+    <g fill="#7C5CFF">
+      <circle cx="280" cy="112" r="10"/>
+      <circle cx="384" cy="112" r="10"/>
+    </g>
+  </g>
+</svg>
