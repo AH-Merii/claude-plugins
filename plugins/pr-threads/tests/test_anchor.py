@@ -1,8 +1,13 @@
 """#7: local path:line is pinned to a line GitHub accepts in the PR diff, or refused up front."""
 import os
+import re
+import shlex
+import subprocess
+import tempfile
 import unittest
 
-from helpers import Repo, advises, assert_keeps_local_work, assert_moves_to_pr_head, git, isolate_git
+from helpers import (Repo, advises, assert_keeps_local_work, assert_moves_to_pr_head, clean_env, git, isolate_git,
+                     numbered)
 
 from pr_threads import Refusal
 from pr_threads.anchor import LocalDiffers, NotInDiff, NotPulled, NotPushed, anchor, check_synced
@@ -238,6 +243,281 @@ class SyncTest(unittest.TestCase):
             check_synced(self.repo.path, "feature", "0" * 40)
         self.assertNotIsInstance(caught.exception, NotPushed)
         self.assertRegex(str(caught.exception).lower(), r"\bfetch\b|\bpull\b")
+
+
+class RemoteSyncTest(unittest.TestCase):
+    """#7 in a clone that got the PR from a remote, the two ways a reviewer's clone does.
+
+    The author pushes a two-commit PR (`one` changes app.py line 10, `two` line 20) to a bare
+    repo standing in for GitHub, which also keeps it at refs/pull/5/head. The clone checks out
+    the PR at `two`, and later fetches whatever the author pushed:
+
+    - "tracking": the PR branch is on the remote, so the clone tracks origin/feature. After the
+      fetch origin/feature is the PR head, and the commits a rewrite replaced are on no remote.
+    - "pull ref": a PR from a fork, whose repo isn't a remote here. As `gh pr checkout` does
+      (cli/cli pkg/cmd/pr/checkout/checkout.go, cmdsForMissingRemote), the clone fetches
+      refs/pull/5/head into its branch, and later fetches it again to FETCH_HEAD. No
+      remote-tracking ref ever holds the PR's commits.
+
+    In the usual review loop the PR moves on before it's rewritten, and the clone follows it
+    with a fast-forward: `git pull --ff-only` when tracking, or, as rerunning `gh pr checkout`
+    does (checkout.go, syncBranchCmds), a fetch of the pull ref and `merge --ff-only FETCH_HEAD`.
+    So each rewrite is tried on a clone at `two`, and on one fast-forwarded to a third commit.
+    A clone with its own commits can't fast-forward; it follows the PR with `git pull --rebase`,
+    which replays its commits onto the third, so that is tried too.
+    """
+
+    SHAPES = ("tracking", "pull ref")
+
+    def setUp(self):
+        isolate_git(self)
+
+    def start(self, shape, fast_forwarded=False):
+        self.shape = shape
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.origin = os.path.join(tmp.name, "origin.git")
+        self.author = os.path.join(tmp.name, "author")
+        self.clone = os.path.join(tmp.name, "clone")
+        git(tmp.name, "init", "-q", "--bare", "-b", "main", self.origin)
+        git(tmp.name, "clone", "-q", self.origin, self.author)
+        git(self.author, "symbolic-ref", "HEAD", "refs/heads/main")
+        self.write(self.author, "app.py", numbered(30))
+        self.write(self.author, "other.py", numbered(5))
+        git(self.author, "add", ".")
+        git(self.author, "commit", "-qm", "base")
+        self.base = git(self.author, "rev-parse", "HEAD")
+        git(self.author, "push", "-q", "origin", "HEAD:main")
+        git(self.author, "checkout", "-qb", "feature")
+        self.one = self.commit(self.author, "one", "app.py", "line 10\n", "changed 10\n")
+        self.reviewed = self.commit(self.author, "two", "app.py", "line 20\n", "changed 20\n")
+        self.publish()
+        git(tmp.name, "clone", "-q", self.origin, self.clone)
+        if shape == "pull ref":
+            git(self.clone, "fetch", "-q", "origin", "refs/pull/5/head:feature")
+        git(self.clone, "checkout", "-q", "feature")
+        if fast_forwarded:
+            self.commit(self.author, "three", "app.py", "line 25\n", "changed 25\n")
+            self.publish()
+            self.fast_forward()
+        # the PR as the clone last had it
+        self.checked_out = git(self.clone, "rev-parse", "feature")
+
+    def fast_forward(self):
+        """Bring the clone's branch up to the PR head, as a reviewer does between rounds."""
+        if self.shape == "tracking":
+            git(self.clone, "pull", "-q", "--ff-only")
+        else:
+            git(self.clone, "fetch", "-q", "origin", "refs/pull/5/head")
+            git(self.clone, "merge", "-q", "--ff-only", "FETCH_HEAD")
+
+    @staticmethod
+    def write(repo, name, text):
+        with open(os.path.join(repo, name), "w") as f:
+            f.write(text)
+
+    @staticmethod
+    def commit(repo, message, name, old, new):
+        """Replace `old` with `new` in `name`, commit it, and return the commit."""
+        with open(os.path.join(repo, name)) as f:
+            text = f.read()
+        RemoteSyncTest.write(repo, name, text.replace(old, new))
+        git(repo, "commit", "-qam", message)
+        return git(repo, "rev-parse", "HEAD")
+
+    # ways the author rewrites the PR before force-pushing it
+    def amend_message(self):
+        git(self.author, "commit", "-q", "--amend", "-m", "two, reworded")
+
+    def amend_content(self):
+        self.write(self.author, "app.py",
+                   numbered(30).replace("line 10\n", "changed 10\n").replace("line 20\n", "fixed 20\n"))
+        git(self.author, "commit", "-q", "--amend", "-a", "--no-edit")
+
+    def amend_earlier(self):
+        git(self.author, "checkout", "-q", "--detach", self.base)
+        self.commit(self.author, "one", "app.py", "line 10\n", "fixed 10\n")
+        git(self.author, "cherry-pick", self.reviewed)
+        git(self.author, "checkout", "-q", "-B", "feature")
+
+    def rebase(self):
+        git(self.author, "checkout", "-q", "main")
+        self.commit(self.author, "main moves on", "other.py", "line 3\n", "main 3\n")
+        git(self.author, "push", "-q", "origin", "main")
+        git(self.author, "checkout", "-q", "feature")
+        git(self.author, "rebase", "-q", "main")
+
+    def squash(self):
+        git(self.author, "reset", "-q", "--soft", self.base)
+        git(self.author, "commit", "-qm", "one and two")
+
+    def drop_earlier(self):
+        git(self.author, "rebase", "-q", "--onto", self.base, self.one)
+
+    def drop_top(self):
+        git(self.author, "reset", "-q", "--hard", self.one)
+
+    REWRITES = [
+        ("message-only amend", amend_message),
+        ("content amend", amend_content),
+        ("content amend of an earlier commit", amend_earlier),
+        ("rebase onto a newer main", rebase),
+        ("squash", squash),
+        ("force-push dropping an earlier commit", drop_earlier),
+        ("force-push dropping the top commit", drop_top),
+    ]
+
+    def publish(self, force=False):
+        """Push the author's PR branch to GitHub: its head branch, if it lives there, and the pull ref."""
+        refs = ["feature:refs/pull/5/head"] + (["feature"] if self.shape == "tracking" else [])
+        git(self.author, "push", "-q", *(["-f"] if force else []), "origin", *refs)
+
+    def rewrite(self, how):
+        how(self)
+        self.publish(force=True)
+
+    def fetch(self):
+        """Fetch the way a reviewer does, and return the PR head."""
+        if self.shape == "tracking":
+            git(self.clone, "fetch", "-q", "origin")
+            return git(self.clone, "rev-parse", "origin/feature")
+        git(self.clone, "fetch", "-q", "origin", "refs/pull/5/head")
+        return git(self.clone, "rev-parse", "FETCH_HEAD")
+
+    def cases(self):
+        """(shape, fast-forwarded first, rewrite name, rewrite) for every combination."""
+        return [(shape, ff, name, how) for shape in self.SHAPES for ff in (False, True)
+                for name, how in self.REWRITES]
+
+    # how a clone with its own commits followed the PR before the rewrite
+    FOLLOWS = ("stayed at two", "fast-forwarded, then committed", "committed, then pulled with rebase",
+               "committed, then pulled with pull.rebase=merges")
+
+    def follow_with_own_commits(self, how=("--rebase",)):
+        """The PR moves on to `three`, and the clone rebases its own commits onto it with
+        `git pull --rebase`. Returns the clone's own commits as they now are, oldest first."""
+        self.commit(self.author, "three", "app.py", "line 25\n", "changed 25\n")
+        self.publish()
+        pull = ["-c", "pull.rebase=merges", "pull", "-q"] if how == "config" else ["pull", "-q", *how]
+        git(self.clone, *pull, *([] if self.shape == "tracking" else ["origin", "refs/pull/5/head"]))
+        self.checked_out = git(self.clone, "rev-parse", f"HEAD~{len(self.OWN)}")
+        return git(self.clone, "rev-list", "--reverse", f"{self.checked_out}..HEAD").split()
+
+    def refusal(self, pr_head):
+        with self.assertRaises(Refusal) as caught:
+            check_synced(self.clone, "feature", pr_head)
+        return str(caught.exception)
+
+    def replaced(self, pr_head):
+        """The PR commits the clone last had that the PR head no longer has."""
+        return git(self.clone, "rev-list", self.checked_out, "--not", pr_head).split()
+
+    def assertNamesNoneOf(self, message, commits):
+        for sha in re.findall(r"\b[0-9a-f]{7,40}\b", message):
+            self.assertFalse(any(c.startswith(sha) for c in commits),
+                             f"names {sha}, which the clone got from the PR, as its own: {message}")
+
+    OWN = ["local only", "local only 2"]  # the clone's own commits, oldest first
+
+    def own_local_commits(self):
+        """The clone's own two commits, oldest first, in files no rewrite touches, so replaying
+        them can't conflict."""
+        commits = []
+        for i, subject in enumerate(self.OWN):
+            self.write(self.clone, f"mine{i}.py", "mine\n")
+            git(self.clone, "add", f"mine{i}.py")
+            git(self.clone, "commit", "-qm", subject)
+            commits.append(git(self.clone, "rev-parse", "HEAD"))
+        return commits
+
+    def assertRebaseAdviceKeepsOnlyOwnWork(self, message, pr_head):
+        """A rebase the message advises, run as written, puts only the clone's own commits on the
+        PR head, in order, and leaves them the clone's own: unpushed work to push.
+
+        `git rebase <pr head>` would replay the commits the rewrite replaced too (#7).
+        """
+        if not advises(message, "rebase"):
+            return
+        commands = re.findall(r"\bgit\s+rebase\b[^)`;,\n]*", message)
+        self.assertTrue(commands, f"advises rebasing without the command to run: {message}")
+        command = commands[0].rstrip(". ")
+        out = subprocess.run(["git", "-C", self.clone, *shlex.split(command)[1:]],
+                             capture_output=True, text=True, env=clean_env())
+        self.assertEqual(out.returncode, 0, f"`{command}` fails: {out.stdout}{out.stderr}\n{message}")
+        on_top = git(self.clone, "log", "--reverse", "--format=%s", f"{pr_head}..HEAD").splitlines()
+        self.assertEqual((on_top, git(self.clone, "rev-parse", f"HEAD~{len(self.OWN)}")), (self.OWN, pr_head),
+                         f"`{command}` doesn't leave just the clone's own commits on the PR head: "
+                         f"{on_top}\n{message}")
+        # the rebased commits are still the clone's own, so the next step is to push them
+        with self.assertRaises(Refusal, msg=f"after `{command}`") as caught:
+            check_synced(self.clone, "feature", pr_head)
+        self.assertIsInstance(caught.exception, NotPushed, f"after `{command}`: {caught.exception}")
+        self.assertTrue(advises(str(caught.exception), "push"), str(caught.exception))
+
+    def test_commits_a_rewrite_replaced_are_not_the_clones_own(self):
+        """The clone got them from the PR, so a fetched rewrite means reset to it, not rebase."""
+        for shape, ff, name, how in self.cases():
+            with self.subTest(name, shape=shape, fast_forwarded=ff):
+                self.start(shape, ff)
+                self.rewrite(how)
+                pr_head = self.fetch()
+                message = self.refusal(pr_head)
+                assert_moves_to_pr_head(self, message)
+                self.assertNamesNoneOf(message, self.replaced(pr_head))
+
+    def test_own_commits_alongside_a_rewrite_are_kept_and_the_replaced_ones_are_not(self):
+        for shape, follow, (name, how) in [(shape, follow, rewrite) for shape in self.SHAPES
+                                           for follow in self.FOLLOWS for rewrite in self.REWRITES]:
+            with self.subTest(name, shape=shape, follow=follow):
+                self.start(shape, fast_forwarded=follow == "fast-forwarded, then committed")
+                own = self.own_local_commits()
+                if follow == "committed, then pulled with rebase":
+                    own = self.follow_with_own_commits()
+                elif follow == "committed, then pulled with pull.rebase=merges":
+                    own = self.follow_with_own_commits("config")
+                self.rewrite(how)
+                pr_head = self.fetch()
+                message = self.refusal(pr_head)
+                named = re.findall(r"\b[0-9a-f]{7,40}\b", message)
+                for local in own:
+                    assert_keeps_local_work(self, message, local)
+                    self.assertTrue(any(local.startswith(sha) for sha in named),
+                                    f"doesn't name the clone's own commit {local[:12]}: {message}")
+                # pushing the branch would put the replaced commits back on the PR
+                self.assertFalse(advises(message, "push"), f"advises pushing: {message}")
+                self.assertNamesNoneOf(message, self.replaced(pr_head))
+                self.assertRebaseAdviceKeepsOnlyOwnWork(message, pr_head)
+
+    # regression guards: both setups already get these right
+
+    def test_own_commit_on_an_unchanged_pr_is_unpushed_work(self):
+        for shape in self.SHAPES:
+            with self.subTest(shape=shape):
+                self.start(shape)
+                self.own_local_commits()
+                with self.assertRaises(NotPushed) as caught:
+                    check_synced(self.clone, "feature", self.fetch())
+                self.assertTrue(advises(str(caught.exception), "push"), str(caught.exception))
+
+    def test_own_commit_is_kept_when_the_pr_only_moved_on(self):
+        for shape in self.SHAPES:
+            with self.subTest(shape=shape):
+                self.start(shape)
+                local = self.own_local_commits()[-1]
+                self.commit(self.author, "three", "app.py", "line 25\n", "changed 25\n")
+                self.publish()
+                message = self.refusal(self.fetch())
+                assert_keeps_local_work(self, message, local)
+                self.assertNamesNoneOf(message, [self.one, self.reviewed])
+
+    def test_clone_reset_to_the_rewritten_pr_head_is_accepted(self):
+        for shape in self.SHAPES:
+            with self.subTest(shape=shape):
+                self.start(shape)
+                self.rewrite(RemoteSyncTest.amend_content)
+                pr_head = self.fetch()
+                git(self.clone, "reset", "-q", "--keep", pr_head)
+                check_synced(self.clone, "feature", pr_head)
 
 
 if __name__ == "__main__":

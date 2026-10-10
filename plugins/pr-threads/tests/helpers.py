@@ -283,12 +283,14 @@ def advises(message, verb):
 
 
 def assert_moves_to_pr_head(test, message):
-    """The PR head was rewritten under an unchanged clone: go to it, don't pull or push.
+    """The PR head was rewritten under an unchanged clone: go to it, don't pull, push or rebase.
 
-    Pulling merges the old commits back in, and pushing them undoes the author's rewrite.
+    Pulling merges the old commits back in, pushing them undoes the author's rewrite, and
+    rebasing replays them onto their replacements.
     """
     test.assertFalse(advises(message, "pull"), f"advises pulling: {message}")
     test.assertFalse(advises(message, "push"), f"advises pushing: {message}")
+    test.assertFalse(advises(message, "rebase"), f"advises rebasing: {message}")
     test.assertTrue(any(advises(message, v) for v in ("reset", "check out", "checkout", "switch")),
                     f"doesn't say to reset to or check out the PR head: {message}")
 
