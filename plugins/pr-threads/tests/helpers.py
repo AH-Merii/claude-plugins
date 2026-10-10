@@ -1,6 +1,7 @@
 """Shared test fixtures: real git repos in temp dirs, and a recording stand-in for `gh`."""
 import json
 import os
+import re
 import subprocess
 import sys
 import shlex
@@ -246,3 +247,37 @@ def pr_table(repo, number=5):
         "GET /reviews": {"stdout": "[]"},
         "graphql reviewThreads": {"stdout": json.dumps(threads_response())},
     }
+
+
+def advises(message, verb):
+    """Whether `message` tells the reader to `verb` (pull, push, reset, ...), not just mentions it.
+
+    An instruction starts a clause ("...: pull first", "then push", "run `git pull`") or names
+    the git command; "don't pull or push", "force-pushed" and "pull request" are mentions.
+    """
+    verb = re.escape(verb).replace(r"\ ", r"\s+")
+    starts = r"(?:^|[:;.!?]\s+|,\s+|\b(?:then|and|first|so|run)\s+|`)"
+    return re.search(rf"{starts}(?:git\s+)?{verb}\b(?!\s+request)|(?<!n't )(?<!not )\bgit\s+{verb}\b",
+                     message, re.I | re.M) is not None
+
+
+def assert_moves_to_pr_head(test, message):
+    """The PR head was rewritten under an unchanged clone: go to it, don't pull or push.
+
+    Pulling merges the old commits back in, and pushing them undoes the author's rewrite.
+    """
+    test.assertFalse(advises(message, "pull"), f"advises pulling: {message}")
+    test.assertFalse(advises(message, "push"), f"advises pushing: {message}")
+    test.assertTrue(any(advises(message, v) for v in ("reset", "check out", "checkout")),
+                    f"doesn't say to reset to or check out the PR head: {message}")
+
+
+def assert_keeps_local_work(test, message, local):
+    """The PR moved on and the clone has its own commits: point at them, never drop them."""
+    test.assertFalse(advises(message, "pull"), f"advises pulling: {message}")
+    test.assertFalse(any(advises(message, v) for v in ("reset", "check out", "checkout"))
+                     or re.search(r"--(hard|force)\b", message) is not None,
+                     f"advice that drops the local commits: {message}")
+    names_local = any(local.startswith(sha) for sha in re.findall(r"\b[0-9a-f]{7,40}\b", message))
+    test.assertTrue(names_local or advises(message, "rebase"),
+                    f"doesn't point at the local-only commit {local[:12]}: {message}")

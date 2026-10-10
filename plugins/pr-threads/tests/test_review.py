@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from helpers import INSTALL_URL, FakeGh, Repo, git, pr_table
+from helpers import INSTALL_URL, FakeGh, Repo, assert_keeps_local_work, assert_moves_to_pr_head, git, pr_table
 
 from pr_threads.suggestions import parse_suggestion
 
@@ -109,22 +109,33 @@ class SubmitTest(unittest.TestCase):
         gh.run("--pr", "5", "submit", "pass", "Nothing staged.")
         self.assertEqual(gh.review_posts()[-1].get("comments", []), [], "refused comments were not staged")
 
-    def test_diverged_branch_is_told_to_reset_to_the_pr_head_not_to_pull_and_push(self):
-        # the author amended and force-pushed after this clone checked the PR out
+    def test_diverged_branch_is_told_how_to_get_back_without_pulling(self):
         reviewed = self.repo.head
-        git(self.repo.path, "commit", "-q", "--amend", "-m", "head, reworded")
-        self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
-        gh = self.gh()
-        git(self.repo.path, "reset", "-q", "--hard", reviewed)
-        for args in (("comment", "app.py:10", "Hmm."), ("suggest", "app.py:10", "Hmm.")):
-            with self.subTest(command=args[0]):
-                out = gh.run("--pr", "5", *args, check=False, input_text="x\n")
-                self.assertNotEqual(out.returncode, 0)
-                lower = out.stderr.lower()
-                self.assertNotRegex(lower, r"\bpull\b(?!\s+request)", "pulling merges the old commits back")
-                self.assertNotRegex(lower, r"\bpush\b", "pushing undoes the author's rewrite")
-                self.assertRegex(lower, r"\breset\b|\bcheck ?out\b", "says to move to the PR head")
-        self.assertEqual(gh.review_posts(), [])
+        for case in ("rewritten", "both moved"):
+            git(self.repo.path, "reset", "-q", "--hard", reviewed)
+            if case == "rewritten":
+                # the author amended and force-pushed after this clone checked the PR out
+                git(self.repo.path, "commit", "-q", "--amend", "-m", "head, reworded")
+            else:
+                # the PR moved on while this clone made its own commit
+                self.repo.write("app.py", self.repo.read("app.py") + "pushed from elsewhere\n")
+                git(self.repo.path, "commit", "-qam", "pushed from elsewhere")
+            self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
+            gh = self.gh()
+            git(self.repo.path, "reset", "-q", "--hard", reviewed)
+            if case == "both moved":
+                self.repo.write("other.py", "local only\n")
+                git(self.repo.path, "commit", "-qam", "local only")
+            local = git(self.repo.path, "rev-parse", "HEAD")
+            for args in (("comment", "app.py:10", "Hmm."), ("suggest", "app.py:10", "Hmm.")):
+                with self.subTest(case, command=args[0]):
+                    out = gh.run("--pr", "5", *args, check=False, input_text="x\n")
+                    self.assertNotEqual(out.returncode, 0)
+                    if case == "both moved":
+                        assert_keeps_local_work(self, out.stderr, local)
+                    else:
+                        assert_moves_to_pr_head(self, out.stderr)
+            self.assertEqual(gh.review_posts(), [])
 
     def test_comments_are_refused_when_the_pr_head_was_never_fetched(self):
         self.repo.head = "0" * 40

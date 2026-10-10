@@ -2,7 +2,7 @@
 import os
 import unittest
 
-from helpers import Repo, git, isolate_git
+from helpers import Repo, advises, assert_keeps_local_work, assert_moves_to_pr_head, git, isolate_git
 
 from pr_threads import Refusal
 from pr_threads.anchor import LocalDiffers, NotInDiff, NotPulled, NotPushed, anchor, check_synced
@@ -151,17 +151,6 @@ class SyncTest(unittest.TestCase):
         self.assertNotIsInstance(caught.exception, NotPushed)
         self.assertIn("pull", str(caught.exception).lower())
 
-    def assertSaysResetNotPullPush(self, message):
-        """A diverged branch is fixed by moving to the PR head, never by pulling and pushing.
-
-        For a reviewer, divergence almost always means the author rewrote the PR (rebase,
-        amend, force-push); pulling merges the old commits back and pushing undoes the rewrite.
-        """
-        lower = message.lower()
-        self.assertNotRegex(lower, r"\bpull\b(?!\s+request)", "must not advise pulling")
-        self.assertNotRegex(lower, r"\bpush\b", "must not advise pushing")
-        self.assertRegex(lower, r"\breset\b|\bcheck ?out\b", "says to reset to or check out the PR head")
-
     def diverged(self):
         """(name, PR head) for each way the PR head and the local branch can part ways."""
         path, local = self.repo.path, self.repo.head
@@ -187,7 +176,8 @@ class SyncTest(unittest.TestCase):
         git(path, "commit", "-qam", "local only")
         return cases, git(path, "rev-parse", "HEAD")
 
-    def test_diverged_branch_is_told_to_reset_to_the_pr_head_not_to_pull_and_push(self):
+    def test_diverged_branch_is_told_how_to_get_back_without_pulling(self):
+        """A rewritten PR head means reset to it; the clone's own commits mean rebase them."""
         cases, local_commit = self.diverged()
         for name, pr_head in cases:
             with self.subTest(name):
@@ -196,7 +186,27 @@ class SyncTest(unittest.TestCase):
                     local_commit if name == "both moved" else self.repo.head)
                 with self.assertRaises(Refusal) as caught:
                     check_synced(self.repo.path, "feature", pr_head)
-                self.assertSaysResetNotPullPush(str(caught.exception))
+                if name == "both moved":
+                    assert_keeps_local_work(self, str(caught.exception), local_commit)
+                else:
+                    assert_moves_to_pr_head(self, str(caught.exception))
+
+    def test_advice_is_told_apart_from_a_mention(self):
+        # the checks above ban the advice to pull or push, not the words
+        for message, verb, advice in [
+            ("feature and the PR head abc1234 have diverged: pull, then push", "pull", True),
+            ("feature and the PR head abc1234 have diverged: pull, then push", "push", True),
+            ("behind the PR head: pull first", "pull", True),
+            ("run `git pull` and retry", "pull", True),
+            ("Pull the PR head, then retry", "pull", True),
+            ("don't pull or push; reset to it", "pull", False),
+            ("don't pull or push; reset to it", "push", False),
+            ("don't pull or push; reset to it", "reset", True),
+            ("the PR head was force-pushed", "push", False),
+            ("the pull request head moved", "pull", False),
+        ]:
+            with self.subTest(message=message, verb=verb):
+                self.assertEqual(advises(message, verb), advice)
 
     def test_pr_head_missing_locally_is_refused(self):
         with self.assertRaises(NotPulled) as caught:
