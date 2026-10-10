@@ -28,15 +28,16 @@ class HandoffTest(unittest.TestCase):
         got = handoff(response(thread("T1")), [review("pass", "2026-10-10T10:00:00Z")])
         self.assertHandoff(got, "changes", 1)
 
+    # GitHub lists reviews oldest first, so in every fixture the first review is the stale one
     def test_latest_verdict_wins(self):
-        reviews = [review("changes", "2026-10-10T11:00:00Z"), review("pass", "2026-10-10T10:00:00Z")]
+        reviews = [review("pass", "2026-10-10T10:00:00Z"), review("changes", "2026-10-10T11:00:00Z")]
         self.assertEqual(handoff(response(), reviews)["state"], "changes")
-        reviews = [review("pass", "2026-10-10T12:00:00Z")] + reviews
+        reviews = reviews + [review("pass", "2026-10-10T12:00:00Z")]
         self.assertEqual(handoff(response(), reviews)["state"], "pass")
 
     def test_reviews_without_a_verdict_are_ignored(self):
         human = {"state": "COMMENTED", "body": "nice work", "submitted_at": "2026-10-10T12:00:00Z"}
-        reviews = [human, review("pass", "2026-10-10T10:00:00Z")]
+        reviews = [review("pass", "2026-10-10T10:00:00Z"), human]
         self.assertEqual(handoff(response(), reviews)["state"], "pass")
 
 
@@ -51,11 +52,11 @@ class HumanVerdictTest(unittest.TestCase):
         self.assertEqual((got["state"], got["open"]), ("pass", 0))
 
     def test_approval_after_a_bot_change_request_is_a_pass(self):
-        reviews = [self.human("APPROVED", "2026-10-10T11:00:00Z"), review("changes", "2026-10-10T10:00:00Z")]
+        reviews = [review("changes", "2026-10-10T10:00:00Z"), self.human("APPROVED", "2026-10-10T11:00:00Z")]
         self.assertEqual(handoff(response(), reviews)["state"], "pass")
 
     def test_a_later_bot_change_request_overrides_an_older_approval(self):
-        reviews = [review("changes", "2026-10-10T11:00:00Z"), self.human("APPROVED", "2026-10-10T10:00:00Z")]
+        reviews = [self.human("APPROVED", "2026-10-10T10:00:00Z"), review("changes", "2026-10-10T11:00:00Z")]
         self.assertEqual(handoff(response(), reviews)["state"], "changes")
 
     def test_approval_does_not_close_open_threads(self):
@@ -63,8 +64,8 @@ class HumanVerdictTest(unittest.TestCase):
         self.assertEqual((got["state"], got["open"]), ("approved", 2))
 
     def test_change_request_blocks_even_after_a_bot_pass(self):
-        reviews = [self.human("CHANGES_REQUESTED", "2026-10-10T11:00:00Z", "Rename this first."),
-                   review("pass", "2026-10-10T10:00:00Z")]
+        reviews = [review("pass", "2026-10-10T10:00:00Z"),
+                   self.human("CHANGES_REQUESTED", "2026-10-10T11:00:00Z", "Rename this first.")]
         self.assertEqual(handoff(response(), reviews)["state"], "changes")
 
 
