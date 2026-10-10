@@ -5,107 +5,127 @@ import unittest
 from helpers import BOT, INSTALL_URL, FakeGh, Repo, pages, pr_table, resolved_response, thread
 from helpers import threads_response as response
 
-from pr_threads.review import review_body
 from pr_threads.status import handoff
 
 
-def review(verdict, at, state="COMMENTED"):
-    return {"state": state, "body": review_body(verdict, "summary"), "submitted_at": at}
+HUMAN = "octocat"
 
 
-def bot(verdict, at):
-    """The bot's verdict: a formal review state, since the bot never authors the PR."""
-    state = {"pass": "APPROVED", "changes": "CHANGES_REQUESTED"}[verdict]
-    return {"user": {"login": BOT, "type": "Bot"}, "state": state,
-            "body": review_body(verdict, "summary"), "submitted_at": at}
+def at(hour):
+    return f"2026-10-10T{hour:02d}:00:00Z"
 
 
-def theirs(state, at, body="Looks good."):
+def by(login, state, hour, body="", kind="User"):
+    """A submitted review as GitHub's REST API lists it."""
+    return {"user": {"login": login, "type": kind}, "state": state, "body": body,
+            "submitted_at": at(hour)}
+
+
+def bot(state, hour):
+    """The bot's review: formal states, since the bot never authors the PR."""
+    return by(BOT, state, hour, "Summary.", kind="Bot")
+
+
+def human(state, hour, body="Looks good."):
     """A human reviewer who isn't the PR's author."""
-    return {"user": {"login": "octocat", "type": "User"}, "state": state, "body": body, "submitted_at": at}
+    return by(HUMAN, state, hour, body)
 
 
-class HandoffTest(unittest.TestCase):
-    def assertHandoff(self, got, state, open_count):
-        self.assertEqual((got["state"], got["open"]), (state, open_count))
-
-    def test_no_review_yet_is_pending(self):
-        self.assertHandoff(handoff(response(), []), "pending", 0)
-
-    def test_pass_with_no_open_threads_is_a_pass(self):
-        got = handoff(response(thread("T1", resolved=True)), [review("pass", "2026-10-10T10:00:00Z")])
-        self.assertHandoff(got, "pass", 0)
-
-    def test_open_threads_block_a_pass(self):
-        got = handoff(response(thread("T1")), [review("pass", "2026-10-10T10:00:00Z")])
-        self.assertHandoff(got, "changes", 1)
-
-    # GitHub lists reviews oldest first, so in every fixture the first review is the stale one
-    def test_latest_verdict_wins(self):
-        reviews = [review("pass", "2026-10-10T10:00:00Z"), review("changes", "2026-10-10T11:00:00Z")]
-        self.assertEqual(handoff(response(), reviews)["state"], "changes")
-        reviews = reviews + [review("pass", "2026-10-10T12:00:00Z")]
-        self.assertEqual(handoff(response(), reviews)["state"], "pass")
-
-    def test_reviews_without_a_verdict_are_ignored(self):
-        human = {"state": "COMMENTED", "body": "nice work", "submitted_at": "2026-10-10T12:00:00Z"}
-        reviews = [review("pass", "2026-10-10T10:00:00Z"), human]
-        self.assertEqual(handoff(response(), reviews)["state"], "pass")
-
-    def test_a_dismissed_review_no_longer_counts(self):
-        reviews = [review("pass", "2026-10-10T10:00:00Z", state="APPROVED"),
-                   review("changes", "2026-10-10T11:00:00Z", state="DISMISSED")]
-        self.assertEqual(handoff(response(), reviews)["state"], "pass")
-
-    def test_a_pending_review_is_not_submitted_yet(self):
-        # GitHub shows a draft review only to its author, with no submitted_at
-        pending = {"state": "PENDING", "body": review_body("changes", "summary")}
-        reviews = [review("pass", "2026-10-10T10:00:00Z", state="APPROVED"), pending]
-        self.assertEqual(handoff(response(), reviews)["state"], "pass")
+def pending(login):
+    """A draft review: GitHub shows it only to its author, with no submitted_at."""
+    return {"user": {"login": login, "type": "User"}, "state": "PENDING", "body": "Rename this."}
 
 
-class HumanVerdictTest(unittest.TestCase):
-    """A formal verdict counts: the latest wins, whoever gave it.
-
-    The bot isn't the PR's author, so it gives formal APPROVE and REQUEST_CHANGES verdicts,
-    and so can a human reviewer who isn't the author. GitHub refuses both from the author
-    (422), so in v1 the user gives their verdict in chat and nothing on the PR carries it.
-    """
-
+class HandoffCase(unittest.TestCase):
     def assertHandoff(self, reviews, state, open_count=0, *threads):
         got = handoff(response(*threads), reviews)
         self.assertEqual((got["state"], got["open"]), (state, open_count))
 
-    # a human reviewer who isn't the PR's author can approve or request changes, and that counts
-    def test_another_reviewers_approval_with_no_open_threads_is_a_pass(self):
-        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z")], "pass", 0, thread("T1", resolved=True))
-        self.assertHandoff([theirs("CHANGES_REQUESTED", "2026-10-10T10:00:00Z")], "changes", 0,
-                           thread("T1", resolved=True))
 
-    def test_another_reviewers_approval_after_a_bot_change_request_is_a_pass(self):
-        self.assertHandoff([bot("changes", "2026-10-10T10:00:00Z")], "changes")
-        self.assertHandoff([bot("changes", "2026-10-10T10:00:00Z"), theirs("APPROVED", "2026-10-10T11:00:00Z")],
-                           "pass")
+class HandoffTest(HandoffCase):
+    """The handoff reads formal review states, as GitHub does.
 
-    def test_a_later_bot_change_request_overrides_another_reviewers_approval(self):
-        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z")], "pass")
-        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z"), bot("changes", "2026-10-10T11:00:00Z")],
-                           "changes")
+    A pass needs an approval, no outstanding change request and no open threads. An
+    approval with threads still open reports `approved` and the open count, never a pass.
+    COMMENTED reviews carry no verdict; DISMISSED and PENDING ones don't count.
+    """
+
+    def test_no_review_yet_is_pending(self):
+        self.assertHandoff([], "pending")
+
+    def test_approval_with_no_open_threads_is_a_pass(self):
+        self.assertHandoff([bot("APPROVED", 10)], "pass", 0, thread("T1", resolved=True))
+
+    def test_approval_with_open_threads_is_approved_not_a_pass(self):
+        self.assertHandoff([bot("APPROVED", 10)], "approved", 1, thread("T1"), thread("T2", resolved=True))
+        self.assertHandoff([human("APPROVED", 10)], "approved", 2, thread("T1"), thread("T2"))
+
+    def test_change_request_holds_even_with_no_open_threads(self):
+        self.assertHandoff([bot("CHANGES_REQUESTED", 10)], "changes", 0, thread("T1", resolved=True))
+
+    def test_change_request_outranks_open_threads(self):
+        self.assertHandoff([bot("APPROVED", 10), human("CHANGES_REQUESTED", 11)], "changes", 1, thread("T1"))
+
+    # GitHub lists reviews oldest first, so in every fixture the first review is the stale one
+    def test_a_reviewers_latest_verdict_replaces_their_earlier_one(self):
+        self.assertHandoff([bot("APPROVED", 10), bot("CHANGES_REQUESTED", 11)], "changes")
+        self.assertHandoff([bot("APPROVED", 10), bot("CHANGES_REQUESTED", 11), bot("APPROVED", 12)], "pass")
+
+    def test_a_comment_changes_no_ones_standing(self):
+        self.assertHandoff([bot("APPROVED", 10), bot("COMMENTED", 11)], "pass")
+        self.assertHandoff([bot("CHANGES_REQUESTED", 10), bot("COMMENTED", 11)], "changes")
+        self.assertHandoff([bot("APPROVED", 10), human("COMMENTED", 11, "Nice work.")], "pass")
+
+    def test_comments_alone_are_not_a_pass(self):
+        self.assertHandoff([human("COMMENTED", 10, "Nice work."), bot("COMMENTED", 11)], "pending")
+
+    def test_a_dismissed_review_no_longer_counts(self):
+        # GitHub turns a dismissed review's state into DISMISSED
+        self.assertHandoff([bot("APPROVED", 10), human("DISMISSED", 11, "Rename this first.")], "pass")
+        self.assertHandoff([bot("DISMISSED", 10)], "pending", 0)
+
+    def test_a_pending_review_is_not_submitted_yet(self):
+        self.assertHandoff([bot("APPROVED", 10), pending(HUMAN)], "pass")
+
+
+class PerReviewerTest(HandoffCase):
+    """Each reviewer's latest formal review counts separately, as on GitHub.
+
+    The bot isn't the PR's author, so it gives formal APPROVE and REQUEST_CHANGES verdicts,
+    and so can a human reviewer who isn't the author. A change request blocks until the
+    same reviewer approves later or it is dismissed; another reviewer's approval doesn't
+    lift it. GitHub refuses both verdicts from the author (422), so in v1 the user gives
+    theirs in chat and nothing on the PR carries it.
+    """
+
+    def test_another_reviewers_verdict_counts(self):
+        self.assertHandoff([human("APPROVED", 10)], "pass", 0, thread("T1", resolved=True))
+        self.assertHandoff([human("CHANGES_REQUESTED", 10)], "changes", 0, thread("T1", resolved=True))
+
+    def test_another_reviewers_change_request_blocks_a_bot_pass(self):
+        rename = human("CHANGES_REQUESTED", 10, "Rename this first.")
+        self.assertHandoff([rename, bot("APPROVED", 11)], "changes")
+        self.assertHandoff([bot("APPROVED", 9), rename], "changes")
+
+    def test_a_bot_change_request_blocks_another_reviewers_approval(self):
+        self.assertHandoff([bot("CHANGES_REQUESTED", 10), human("APPROVED", 11)], "changes")
+        self.assertHandoff([human("APPROVED", 10), bot("CHANGES_REQUESTED", 11)], "changes")
+
+    def test_a_change_request_lifts_when_the_same_reviewer_approves(self):
+        self.assertHandoff([bot("CHANGES_REQUESTED", 10), bot("APPROVED", 11)], "pass")
+        self.assertHandoff([human("CHANGES_REQUESTED", 10), bot("APPROVED", 11), human("APPROVED", 12)], "pass")
+
+    def test_a_change_request_lifts_when_it_is_dismissed(self):
+        self.assertHandoff([human("DISMISSED", 10, "Rename this first."), bot("APPROVED", 11)], "pass")
+
+    def test_a_comment_does_not_lift_a_change_request(self):
+        self.assertHandoff([human("CHANGES_REQUESTED", 10, "Rename this first."), bot("APPROVED", 11),
+                            human("COMMENTED", 12, "Done?")], "changes")
 
     def test_another_reviewers_approval_does_not_close_open_threads(self):
-        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z")], "approved", 2, thread("T1"), thread("T2"))
-        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z")], "pass", 0,
+        self.assertHandoff([human("APPROVED", 10)], "approved", 2, thread("T1"), thread("T2"))
+        self.assertHandoff([human("APPROVED", 10)], "pass", 0,
                            thread("T1", resolved=True), thread("T2", resolved=True))
-
-    def test_another_reviewers_change_request_blocks_even_after_a_bot_pass(self):
-        self.assertHandoff([bot("pass", "2026-10-10T10:00:00Z")], "pass")
-        self.assertHandoff([bot("pass", "2026-10-10T10:00:00Z"),
-                            theirs("CHANGES_REQUESTED", "2026-10-10T11:00:00Z", "Rename this first.")], "changes")
-
-    def test_a_later_bot_pass_overrides_another_reviewers_change_request(self):
-        self.assertHandoff([theirs("CHANGES_REQUESTED", "2026-10-10T10:00:00Z", "Rename this first.")], "changes")
-        self.assertHandoff([theirs("CHANGES_REQUESTED", "2026-10-10T10:00:00Z", "Rename this first."),
-                            bot("pass", "2026-10-10T11:00:00Z")], "pass")
 
 
 class VerdictRoundTripTest(unittest.TestCase):
@@ -131,10 +151,6 @@ class VerdictRoundTripTest(unittest.TestCase):
             with self.subTest(verdict=verdict):
                 got = handoff(response(), [self.posted_review(verdict)])
                 self.assertEqual(got["state"], verdict)
-
-    def test_bot_change_request_holds_even_with_no_open_threads(self):
-        got = handoff(response(), [review("changes", "2026-10-10T10:00:00Z", state="CHANGES_REQUESTED")])
-        self.assertEqual(got["state"], "changes")
 
 
 class ResolveTest(unittest.TestCase):
@@ -170,43 +186,39 @@ class StatusCliTest(unittest.TestCase):
         self.addCleanup(self.gh.cleanup)
 
     def status(self, reviews, *resolved):
-        """Run status on `reviews` and threads whose isResolved are `resolved`."""
+        """Run status on `reviews` and threads whose isResolved are `resolved`.
+
+        Returns the text output, lowercased, and what `status --json` reports.
+        """
         self.gh.set_answer("GET /reviews", pages=pages(reviews))
         self.gh.set_answer("graphql reviewThreads", json.dumps(resolved_response(*resolved)))
-        return self.gh.run("--pr", "5", "status").stdout.lower()
+        text = self.gh.run("--pr", "5", "status").stdout.lower()
+        got = json.loads(self.gh.run("--pr", "5", "status", "--json").stdout)
+        return text, (got["state"], got["open"])
 
-    def test_reports_the_latest_verdict_from_the_pr(self):
-        out = self.status([review("pass", "2026-10-10T10:00:00Z", state="APPROVED"),
-                           {"state": "CHANGES_REQUESTED", "body": "Rename first.",
-                            "submitted_at": "2026-10-10T11:00:00Z"}],
-                          True)
-        self.assertIn("changes", out)
-        self.assertNotRegex(out, r"\bpass\b")
+    def test_reports_an_outstanding_change_request(self):
+        text, got = self.status([bot("APPROVED", 10), human("CHANGES_REQUESTED", 11, "Rename first.")], True)
+        self.assertEqual(got, ("changes", 0))
+        self.assertIn("changes", text)
 
     def test_reads_past_the_first_page_of_reviews(self):
-        # 30 reviews to a page, oldest first, so the latest verdict is on page 2
-        older = [review("changes", f"2026-10-09T10:{m:02d}:00Z", state="CHANGES_REQUESTED")
-                 for m in range(30)]
-        newer = [review("pass", "2026-10-10T10:00:00Z", state="APPROVED"),
-                 review("changes", "2026-10-10T11:00:00Z", state="DISMISSED"),
-                 {"state": "PENDING", "body": review_body("changes", "summary")}]
-        out = self.status(older + newer)
-        self.assertRegex(out, r"\bpass\b")
-        self.assertNotRegex(out, r"\bchanges\b")
+        # 30 reviews to a page, oldest first, so the bot's latest verdict is on page 2
+        older = [by(BOT, "CHANGES_REQUESTED", 0, kind="Bot") for _ in range(30)]
+        newer = [bot("APPROVED", 10), human("DISMISSED", 11, "Rename first."), pending(HUMAN)]
+        text, got = self.status(older + newer)
+        self.assertEqual(got, ("pass", 0))
+        self.assertRegex(text, r"\bpass\b")
 
     def test_reports_how_many_threads_are_still_open(self):
-        out = self.status([{"state": "APPROVED", "body": "", "submitted_at": "2026-10-10T10:00:00Z"}],
-                          False, False, True)
-        self.assertIn("approved", out)
-        self.assertRegex(out, r"\b2\b")
-        got = json.loads(self.gh.run("--pr", "5", "status", "--json").stdout)
-        self.assertEqual((got["state"], got["open"]), ("approved", 2), "resolved threads aren't counted")
+        text, got = self.status([human("APPROVED", 10)], False, False, True)
+        self.assertEqual(got, ("approved", 2), "resolved threads aren't counted")
+        self.assertIn("approved", text)
+        self.assertRegex(text, r"\b2\b")
 
     def test_counts_an_open_thread_past_the_first_page_of_threads(self):
         # GitHub serves at most 100 threads a page, so the open one is on page 2
-        self.status([bot("pass", "2026-10-10T10:00:00Z")], *[True] * 100, False)
-        got = json.loads(self.gh.run("--pr", "5", "status", "--json").stdout)
-        self.assertEqual((got["state"], got["open"]), ("approved", 1))
+        _, got = self.status([bot("APPROVED", 10)], *[True] * 100, False)
+        self.assertEqual(got, ("approved", 1))
 
 
 if __name__ == "__main__":
