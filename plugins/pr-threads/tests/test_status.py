@@ -163,7 +163,8 @@ class StatusCliTest(unittest.TestCase):
                           thread("T1"), thread("T2"), thread("T3", resolved=True))
         self.assertIn("approved", out)
         self.assertRegex(out, r"\b2\b")
-        self.assertNotRegex(out, r"\b3\b", "resolved threads aren't counted")
+        got = json.loads(self.gh.run("--pr", "5", "status", "--json").stdout)
+        self.assertEqual((got["state"], got["open"]), ("approved", 2), "resolved threads aren't counted")
 
 
 if __name__ == "__main__":

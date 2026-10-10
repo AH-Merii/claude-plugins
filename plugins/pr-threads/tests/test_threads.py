@@ -50,6 +50,21 @@ class AuthorCliTest(unittest.TestCase):
         for call in self.gh.calls():
             self.assertIsNone(call["gh_token"], "author commands must not post as the bot")
 
+    def test_json_lists_each_open_thread_with_its_range_and_conversation(self):
+        self.gh.set_answer("graphql reviewThreads", json.dumps(response(
+            thread("T1", line=22, start=21, comments=(("bot", "why?"), ("me", "because"))),
+            thread("T2", outdated=True, line=12),
+            thread("T3", resolved=True))))
+        got = json.loads(self.gh.run("--pr", "5", "threads", "--json").stdout)
+        self.assertEqual([t["id"] for t in got], ["T1", "T2"])
+        current, outdated = got
+        self.assertEqual({k: current[k] for k in ("path", "line", "start_line", "outdated")},
+                         {"path": "app.py", "line": 22, "start_line": 21, "outdated": False})
+        self.assertEqual([(c["author"], c["body"]) for c in current["comments"]],
+                         [("bot", "why?"), ("me", "because")])
+        self.assertEqual({k: outdated[k] for k in ("path", "line", "start_line", "outdated")},
+                         {"path": "app.py", "line": 12, "start_line": None, "outdated": True})
+
     def test_outdated_threads_are_flagged_in_the_output(self):
         self.gh.set_answer("graphql reviewThreads", json.dumps(response(thread("T1", outdated=True, line=12))))
         out = self.gh.run("--pr", "5", "threads").stdout
