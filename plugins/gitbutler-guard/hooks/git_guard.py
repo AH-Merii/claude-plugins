@@ -29,6 +29,7 @@ BLOCKED = {
     "cherry-pick": "`but pick`",
     "branch": "`but branch new <name>` to create, `but branch delete <branch>` to delete, "
               "`but reword <branch> -m <new-name>` to rename, `but move` to restack",
+    "clean": "`but discard <id>` on the untracked files (not `but clean`, which removes empty branches)",
 }
 # git subcommand -> why it's blocked and what to do, for writes `but` has no command for
 UNSUPPORTED = {
@@ -147,8 +148,8 @@ def tag_read_only(args):
     return not flags & TAG_WRITE and (bool(flags & TAG_LIST) or not operands)
 
 
-def dry_run(args):
-    return bool(parse_opts(args)[0] & DRY_RUN)
+def dry_run(args, takes_value=""):
+    return bool(parse_opts(args, takes_value)[0] & DRY_RUN)
 
 
 # git subcommand -> test for the read-only forms of a blocked command
@@ -158,6 +159,7 @@ READ_ONLY = {
     "tag": tag_read_only,
     "rm": dry_run,
     "mv": dry_run,
+    "clean": lambda args: dry_run(args, "-e --exclude"),
 }
 
 

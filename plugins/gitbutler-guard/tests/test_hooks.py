@@ -114,6 +114,18 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
+    def test_blocks_clean(self):
+        for cmd in ["git clean -f", "git clean -fd", "git clean -fdx", "git clean --force -d",
+                    "git clean -i", "git clean -f -e n", "git --work-tree=. clean -fdx"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.blocked(cmd), "clean")
+        self.assertIn("but discard", self.advice("git clean -fd"))
+
+    def test_allows_clean_dry_run(self):
+        for cmd in ["git clean -n", "git clean -fdn", "git clean --dry-run -d", "git clean -nd -e build"]:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(self.blocked(cmd))
+
     def test_finds_git_inside_compound_commands(self):
         self.assertEqual(self.blocked("ls && git add f"), "add")
         self.assertEqual(self.blocked("echo hi; git commit -m x"), "commit")
