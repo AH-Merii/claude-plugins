@@ -1,7 +1,7 @@
 """Contract with the real GitHub: one full review round on a throwaway PR.
 
 Local only: needs the user's `gh` login, the reviewer bot installed on AH-Merii/test, and
-network. Run with PR_REVIEW_LIVE=1. The PR is closed and its branch deleted afterwards.
+network. Run with PR_THREADS_LIVE=1. The PR is closed and its branch deleted afterwards.
 """
 import json
 import os
@@ -13,7 +13,7 @@ import unittest
 
 from helpers import PLUGIN, numbered
 
-REPO = os.environ.get("PR_REVIEW_LIVE_REPO", "AH-Merii/test")
+REPO = os.environ.get("PR_THREADS_LIVE_REPO", "AH-Merii/test")
 BOT = "ah-merii-claude-reviewer[bot]"
 
 
@@ -25,13 +25,13 @@ def sh(*args, cwd=None, input_text=None, env=None):
     return out.stdout.strip()
 
 
-@unittest.skipUnless(os.environ.get("PR_REVIEW_LIVE") == "1", "set PR_REVIEW_LIVE=1 to run")
+@unittest.skipUnless(os.environ.get("PR_THREADS_LIVE") == "1", "set PR_THREADS_LIVE=1 to run")
 class LiveRoundTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.dir = os.path.join(self.tmp.name, "clone")
-        self.branch = f"pr-review-live-{int(time.time())}"
+        self.branch = f"pr-threads-live-{int(time.time())}"
         sh("gh", "repo", "clone", REPO, self.dir, "--", "-q")
         sh("git", "checkout", "-qb", self.branch, cwd=self.dir)
         with open(os.path.join(self.dir, "live.txt"), "w") as f:
@@ -42,12 +42,12 @@ class LiveRoundTest(unittest.TestCase):
         sh("git", "push", "-q", "origin", self.branch, cwd=self.dir)
         self.addCleanup(sh, "git", "push", "-q", "origin", "--delete", self.branch, cwd=self.dir)
         url = sh("gh", "pr", "create", "-R", REPO, "--head", self.branch,
-                 "--title", "test: pr-review live round", "--body", "Throwaway, closed by the test.")
+                 "--title", "test: pr-threads live round", "--body", "Throwaway, closed by the test.")
         self.pr = url.rsplit("/", 1)[1]
         self.addCleanup(sh, "gh", "pr", "close", self.pr, "-R", REPO)
 
     def cli(self, *args, input_text=""):
-        return sh(sys.executable, "-m", "pr_review", "--pr", self.pr, *args, cwd=self.dir,
+        return sh(sys.executable, "-m", "pr_threads", "--pr", self.pr, *args, cwd=self.dir,
                   input_text=input_text, env={"PYTHONPATH": PLUGIN})
 
     def reviews(self):

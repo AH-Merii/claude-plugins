@@ -111,12 +111,12 @@ class FakeGh:
     def run(self, *args, check=True, input_text=""):
         env = {**os.environ, **GIT_ENV, "PATH": self.dir + os.pathsep + os.environ["PATH"],
                "FAKE_GH_LOG": self.log, "FAKE_GH_TABLE": self.table,
-               "PR_REVIEW_TOKEN_CMD": self.token_cmd, "PYTHONPATH": PLUGIN}
+               "PR_THREADS_TOKEN_CMD": self.token_cmd, "PYTHONPATH": PLUGIN}
         env.pop("GH_TOKEN", None)
-        out = subprocess.run([sys.executable, "-m", "pr_review", *args], cwd=self.repo,
+        out = subprocess.run([sys.executable, "-m", "pr_threads", *args], cwd=self.repo,
                              capture_output=True, text=True, env=env, input=input_text)
         if check and out.returncode != 0:
-            raise AssertionError(f"pr-review {args} failed: {out.stderr}")
+            raise AssertionError(f"pr-threads {args} failed: {out.stderr}")
         return out
 
     def calls(self, needle=""):

@@ -3,7 +3,7 @@ import unittest
 
 from helpers import Repo
 
-from pr_review.suggestions import StaleSuggestion, accept, parse_suggestion, suggestion_body
+from pr_threads.suggestions import StaleSuggestion, accept, parse_suggestion, suggestion_body
 
 
 class RoundTripTest(unittest.TestCase):

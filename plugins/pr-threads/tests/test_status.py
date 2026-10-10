@@ -5,8 +5,8 @@ import unittest
 from helpers import FakeGh, Repo, pr_table
 from test_threads import response, thread
 
-from pr_review.review import review_body
-from pr_review.status import handoff
+from pr_threads.review import review_body
+from pr_threads.status import handoff
 
 
 def review(verdict, at, state="COMMENTED"):
