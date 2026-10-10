@@ -6,7 +6,7 @@
   "plugins": [
     {
       "name": "screen-lab",
-      "source": "./skills/screen-lab",
+      "source": "./plugins/screen-lab",
       "category": "development",
       "tags": ["skill", "testing", "tui", "terminal", "niri", "ghostty"]
     }

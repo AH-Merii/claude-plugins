@@ -4,7 +4,7 @@ My Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
 
 | Name | Type | Use it when… |
 |------|------|--------------|
-| [screen-lab](skills/screen-lab) | skill | an agent needs to see what a terminal app really renders: screenshots, GIFs, hover and click tests in Ghostty on a spare niri screen |
+| [screen-lab](plugins/screen-lab) | skill | an agent needs to see what a terminal app really renders: screenshots, GIFs, hover and click tests in Ghostty on a spare niri screen |
 
 ## Install
 
