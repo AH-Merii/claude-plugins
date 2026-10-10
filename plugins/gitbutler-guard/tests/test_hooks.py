@@ -135,6 +135,21 @@ class GitGuardTest(unittest.TestCase):
                                       cwd=self.plain), "update-ref")
         self.assertIn("no update-ref command", self.advice("git update-ref HEAD abc"))
 
+    def test_blocks_notes_writes(self):
+        for cmd in ["git notes add -m x", "git notes append -m x HEAD", "git notes copy a b",
+                    "git notes edit", "git notes merge other", "git notes remove HEAD",
+                    "git notes prune", "git notes --ref review add -m x HEAD",
+                    "time git -c core.editor=true notes edit"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.blocked(cmd), "notes")
+        self.assertIn("no notes command", self.advice("git notes add -m x"))
+
+    def test_allows_notes_reads(self):
+        for cmd in ["git notes", "git notes list", "git notes show HEAD", "git notes get-ref",
+                    "git notes --ref review show", "git notes --ref=review list"]:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(self.blocked(cmd))
+
     def test_finds_git_inside_compound_commands(self):
         self.assertEqual(self.blocked("ls && git add f"), "add")
         self.assertEqual(self.blocked("echo hi; git commit -m x"), "commit")

@@ -42,6 +42,9 @@ UNSUPPORTED = {
     "update-ref": "`but` has no update-ref command, and moving refs behind GitButler's back "
                   "desyncs the workspace from its branch metadata. Change history with `but move`, "
                   "`but uncommit` or `but undo`.",
+    "notes": "`but` has no notes command, and notes hang off commit hashes that GitButler rewrites "
+             "(amend, squash, move, pull), so they'd be orphaned. Put the context in the commit "
+             "message with `but reword`.",
 }
 
 BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
@@ -49,6 +52,7 @@ BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--cop
                 "--no-track", "--create-reflog", "--recurse-submodules"}
 BRANCH_LIST = {"-l", "--list", "-a", "--all", "-r", "--remotes", "--show-current", "-v", "--verbose",
                "--contains", "--no-contains", "--merged", "--no-merged", "--points-at"}
+READ_ONLY_NOTES = {"list", "show", "get-ref"}
 DRY_RUN = {"-n", "--dry-run"}
 TAG_WRITE = {"-a", "--annotate", "-s", "--sign", "-u", "--local-user", "-f", "--force", "-d",
              "--delete", "-m", "--message", "-F", "--file", "-e", "--edit", "--trailer",
@@ -155,6 +159,11 @@ def dry_run(args, takes_value=""):
     return bool(parse_opts(args, takes_value)[0] & DRY_RUN)
 
 
+def notes_read_only(args):
+    operands = parse_opts(args, "--ref")[1]
+    return not operands or operands[0] in READ_ONLY_NOTES
+
+
 # git subcommand -> test for the read-only forms of a blocked command
 READ_ONLY = {
     "stash": lambda args: bool(args) and args[0] in {"list", "show"},
@@ -162,6 +171,7 @@ READ_ONLY = {
     "tag": tag_read_only,
     "rm": dry_run,
     "mv": dry_run,
+    "notes": notes_read_only,
     "clean": lambda args: dry_run(args, "-e --exclude"),
 }
 
