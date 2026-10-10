@@ -279,12 +279,11 @@ class StagedQueueTest(MovedHeadCase):
 class SuggestInputTest(unittest.TestCase):
     """suggest never posts a deletion by accident.
 
-    An empty or blank replacement, from stdin or from --replacement, is refused unless
-    --delete asks for the deletion. A bare `suggest a.py:3 "new code"` from a tool whose
-    stdin is empty is the accident this prevents.
+    The replacement comes from stdin or from --replacement, never both. An empty one is
+    refused unless --delete asks for the deletion, and --delete takes no replacement. A
+    bare `suggest a.py:3 "new code"` from a tool whose stdin is empty is the accident this
+    prevents. Blank lines are a real replacement, not an empty one.
     """
-
-    BLANK = ["", " \n", "\n\n", "\t\n"]
 
     def setUp(self):
         self.repo = Repo()
@@ -295,34 +294,62 @@ class SuggestInputTest(unittest.TestCase):
         self.addCleanup(gh.cleanup)
         return gh
 
+    def suggest(self, gh, *extra, stdin=""):
+        return gh.run("--pr", "5", "suggest", "app.py:21-22", "Name these.", *extra,
+                      check=False, input_text=stdin)
+
     def submitted(self, gh):
         gh.run("--pr", "5", "submit", "changes", "S.")
         return gh.review_posts()[-1].get("comments", [])
 
-    def test_blank_replacement_is_refused_and_nothing_is_staged(self):
-        cases = [("stdin", (), text) for text in self.BLANK] + \
-                [("--replacement", ("--replacement", text), "") for text in ("", "   ", "\n")]
-        for source, extra, stdin in cases:
-            with self.subTest(source=source, replacement=extra[1:] or stdin):
+    def test_empty_replacement_is_refused_and_nothing_is_staged(self):
+        for source, extra in [("stdin", ()), ("--replacement", ("--replacement", ""))]:
+            with self.subTest(source):
                 gh = self.gh()
-                out = gh.run("--pr", "5", "suggest", "app.py:21-22", "Name these.", *extra,
-                             check=False, input_text=stdin)
+                out = self.suggest(gh, *extra)
                 self.assertNotEqual(out.returncode, 0, f"staged as a deletion: {out.stdout}")
                 self.assertIn("--delete", out.stderr, "the refusal says how to ask for a deletion")
                 self.assertEqual(self.submitted(gh), [], "nothing was staged")
 
+    def test_blank_lines_are_a_real_replacement(self):
+        cases = [("stdin", (), text, text) for text in ("\n", "\n\n", "  \n")] + \
+                [("--replacement", ("--replacement", text), "", text) for text in ("\n", "\n\n")]
+        for source, extra, stdin, want in cases:
+            with self.subTest(source=source, replacement=want):
+                gh = self.gh()
+                out = self.suggest(gh, *extra, stdin=stdin)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                (comment,) = self.submitted(gh)
+                self.assertEqual(parse_suggestion(comment["body"]), want)
+
     def test_deletion_is_staged_when_asked_for(self):
         gh = self.gh()
-        gh.run("--pr", "5", "suggest", "app.py:21-22", "Drop these.", "--delete")
+        self.assertEqual(self.suggest(gh, "--delete").returncode, 0)
         (comment,) = self.submitted(gh)
         self.assertEqual(parse_suggestion(comment["body"]), "")
         self.assertEqual((comment.get("start_line"), comment["line"]), (21, 22))
 
     def test_replacement_can_come_from_an_argument(self):
         gh = self.gh()
-        gh.run("--pr", "5", "suggest", "app.py:21-22", "Name these.", "--replacement", "x = 1")
+        out = self.suggest(gh, "--replacement", "x = 1")
+        self.assertEqual(out.returncode, 0, out.stderr)
         (comment,) = self.submitted(gh)
         self.assertEqual(parse_suggestion(comment["body"]), "x = 1\n")
+
+    def test_two_answers_to_what_replaces_the_lines_are_refused(self):
+        for name, extra, stdin in [
+            ("--replacement and stdin", ("--replacement", "x = 1"), "y = 2\n"),
+            ("--delete and stdin", ("--delete",), "y = 2\n"),
+            ("--delete and blank lines on stdin", ("--delete",), "\n"),
+            ("--delete and --replacement", ("--delete", "--replacement", "x = 1"), ""),
+        ]:
+            with self.subTest(name):
+                gh = self.gh()
+                out = self.suggest(gh, *extra, stdin=stdin)
+                self.assertNotEqual(out.returncode, 0)
+                self.assertRegex(out.stderr, r"(?i)pick one|not both|one or the other",
+                                 "the refusal says to pick one")
+                self.assertEqual(self.submitted(gh), [], "nothing was staged")
 
 
 if __name__ == "__main__":
