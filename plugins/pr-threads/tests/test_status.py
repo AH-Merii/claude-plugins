@@ -40,6 +40,34 @@ class HandoffTest(unittest.TestCase):
         self.assertEqual(handoff(response(), reviews)["state"], "pass")
 
 
+class HumanVerdictTest(unittest.TestCase):
+    """The user's own review counts: the latest verdict wins, whoever gave it."""
+
+    def human(self, state, at, body="Looks good."):
+        return {"state": state, "body": body, "submitted_at": at}
+
+    def test_approval_with_no_open_threads_is_a_pass(self):
+        got = handoff(response(thread("T1", resolved=True)), [self.human("APPROVED", "2026-10-10T10:00:00Z")])
+        self.assertEqual((got["state"], got["open"]), ("pass", 0))
+
+    def test_approval_after_a_bot_change_request_is_a_pass(self):
+        reviews = [self.human("APPROVED", "2026-10-10T11:00:00Z"), review("changes", "2026-10-10T10:00:00Z")]
+        self.assertEqual(handoff(response(), reviews)["state"], "pass")
+
+    def test_a_later_bot_change_request_overrides_an_older_approval(self):
+        reviews = [review("changes", "2026-10-10T11:00:00Z"), self.human("APPROVED", "2026-10-10T10:00:00Z")]
+        self.assertEqual(handoff(response(), reviews)["state"], "changes")
+
+    def test_approval_does_not_close_open_threads(self):
+        got = handoff(response(thread("T1"), thread("T2")), [self.human("APPROVED", "2026-10-10T10:00:00Z")])
+        self.assertEqual((got["state"], got["open"]), ("approved", 2))
+
+    def test_change_request_blocks_even_after_a_bot_pass(self):
+        reviews = [self.human("CHANGES_REQUESTED", "2026-10-10T11:00:00Z", "Rename this first."),
+                   review("pass", "2026-10-10T10:00:00Z")]
+        self.assertEqual(handoff(response(), reviews)["state"], "changes")
+
+
 class VerdictRoundTripTest(unittest.TestCase):
     """What submit writes is what handoff reads, as the bot and in the fallback."""
 
