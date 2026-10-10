@@ -3,7 +3,8 @@
 
 Routes: "pr view <n>", "repo view", "<METHOD> <endpoint part>" for REST, and
 "graphql <field>" for GraphQL. Known review mutations are answered with their real
-shape, so a reply or resolve never gets a thread listing back. GraphQL that GitHub
+shape, so a reply or resolve never gets a thread listing back, and each thread reply is
+recorded with the thread it names and the body it posts. GraphQL that GitHub
 would reject (conflicting response names, a thread under the wrong input key) fails,
 and so does a canned GraphQL answer holding a field the query doesn't select. A canned
 reviewThreads list is served a page at a time, by the query's `first` and `after`, like
@@ -220,19 +221,23 @@ def selections(query, variables):
     found = []
     for alias, (field, _, field_args) in merged.items():
         tid = thread_input(field, field_args, variables) if field in THREAD_INPUT else None
-        found.append((alias, field, tid))
+        found.append((alias, field, tid, field_args))
     return found
 
-def thread_input(field, field_args, variables):
-    key = THREAD_INPUT[field]
+def input_value(field_args, variables, key):
+    """input.<key> of a mutation, given as a literal, a $variable or inside an $input object."""
     whole = re.search(r"\binput\s*:\s*\$(\w+)", field_args)
     if whole:
         given = variables.get(whole.group(1))
-        value = given.get(key) if isinstance(given, dict) else None
-    else:
-        m = re.search(r"\b" + key + r'\s*:\s*(?:"((?:[^"\\]|\\.)*)"|\$(\w+))', field_args)
-        value = None if m is None else m.group(1) if m.group(1) is not None \
-            else variables.get(m.group(2))
+        return given.get(key) if isinstance(given, dict) else None
+    m = re.search(r"\b" + key + r'\s*:\s*(?:"((?:[^"\\]|\\.)*)"|\$(\w+))', field_args)
+    if m is None:
+        return None
+    return json.loads(f'"{m.group(1)}"') if m.group(1) is not None else variables.get(m.group(2))
+
+def thread_input(field, field_args, variables):
+    key = THREAD_INPUT[field]
+    value = input_value(field_args, variables, key)
     if not isinstance(value, str) or not value:
         fail(f"{field} needs its thread as input.{key}")
     return value
@@ -353,7 +358,7 @@ def main(args):
     if args[:1] == ["api"] and positionals:
         positionals[0] = positionals[0].replace("{owner}", OWNER).replace("{repo}", REPO)
     record = {"argv": args, "method": None, "endpoint": None, "body": body, "fields": [],
-              "threads": [], "gh_token": token()}
+              "threads": [], "replies": [], "gh_token": token()}
     if args[:2] == ["issue", "comment"]:
         endpoint = f"repos/{OWNER}/{REPO}/issues/{positionals[0]}/comments"
         record.update(method="POST", endpoint=endpoint)
@@ -391,7 +396,11 @@ def main(args):
             log(rejected=True)
             raise
         # which thread each review-thread mutation named, under the schema's own key
-        record["threads"] = [tid for _, field, tid in picked if field in THREAD_INPUT]
+        record["threads"] = [tid for _, field, tid, _ in picked if field in THREAD_INPUT]
+        # what each thread reply says, as GitHub would post it
+        record["replies"] = [{"thread": tid, "body": input_value(args_, variables, "body")}
+                             for _, field, tid, args_ in picked
+                             if field == "addPullRequestReviewThreadReply"]
     log()
 
     def rest_match(key):
@@ -469,7 +478,7 @@ def main(args):
             answer_with(stdout, code)
     if record["endpoint"] == "graphql":
         data = {}
-        for alias, field, tid in picked:
+        for alias, field, tid, _ in picked:
             answer = mutation_answer(field, tid)
             if answer is None:
                 break

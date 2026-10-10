@@ -11,7 +11,7 @@ import tempfile
 import time
 import unittest
 
-from helpers import BOT, GIT_REPO_VARS, PLUGIN, numbered
+from helpers import BOT, BOT_SLUG, GIT_REPO_VARS, PLUGIN, numbered
 
 REPO = os.environ.get("PR_THREADS_LIVE_REPO", "AH-Merii/test")
 
@@ -53,6 +53,25 @@ class LiveRoundTest(unittest.TestCase):
     def reviews(self):
         return json.loads(sh("gh", "api", f"repos/{REPO}/pulls/{self.pr}/reviews"))
 
+    def wait_for_head(self, sha, tries=30):
+        """GitHub updates a PR's head a moment after the push; wait until it shows `sha`."""
+        for _ in range(tries):
+            if sh("gh", "pr", "view", self.pr, "-R", REPO, "--json", "headRefOid", "--jq", ".headRefOid") == sha:
+                return
+            time.sleep(1)
+        self.fail(f"PR head never reached {sha[:12]}")
+
+    def resolved_by(self):
+        """{thread id: login that resolved it} for each resolved thread on the PR."""
+        owner, name = REPO.split("/")
+        query = ("query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, "
+                 "name: $name) { pullRequest(number: $number) { reviewThreads(first: 100) { "
+                 "nodes { id isResolved resolvedBy { login } } } } } }")
+        data = json.loads(sh("gh", "api", "graphql", "-f", f"query={query}", "-f", f"owner={owner}",
+                             "-f", f"name={name}", "-F", f"number={self.pr}"))
+        threads = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
+        return {t["id"]: t["resolvedBy"]["login"] for t in threads if t["isResolved"]}
+
     def test_full_round(self):
         self.cli("comment", "live.txt:3", "Why three?")
         self.cli("suggest", "live.txt:5-6", "Merge these.", input_text="line 5 and 6\n")
@@ -71,8 +90,20 @@ class LiveRoundTest(unittest.TestCase):
         with open(os.path.join(self.dir, "live.txt")) as f:
             self.assertEqual(f.read().splitlines()[3:6], ["line 4", "line 5 and 6", "line 7"])
 
+        # the author pushes the fix; the bot verifies it, and the user's login resolves
+        sh("git", "-c", "commit.gpgsign=false", "commit", "-qam", "apply the suggestion", cwd=self.dir)
+        sh("git", "push", "-q", "origin", self.branch, cwd=self.dir)
+        fixed = sh("git", "rev-parse", "HEAD", cwd=self.dir)
+        self.wait_for_head(fixed)
+        self.cli("verify", by_line[3], fixed)
+        self.cli("verify", by_line[6], fixed, "Suggestion applied.")
+        last = {t["id"]: t["comments"][-1] for t in json.loads(self.cli("threads", "--json"))}
+        self.assertEqual({id: c["author"] for id, c in last.items()},
+                         {by_line[3]: BOT_SLUG, by_line[6]: BOT_SLUG}, "the bot wrote each verification")
         self.cli("resolve", by_line[3], by_line[6])
         self.assertEqual(json.loads(self.cli("threads", "--json")), [])
+        me = sh("gh", "api", "user", "--jq", ".login")
+        self.assertEqual(self.resolved_by(), {by_line[3]: me, by_line[6]: me}, "resolved with the user's login")
         self.cli("submit", "pass", "Resolved.")
         status = json.loads(self.cli("status", "--json"))
         self.assertEqual((status["state"], status["open"]), ("pass", 0))

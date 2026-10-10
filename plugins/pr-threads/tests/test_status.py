@@ -1,8 +1,8 @@
-"""#10: threads get resolved in bulk, and the handoff state reads straight off the PR."""
+"""#10: the handoff state reads straight off the PR. Resolving threads: test_resolve.py."""
 import json
 import unittest
 
-from helpers import BOT, INSTALL_URL, FakeGh, Repo, pages, pr_table, resolved_response, thread
+from helpers import BOT, FakeGh, Repo, pages, pr_table, resolved_response, thread
 from helpers import threads_response as response
 
 from pr_threads.status import handoff
@@ -151,29 +151,6 @@ class VerdictRoundTripTest(unittest.TestCase):
             with self.subTest(verdict=verdict):
                 got = handoff(response(), [self.posted_review(verdict)])
                 self.assertEqual(got["state"], verdict)
-
-
-class ResolveTest(unittest.TestCase):
-    def setUp(self):
-        self.repo = Repo()
-        self.addCleanup(self.repo.cleanup)
-        self.gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
-        self.addCleanup(self.gh.cleanup)
-
-    def test_without_the_bot_nothing_is_resolved(self):
-        gh = FakeGh(self.repo.path, pr_table(self.repo), token=None)
-        self.addCleanup(gh.cleanup)
-        out = gh.run("--pr", "5", "resolve", "T1", check=False)
-        self.assertNotEqual(out.returncode, 0)
-        self.assertEqual([c for c in gh.calls("graphql") if "resolveReviewThread" in c["fields"]], [])
-        self.assertIn(INSTALL_URL, out.stderr)
-
-    def test_several_threads_resolve_in_one_request_as_the_bot(self):
-        self.gh.run("--pr", "5", "resolve", "T1", "T2", "T3")
-        (call,) = self.gh.calls("graphql")
-        self.assertEqual(call["fields"], ["resolveReviewThread"] * 3)
-        self.assertEqual(sorted(call["threads"]), ["T1", "T2", "T3"], "each names its own thread")
-        self.assertEqual(call["gh_token"], "BOT_TOKEN")
 
 
 class StatusCliTest(unittest.TestCase):

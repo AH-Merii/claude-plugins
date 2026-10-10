@@ -91,8 +91,11 @@ class Repo:
 FAKE_GH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fake_gh.py")
 
 
-# the reviewer bot's login, as GitHub shows it on its reviews
+# the reviewer bot's login, as GitHub's REST API shows it on its reviews
 BOT = "ah-merii-claude-reviewer[bot]"
+
+# the same bot as GraphQL shows a comment's author: the app's slug, without "[bot]"
+BOT_SLUG = "ah-merii-claude-reviewer"
 
 INSTALL_URL = "https://github.com/apps/reviewer/installations/new"
 
@@ -121,6 +124,11 @@ class FakeGh:
         self.token_cmd = self._exe("token", script)
         self.uploads = os.path.join(self.dir, "uploads.jsonl")
         self.upload_cmd = self._exe("upload", self._python(FAKE_GH, "--upload"))
+        # the bot's identity, saved where reviewer-setup.py saves it and reviewer-token reads it
+        self.reviewer_dir = os.path.join(self.dir, "reviewer")
+        os.mkdir(self.reviewer_dir)
+        with open(os.path.join(self.reviewer_dir, "app.json"), "w") as f:
+            json.dump({"slug": BOT_SLUG}, f)
 
     def cleanup(self):
         self._tmp.cleanup()
@@ -156,6 +164,7 @@ class FakeGh:
                         PATH=self.dir + os.pathsep + os.environ["PATH"],
                         FAKE_GH_LOG=self.log, FAKE_GH_TABLE=self.table,
                         PR_THREADS_TOKEN_CMD=self.token_cmd, PR_THREADS_UPLOAD_CMD=self.upload_cmd,
+                        CLAUDE_REVIEWER_DIR=self.reviewer_dir,
                         FAKE_UPLOAD_LOG=self.uploads, PYTHONPATH=PLUGIN)
         # gh reads any of these; a token from the developer's shell would hide who posted
         for name in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
@@ -178,6 +187,15 @@ class FakeGh:
         """Bodies of submitted reviews, however the CLI sent them (stdin, file or fields)."""
         return [c["body"] for c in self.calls() if c["method"] == "POST"
                 and (c["endpoint"] or "").rstrip("/").endswith("/reviews")]
+
+    def writes(self):
+        """Requests that change something on GitHub: GraphQL mutations and REST writes."""
+        def is_write(call):
+            if call["endpoint"] == "graphql":
+                body = call["body"] if isinstance(call["body"], dict) else {}
+                return body.get("query", "").lstrip().startswith("mutation")
+            return call["method"] not in (None, "GET", "HEAD")
+        return [c for c in self.calls() if is_write(c)]
 
     def upload_calls(self):
         if not os.path.exists(self.uploads):
