@@ -72,8 +72,11 @@ class SyncTest(unittest.TestCase):
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
 
-    def test_branch_at_the_pr_head_is_accepted(self):
+    def test_only_the_branch_at_the_pr_head_is_accepted(self):
         check_synced(self.repo.path, "feature", self.repo.head)
+        # the same branch against an older PR head is a commit ahead of it
+        with self.assertRaises(NotPushed):
+            check_synced(self.repo.path, "feature", self.repo.base)
 
     def test_unpushed_local_commit_is_refused(self):
         self.repo.write("other.py", "more\n")

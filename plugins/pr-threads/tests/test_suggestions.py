@@ -30,6 +30,8 @@ class RoundTripTest(unittest.TestCase):
     def test_comment_without_a_suggestion_has_none(self):
         self.assertIsNone(parse_suggestion("Looks wrong, see `foo`."))
         self.assertIsNone(parse_suggestion("```python\nprint(1)\n```"))
+        # a plain code fence ahead of a suggestion isn't mistaken for it
+        self.assertEqual(parse_suggestion("```python\nprint(1)\n```\n\n```suggestion\nx = 1\n```\n"), "x = 1\n")
 
 
 class AcceptTest(unittest.TestCase):

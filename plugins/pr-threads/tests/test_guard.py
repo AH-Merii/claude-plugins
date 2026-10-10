@@ -101,6 +101,8 @@ class FindViolationTest(unittest.TestCase):
         for command in ALLOWED:
             with self.subTest(command=command):
                 self.assertIsNone(find_violation(command))
+                # and none of them hides a write on the line after it
+                self.assertIsNotNone(find_violation(command + "\ngh pr comment 5 -b x"))
 
     def test_writes_are_found_inside_compound_commands(self):
         for command in [
@@ -145,6 +147,8 @@ class HookProcessTest(unittest.TestCase):
             with self.subTest(stdin=stdin):
                 out = self.run_hook(stdin)
                 self.assertEqual((out.returncode, out.stdout), (0, ""))
+        denied = self.run_hook(json.dumps({"tool_input": {"command": "gh pr comment 5 -b x"}}))
+        self.assertIn("deny", denied.stdout, "the same hook does speak up for a write")
 
 
 class HookRegistrationTest(unittest.TestCase):
