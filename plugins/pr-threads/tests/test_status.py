@@ -79,6 +79,11 @@ class HumanVerdictTest(unittest.TestCase):
                    self.human("CHANGES_REQUESTED", "2026-10-10T11:00:00Z", "Rename this first.")]
         self.assertEqual(handoff(response(), reviews)["state"], "changes")
 
+    def test_a_later_bot_pass_overrides_an_older_change_request(self):
+        reviews = [self.human("CHANGES_REQUESTED", "2026-10-10T10:00:00Z", "Rename this first."),
+                   review("pass", "2026-10-10T11:00:00Z")]
+        self.assertEqual(handoff(response(), reviews)["state"], "pass")
+
 
 class VerdictRoundTripTest(unittest.TestCase):
     """What submit writes is what handoff reads, as the bot and in the fallback."""
