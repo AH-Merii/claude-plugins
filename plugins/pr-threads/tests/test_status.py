@@ -2,8 +2,8 @@
 import json
 import unittest
 
-from helpers import FakeGh, Repo, pr_table
-from test_threads import response, thread
+from helpers import FakeGh, Repo, pr_table, thread
+from helpers import threads_response as response
 
 from pr_threads.review import review_body
 from pr_threads.status import handoff
@@ -45,6 +45,7 @@ class ResolveTest(unittest.TestCase):
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
         self.gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
+        self.addCleanup(self.gh.cleanup)
 
     def test_several_threads_resolve_in_one_request_as_the_bot(self):
         self.gh.run("--pr", "5", "resolve", "T1", "T2", "T3")

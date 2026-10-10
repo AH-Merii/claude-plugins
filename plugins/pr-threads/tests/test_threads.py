@@ -2,21 +2,10 @@
 import json
 import unittest
 
-from helpers import FakeGh, Repo, pr_table
+from helpers import FakeGh, Repo, pr_table, thread
+from helpers import threads_response as response
 
 from pr_threads.threads import open_threads
-
-
-def thread(id, resolved=False, outdated=False, line=10, start=None, comments=(("bot", "hi"),)):
-    return {"id": id, "isResolved": resolved, "isOutdated": outdated, "path": "app.py",
-            "line": None if outdated else line, "startLine": None if outdated else start,
-            "originalLine": line, "originalStartLine": start,
-            "comments": {"nodes": [{"author": {"login": a}, "body": b} for a, b in comments]}}
-
-
-def response(*threads):
-    return {"data": {"repository": {"pullRequest": {"reviewThreads": {
-        "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": list(threads)}}}}}
 
 
 class OpenThreadsTest(unittest.TestCase):
@@ -44,9 +33,10 @@ class AuthorCliTest(unittest.TestCase):
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
         self.gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
+        self.addCleanup(self.gh.cleanup)
 
     def test_threads_are_read_and_replied_to_as_the_user(self):
-        self.gh.set_answer("graphql", json.dumps(response(thread("T1"))))
+        self.gh.set_answer("graphql reviewThreads", json.dumps(response(thread("T1"))))
         out = self.gh.run("--pr", "5", "threads")
         self.assertIn("app.py:10", out.stdout)
         before = len(self.gh.calls())
@@ -57,7 +47,7 @@ class AuthorCliTest(unittest.TestCase):
             self.assertIsNone(call["gh_token"], "author commands must not post as the bot")
 
     def test_resolved_threads_never_reach_the_output(self):
-        self.gh.set_answer("graphql", json.dumps(response(
+        self.gh.set_answer("graphql reviewThreads", json.dumps(response(
             thread("T1", comments=(("bot", "still open"),)),
             thread("T2", resolved=True, comments=(("bot", "settled long ago"),)))))
         out = self.gh.run("--pr", "5", "threads").stdout

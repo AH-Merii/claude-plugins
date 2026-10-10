@@ -64,19 +64,149 @@ class Repo:
 
 FAKE_GH = textwrap.dedent('''\
     #!/usr/bin/env python3
-    """Records each call, then answers from a JSON table of argv-substring -> response."""
-    import json, os, sys
-    stdin = "" if sys.stdin.isatty() else sys.stdin.read()
+    """Stands in for gh: records each request by what it means, answers from a routing table.
+
+    Routes: "pr view <n>", "repo view", "<METHOD> <endpoint part>" for REST, and
+    "graphql <field>" for GraphQL. Known review mutations are answered with their real
+    shape, so a reply or resolve never gets a thread listing back.
+    """
+    import json, os, re, sys
+
+    VALUE_OPTS = {"-X", "--method", "-H", "--header", "-f", "--raw-field", "-F", "--field",
+                  "--input", "-q", "--jq", "-t", "--template", "--hostname", "-p", "--preview",
+                  "--cache", "--json", "-R", "--repo"}
+
+    def read(path):
+        with open(path) as f:
+            return f.read()
+
+    def typed(value):
+        if value.startswith("@"):
+            return read(value[1:])
+        if value in ("true", "false", "null"):
+            return {"true": True, "false": False, "null": None}[value]
+        try:
+            return int(value)
+        except ValueError:
+            return value
+
+    def parse(args):
+        """Split gh args into (positionals, method, body)."""
+        positionals, method, fields, raw = [], None, {}, None
+        i = 0
+        while i < len(args):
+            arg = args[i]
+            if arg in VALUE_OPTS and i + 1 < len(args):
+                value = args[i + 1]
+                if arg in ("-X", "--method"):
+                    method = value.upper()
+                elif arg in ("-f", "--raw-field"):
+                    key, _, val = value.partition("=")
+                    fields[key] = val
+                elif arg in ("-F", "--field"):
+                    key, _, val = value.partition("=")
+                    fields[key] = typed(val)
+                elif arg == "--input":
+                    raw = sys.stdin.read() if value == "-" else read(value)
+                i += 2
+            elif arg.startswith("-"):
+                i += 1
+            else:
+                positionals.append(arg)
+                i += 1
+        body = json.loads(raw) if raw else (fields or None)
+        return positionals, method or ("POST" if body is not None else "GET"), body
+
+    def top_fields(query):
+        """(alias, field, args text) for each top-level selection of the operation."""
+        text = query[query.index("{") + 1:]
+        found, depth, i = [], 0, 0
+        name = re.compile(r"\\s*(?:(\\w+)\\s*:\\s*)?(\\w+)")
+        while i < len(text):
+            ch = text[i]
+            if depth == 0 and ch not in "(){}":
+                m = name.match(text, i)
+                if m and m.group(2):
+                    j = m.end()
+                    args = ""
+                    k = j
+                    while k < len(text) and text[k].isspace():
+                        k += 1
+                    if k < len(text) and text[k] == "(":
+                        level, end = 0, k
+                        while end < len(text):
+                            level += {"(": 1, ")": -1}.get(text[end], 0)
+                            if level == 0:
+                                break
+                            end += 1
+                        args, j = text[k:end + 1], end + 1
+                    found.append((m.group(1) or m.group(2), m.group(2), args))
+                    i = j
+                    continue
+            if ch in "({":
+                depth += 1
+            elif ch in ")}":
+                depth -= 1
+                if depth < 0:
+                    break
+            i += 1
+        return found
+
+    def mutation_answer(field, args):
+        thread = re.search(r'(?:threadId|pullRequestReviewThreadId)\\s*:\\s*"([^"]+)"', args)
+        tid = thread.group(1) if thread else None
+        if field == "resolveReviewThread":
+            return {"thread": {"id": tid, "isResolved": True}}
+        if field == "unresolveReviewThread":
+            return {"thread": {"id": tid, "isResolved": False}}
+        if field == "addPullRequestReviewThreadReply":
+            return {"comment": {"id": "C_new", "url": "https://github.com/o/r/pull/5#discussion_rC_new"}}
+        return None
+
+    args = sys.argv[1:]
+    positionals, method, body = parse(args[1:] if args[:1] == ["api"] else args)
+    record = {"argv": args, "method": None, "endpoint": None, "body": body, "fields": [],
+              "gh_token": os.environ.get("GH_TOKEN")}
+    if args[:2] == ["pr", "view"]:
+        route = f"pr view {positionals[2] if len(positionals) > 2 else ''}".strip()
+    elif args[:2] == ["repo", "view"]:
+        route = "repo view"
+    elif args[:1] == ["api"] and positionals and positionals[0] == "graphql":
+        query = (body or {}).get("query", "")
+        fields = top_fields(query) if "{" in query else []
+        record.update(method="POST", endpoint="graphql", fields=[f for _, f, _ in fields])
+        route = "graphql " + ",".join(record["fields"])
+    elif args[:1] == ["api"] and positionals:
+        record.update(method=method, endpoint=positionals[0])
+        route = f"{method} {positionals[0]}"
+    else:
+        route = " ".join(args)
+    record["route"] = route
     with open(os.environ["FAKE_GH_LOG"], "a") as f:
-        f.write(json.dumps({"argv": sys.argv[1:], "stdin": stdin,
-                            "gh_token": os.environ.get("GH_TOKEN")}) + "\\n")
-    table = json.load(open(os.environ["FAKE_GH_TABLE"]))
-    joined = " ".join(sys.argv[1:])
+        f.write(json.dumps(record) + "\\n")
+
+    with open(os.environ["FAKE_GH_TABLE"]) as f:
+        table = json.load(f)
     for key, answer in table.items():
-        if key in joined:
+        if key == route or (key.startswith(("GET ", "POST ", "PATCH ", "PUT ", "DELETE "))
+                            and route.startswith(key.split(" ", 1)[0] + " ")
+                            and key.split(" ", 1)[1] in route) \\
+                or (key.startswith("graphql ") and record["endpoint"] == "graphql"
+                    and re.search(r"\\b" + re.escape(key[8:]) + r"\\b", (body or {}).get("query", ""))):
             sys.stdout.write(answer.get("stdout", ""))
             sys.exit(answer.get("exit", 0))
-    sys.stderr.write("fake gh: no answer for " + joined)
+    if record["endpoint"] == "graphql":
+        data = {}
+        for alias, field, field_args in top_fields((body or {}).get("query", "")):
+            answer = mutation_answer(field, field_args)
+            if answer is None:
+                break
+            data[alias] = answer
+        else:
+            if data:
+                sys.stdout.write(json.dumps({"data": data}))
+                sys.exit(0)
+    sys.stderr.write("fake gh: no answer for " + route)
     sys.exit(1)
     ''')
 
@@ -95,20 +225,29 @@ FAKE_UPLOAD = textwrap.dedent('''\
 
 
 class FakeGh:
-    """Puts a recording `gh` and a token command on PATH for CLI runs."""
+    """Puts a recording `gh`, a token command and an upload command on PATH for CLI runs.
+
+    Call cleanup() (or pass it to addCleanup) to remove the temp dir. HOME and XDG dirs
+    point into it, so nothing the CLI stores can leak between tests or into the real home.
+    """
 
     def __init__(self, repo, table, token=None):
-        self.dir = tempfile.mkdtemp()
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = self._tmp.name
+        self.home = os.path.join(self.dir, "home")
+        os.mkdir(self.home)
         self.log = os.path.join(self.dir, "calls.jsonl")
         self.table = os.path.join(self.dir, "table.json")
         self.repo = repo
-        with open(self.table, "w") as f:
-            json.dump(table, f)
+        self._write_table(table)
         self._exe("gh", FAKE_GH)
         script = f"#!/bin/sh\necho {token}\n" if token else "#!/bin/sh\nexit 1\n"
         self.token_cmd = self._exe("token", script)
         self.uploads = os.path.join(self.dir, "uploads.jsonl")
         self.upload_cmd = self._exe("upload", FAKE_UPLOAD)
+
+    def cleanup(self):
+        self._tmp.cleanup()
 
     def _exe(self, name, text):
         path = os.path.join(self.dir, name)
@@ -117,14 +256,21 @@ class FakeGh:
         os.chmod(path, 0o755)
         return path
 
-    def set_answer(self, key, stdout="", exit=0):
-        table = json.load(open(self.table))
-        table[key] = {"stdout": stdout, "exit": exit}
+    def _write_table(self, table):
         with open(self.table, "w") as f:
             json.dump(table, f)
 
+    def set_answer(self, key, stdout="", exit=0):
+        with open(self.table) as f:
+            table = json.load(f)
+        table[key] = {"stdout": stdout, "exit": exit}
+        self._write_table(table)
+
     def run(self, *args, check=True, input_text=""):
-        env = {**os.environ, **GIT_ENV, "PATH": self.dir + os.pathsep + os.environ["PATH"],
+        isolated = {name: os.path.join(self.home, name.lower()) for name in
+                    ("XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME")}
+        env = {**os.environ, **GIT_ENV, **isolated, "HOME": self.home,
+               "PATH": self.dir + os.pathsep + os.environ["PATH"],
                "FAKE_GH_LOG": self.log, "FAKE_GH_TABLE": self.table,
                "PR_THREADS_TOKEN_CMD": self.token_cmd, "PR_THREADS_UPLOAD_CMD": self.upload_cmd,
                "FAKE_UPLOAD_LOG": self.uploads, "PYTHONPATH": PLUGIN}
@@ -136,11 +282,17 @@ class FakeGh:
         return out
 
     def calls(self, needle=""):
+        """Recorded requests whose route ("POST repos/o/r/pulls/5/reviews", ...) contains needle."""
         if not os.path.exists(self.log):
             return []
         with open(self.log) as f:
             rows = [json.loads(line) for line in f]
-        return [r for r in rows if needle in " ".join(r["argv"])]
+        return [r for r in rows if needle in r["route"]]
+
+    def review_posts(self):
+        """Bodies of submitted reviews, however the CLI sent them (stdin, file or fields)."""
+        return [c["body"] for c in self.calls() if c["method"] == "POST"
+                and (c["endpoint"] or "").rstrip("/").endswith("/reviews")]
 
     def upload_calls(self):
         if not os.path.exists(self.uploads):
@@ -152,13 +304,28 @@ class FakeGh:
         open(self.uploads + ".fail", "w").close()
 
 
+def thread(id, resolved=False, outdated=False, line=10, start=None, comments=(("bot", "hi"),)):
+    """One review thread as GitHub's GraphQL API returns it."""
+    return {"id": id, "isResolved": resolved, "isOutdated": outdated, "path": "app.py",
+            "line": None if outdated else line, "startLine": None if outdated else start,
+            "originalLine": line, "originalStartLine": start,
+            "comments": {"nodes": [{"author": {"login": a}, "body": b} for a, b in comments]}}
+
+
+def threads_response(*threads):
+    """A reviewThreads query response holding `threads`."""
+    return {"data": {"repository": {"pullRequest": {"reviewThreads": {
+        "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": list(threads)}}}}}
+
+
 def pr_table(repo, number=5):
-    """Answers for the metadata lookups every CLI run makes about PR `number`."""
+    """Answers for the lookups every CLI run makes about PR `number`."""
     meta = {"number": number, "baseRefOid": repo.base, "headRefOid": repo.head,
             "headRefName": "feature"}
     return {
         f"pr view {number}": {"stdout": json.dumps(meta)},
         "repo view": {"stdout": json.dumps({"nameWithOwner": "o/r"})},
-        "/reviews": {"stdout": json.dumps({"html_url": "https://github.com/o/r/pull/5"})},
-        "graphql": {"stdout": json.dumps({"data": {}})},
+        "POST /reviews": {"stdout": json.dumps({"html_url": f"https://github.com/o/r/pull/{number}"})},
+        "GET /reviews": {"stdout": "[]"},
+        "graphql reviewThreads": {"stdout": json.dumps(threads_response())},
     }

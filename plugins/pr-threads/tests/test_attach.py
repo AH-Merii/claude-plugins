@@ -11,13 +11,13 @@ class AttachTest(unittest.TestCase):
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
         self.gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
+        self.addCleanup(self.gh.cleanup)
         for name in ("before.png", "after.png"):
             with open(os.path.join(self.repo.path, name), "wb") as f:
                 f.write(b"\x89PNG\r\n\x1a\n")
 
     def submitted_comments(self):
-        posts = [c for c in self.gh.calls("/reviews") if c["stdin"].strip()]
-        return json.loads(posts[-1]["stdin"]).get("comments", [])
+        return self.gh.review_posts()[-1].get("comments", [])
 
     def test_bot_comment_embeds_images_uploaded_by_the_user(self):
         self.gh.run("--pr", "5", "comment", "app.py:10", "Header wraps now.",
