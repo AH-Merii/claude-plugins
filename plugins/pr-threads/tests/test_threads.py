@@ -41,10 +41,21 @@ class AuthorCliTest(unittest.TestCase):
         self.assertIn("app.py:10", out.stdout)
         before = len(self.gh.calls())
         self.gh.run("--pr", "5", "reply", "T1", "fixed in abc123")
-        reply_calls = self.gh.calls()[before:]
-        self.assertTrue(any("T1" in json.dumps(c) for c in reply_calls), "the reply was sent")
+        writes = {"addPullRequestReviewThreadReply", "resolveReviewThread", "unresolveReviewThread",
+                  "addPullRequestReview", "addPullRequestReviewComment"}
+        (reply,) = [c for c in self.gh.calls()[before:] if writes & set(c["fields"])]
+        self.assertEqual(reply["fields"], ["addPullRequestReviewThreadReply"])
+        sent = json.dumps(reply["body"])
+        self.assertIn("T1", sent)
+        self.assertIn("fixed in abc123", sent)
         for call in self.gh.calls():
             self.assertIsNone(call["gh_token"], "author commands must not post as the bot")
+
+    def test_outdated_threads_are_flagged_in_the_output(self):
+        self.gh.set_answer("graphql reviewThreads", json.dumps(response(thread("T1", outdated=True, line=12))))
+        out = self.gh.run("--pr", "5", "threads").stdout
+        self.assertIn("app.py:12", out)
+        self.assertIn("outdated", out.lower())
 
     def test_resolved_threads_never_reach_the_output(self):
         self.gh.set_answer("graphql reviewThreads", json.dumps(response(

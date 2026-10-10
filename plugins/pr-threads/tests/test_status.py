@@ -109,10 +109,41 @@ class ResolveTest(unittest.TestCase):
     def test_several_threads_resolve_in_one_request_as_the_bot(self):
         self.gh.run("--pr", "5", "resolve", "T1", "T2", "T3")
         (call,) = self.gh.calls("graphql")
+        self.assertEqual(call["fields"], ["resolveReviewThread"] * 3)
         sent = json.dumps(call)
         for thread_id in ("T1", "T2", "T3"):
             self.assertIn(thread_id, sent)
         self.assertEqual(call["gh_token"], "BOT_TOKEN")
+
+
+class StatusCliTest(unittest.TestCase):
+    """`status` reads the PR's reviews and threads and reports the handoff."""
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
+        self.addCleanup(self.gh.cleanup)
+
+    def status(self, reviews, *threads):
+        self.gh.set_answer("GET /reviews", json.dumps(reviews))
+        self.gh.set_answer("graphql reviewThreads", json.dumps(response(*threads)))
+        return self.gh.run("--pr", "5", "status").stdout.lower()
+
+    def test_reports_the_latest_verdict_from_the_pr(self):
+        out = self.status([review("pass", "2026-10-10T10:00:00Z", state="APPROVED"),
+                           {"state": "CHANGES_REQUESTED", "body": "Rename first.",
+                            "submitted_at": "2026-10-10T11:00:00Z"}],
+                          thread("T1", resolved=True))
+        self.assertIn("changes", out)
+        self.assertNotRegex(out, r"\bpass\b")
+
+    def test_reports_how_many_threads_are_still_open(self):
+        out = self.status([{"state": "APPROVED", "body": "", "submitted_at": "2026-10-10T10:00:00Z"}],
+                          thread("T1"), thread("T2"), thread("T3", resolved=True))
+        self.assertIn("approved", out)
+        self.assertRegex(out, r"\b2\b")
+        self.assertNotRegex(out, r"\b3\b", "resolved threads aren't counted")
 
 
 if __name__ == "__main__":
