@@ -1,4 +1,5 @@
 """#7: local path:line is pinned to a line GitHub accepts in the PR diff, or refused up front."""
+import os
 import unittest
 
 from helpers import Repo, git, isolate_git
@@ -64,6 +65,59 @@ class AnchorTest(unittest.TestCase):
     def test_uncommitted_edit_to_another_file_does_not_matter(self):
         self.repo.write("other.py", "edited\n")
         self.assertEqual(self.pin("app.py", 10)["line"], 10)
+
+
+class RenameTest(unittest.TestCase):
+    """Anchoring reads the diff GitHub shows, which follows renames.
+
+    A renamed file is not a wholly added one: GitHub shows only its changed hunks, so only
+    those lines are commentable, wherever the file moved. Each file here has 40 lines
+    (`<name> 1` .. `<name> 40`) at base, and the PR renames it.
+    """
+
+    # new path: (what the PR does to it, lines GitHub shows, lines outside every hunk)
+    RENAMES = {
+        "pure2.txt": ("renamed, unchanged", [], [1, 20, 40]),
+        "tail2.txt": ("renamed, a line appended", [38, 41], [1, 2, 37]),
+        "mid2.txt": ("renamed, line 20 changed", [17, 20, 23], [1, 16, 24, 40]),
+        "sub/into.txt": ("moved into a directory, line 20 changed", [17, 20, 23], [1, 16, 24, 40]),
+        "out.txt": ("moved out of a directory, a line appended", [38, 41], [1, 2, 37]),
+    }
+
+    def setUp(self):
+        isolate_git(self)
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        path = self.repo.path
+        git(path, "checkout", "-q", "main")
+        os.mkdir(os.path.join(path, "sub2"))
+        for name, old in [("pure", "pure.txt"), ("tail", "tail.txt"), ("mid", "mid.txt"),
+                          ("into", "into.txt"), ("out", "sub2/out.txt")]:
+            self.repo.write(old, "".join(f"{name} {i}\n" for i in range(1, 41)))
+        git(path, "add", ".")
+        git(path, "commit", "-qm", "files to rename")
+        self.base = git(path, "rev-parse", "HEAD")
+        git(path, "checkout", "-q", "-B", "feature")
+        os.mkdir(os.path.join(path, "sub"))
+        for old, new in [("pure.txt", "pure2.txt"), ("tail.txt", "tail2.txt"), ("mid.txt", "mid2.txt"),
+                         ("into.txt", "sub/into.txt"), ("sub2/out.txt", "out.txt")]:
+            git(path, "mv", old, new)
+        self.repo.write("tail2.txt", self.repo.read("tail2.txt") + "tail 41\n")
+        self.repo.write("out.txt", self.repo.read("out.txt") + "out 41\n")
+        self.repo.write("mid2.txt", self.repo.read("mid2.txt").replace("mid 20\n", "MID 20\n"))
+        self.repo.write("sub/into.txt", self.repo.read("sub/into.txt").replace("into 20\n", "INTO 20\n"))
+        git(path, "commit", "-qam", "rename them")
+        self.head = git(path, "rev-parse", "HEAD")
+
+    def test_only_lines_github_shows_for_a_renamed_file_are_commentable(self):
+        for path, (what, shown, hidden) in self.RENAMES.items():
+            for line in shown:
+                with self.subTest(what, line=line, expect="pinned"):
+                    got = anchor(self.repo.path, self.base, self.head, path, line)
+                    self.assertEqual((got["path"], got["line"], got["side"]), (path, line, "RIGHT"))
+            for line in hidden:
+                with self.subTest(what, line=line, expect="refused"), self.assertRaises(NotInDiff):
+                    anchor(self.repo.path, self.base, self.head, path, line)
 
 
 class SyncTest(unittest.TestCase):
