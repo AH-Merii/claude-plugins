@@ -3,6 +3,7 @@
 Reads and the author's writes go out as the user's own gh login. The reviewer's writes
 (submit, resolve) carry the bot's token in GH_TOKEN.
 """
+import functools
 import json
 import os
 import shlex
@@ -53,17 +54,43 @@ def bot_token(repo):
     return token
 
 
+IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+               ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml"}
+
+
 def upload(path):
-    """Upload an image as the user and return its asset URL."""
+    """Upload an image with the user's gh login and return its asset URL.
+
+    PR_THREADS_UPLOAD_CMD, given the path, replaces this. The default does what gh's own
+    --attach does (cli/cli internal/attachments/client.go): one POST of the file to
+    uploads.github.com/user-attachments/assets, an endpoint GitHub doesn't document, which
+    answers with the asset URL and posts nothing. It needs write access to the repo, and an
+    asset can't be deleted, so callers upload only once nothing else can refuse the request.
+    """
     cmd = _command("PR_THREADS_UPLOAD_CMD")
-    if not cmd:
-        raise Refusal("--attach needs PR_THREADS_UPLOAD_CMD: a command that takes a file path, "
-                      "uploads it with your GitHub login and prints the asset URL")
-    out = subprocess.run([*cmd, path], capture_output=True, text=True)
-    url = out.stdout.strip()
-    if out.returncode or not url:
-        raise Refusal(f"uploading {path} failed: {out.stderr.strip()}")
-    return url
+    if cmd:
+        out = subprocess.run([*cmd, path], capture_output=True, text=True)
+        url = out.stdout.strip()
+        if out.returncode or not url:
+            raise Refusal(f"uploading {path} failed: {out.stderr.strip()}")
+        return url
+    kind = IMAGE_TYPES.get(os.path.splitext(path)[1].lower())
+    if kind is None:
+        raise Refusal(f"--attach {path}: only {', '.join(IMAGE_TYPES)} images can be attached")
+    try:
+        return gh("api", "-X", "POST", "https://uploads.github.com/user-attachments/assets",
+                  "--input", path, "-H", "Content-Type: application/octet-stream",
+                  "-H", "Accept: application/vnd.github+json", "-f", f"name={os.path.basename(path)}",
+                  "-f", f"content_type={kind}", "-f", f"repository_id={repo_id()}",
+                  "--jq", ".url").strip()
+    except GhError as e:
+        raise Refusal(f"uploading {path} failed (it needs write access to the repo): {e}") from None
+
+
+@functools.cache
+def repo_id():
+    """The current repo's numeric REST id, which the upload endpoint files assets under."""
+    return gh("api", "repos/{owner}/{repo}", "--jq", ".id").strip()
 
 
 def repo():
