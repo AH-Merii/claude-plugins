@@ -29,12 +29,7 @@ class PostTest(unittest.TestCase):
         self.assertTrue(call["endpoint"].rstrip("/").endswith("repos/o/r/issues/7/comments"))
         self.assertIsNone(call["gh_token"], "the bot can't comment on plain issues")
         self.assertIn("Tracked in the follow-up.", call["body"]["body"])
-
-    def test_issue_number_needs_no_pull_request(self):
-        # no "pr view 7" answer: looking the number up as a PR fails the run
-        gh = self.fake({"repo view": pr_table(self.repo)["repo view"]})
-        gh.run("post", "7", "Works on a plain issue.")
-        self.assertEqual(len(self.posts(gh)), 1)
+        self.assertEqual(gh.calls("pr view"), [], "a plain issue needs no pull request lookup")
 
     def test_pr_number_posts_to_the_conversation_not_a_review(self):
         gh = self.fake(pr_table(self.repo))
