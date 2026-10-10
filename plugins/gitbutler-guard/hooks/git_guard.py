@@ -48,6 +48,10 @@ UNSUPPORTED = {
     "config": "Use `but config` for user, target, forge and push-remote settings (e.g. "
               "`but config user set name \"<name>\"`). Other git config is shared with GitButler "
               "and every agent in this repo, so ask the user before changing it.",
+    "symbolic-ref": "GitButler owns HEAD in this workspace and keeps it on `gitbutler/workspace`; "
+                    "pointing it elsewhere or deleting it breaks the workspace. Create a branch with "
+                    "`but branch new <name>`, and pick which branches are in the workspace with "
+                    "`but apply <branch>` / `but unapply <branch>`.",
 }
 
 BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
@@ -60,6 +64,7 @@ CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-co
                "--get-colorbool", "-l", "--list"}
 CONFIG_WRITE = {"--add", "--replace-all", "--unset", "--unset-all", "--rename-section",
                 "--remove-section", "-e", "--edit"}
+SYMBOLIC_REF_DELETE = {"-d", "--delete"}
 READ_ONLY_NOTES = {"list", "show", "get-ref"}
 DRY_RUN = {"-n", "--dry-run"}
 TAG_WRITE = {"-a", "--annotate", "-s", "--sign", "-u", "--local-user", "-f", "--force", "-d",
@@ -183,6 +188,11 @@ def config_read_only(args):
     return len(operands) < 2  # `git config <name>` reads, `git config <name> <value>` writes
 
 
+def symbolic_ref_read_only(args):
+    flags, operands = parse_opts(args, "-m")
+    return not flags & SYMBOLIC_REF_DELETE and len(operands) < 2  # `<name> <ref>` sets it
+
+
 # git subcommand -> test for the read-only forms of a blocked command
 READ_ONLY = {
     "stash": lambda args: bool(args) and args[0] in {"list", "show"},
@@ -192,6 +202,7 @@ READ_ONLY = {
     "mv": dry_run,
     "notes": notes_read_only,
     "config": config_read_only,
+    "symbolic-ref": symbolic_ref_read_only,
     "clean": lambda args: dry_run(args, "-e --exclude"),
 }
 

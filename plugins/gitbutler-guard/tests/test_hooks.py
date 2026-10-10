@@ -176,6 +176,26 @@ class GitGuardTest(unittest.TestCase):
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
+    def test_blocks_symbolic_ref_writes(self):
+        for cmd in ["git symbolic-ref HEAD refs/heads/x", "git symbolic-ref -m msg HEAD refs/heads/x",
+                    "git symbolic-ref --quiet -m msg HEAD refs/heads/x", "git symbolic-ref -d HEAD",
+                    "git symbolic-ref --delete HEAD", "git symbolic-ref -qd HEAD",
+                    "git symbolic-ref -- HEAD refs/heads/x",
+                    f"cd {self.plain} && GIT_TRACE=0 sudo git -C {self.workspace} symbolic-ref HEAD refs/heads/x"]:
+            with self.subTest(cmd=cmd):
+                self.assertEqual(self.blocked(cmd), "symbolic-ref")
+        advice = self.advice("git symbolic-ref HEAD refs/heads/x")
+        self.assertIn("GitButler owns HEAD", advice)
+        self.assertIn("but branch new", advice)
+        self.assertIn("but apply", advice)
+
+    def test_allows_symbolic_ref_reads(self):
+        for cmd in ["git symbolic-ref HEAD", "git symbolic-ref --short HEAD", "git symbolic-ref -q HEAD",
+                    "git symbolic-ref --quiet --short HEAD", "git symbolic-ref --short -q HEAD",
+                    "git symbolic-ref --no-recurse HEAD", f"git -C {self.workspace} symbolic-ref HEAD"]:
+            with self.subTest(cmd=cmd):
+                self.assertIsNone(self.blocked(cmd))
+
     def test_finds_git_inside_compound_commands(self):
         self.assertEqual(self.blocked("ls && git add f"), "add")
         self.assertEqual(self.blocked("echo hi; git commit -m x"), "commit")
