@@ -518,12 +518,10 @@ class FakeGh:
         self.repo = repo
         self._write_table(table)
         self._exe("gh", FAKE_GH)
-        # without a token, fail the way reviewer-token does when the app isn't installed;
-        # either way, log the attempt to mint one
-        self.mints = os.path.join(self.dir, "mints.log")
-        script = f"#!/bin/sh\necho mint >> '{self.mints}'\n" + (f"echo {token}\n" if token else (
-            "echo 'reviewer-token: bot is not installed on o/r' >&2\n"
-            f"echo 'install it: {INSTALL_URL}' >&2\nexit 1\n"))
+        # without a token, fail the way reviewer-token does when the app isn't installed
+        script = f"#!/bin/sh\necho {token}\n" if token else (
+            "#!/bin/sh\necho 'reviewer-token: bot is not installed on o/r' >&2\n"
+            f"echo 'install it: {INSTALL_URL}' >&2\nexit 1\n")
         self.token_cmd = self._exe("token", script)
         self.uploads = os.path.join(self.dir, "uploads.jsonl")
         self.upload_cmd = self._exe("upload", FAKE_UPLOAD)
@@ -578,13 +576,6 @@ class FakeGh:
         """Bodies of submitted reviews, however the CLI sent them (stdin, file or fields)."""
         return [c["body"] for c in self.calls() if c["method"] == "POST"
                 and (c["endpoint"] or "").rstrip("/").endswith("/reviews")]
-
-    def token_mints(self):
-        """How many times the CLI ran the bot's token command, whether or not it got a token."""
-        if not os.path.exists(self.mints):
-            return 0
-        with open(self.mints) as f:
-            return len(f.readlines())
 
     def upload_calls(self):
         if not os.path.exists(self.uploads):
