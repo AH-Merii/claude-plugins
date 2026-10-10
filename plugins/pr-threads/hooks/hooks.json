@@ -1,0 +1,17 @@
+{
+  "description": "Send PR and issue review and comment writes through pr-threads instead of gh",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/pr_guard.py\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
