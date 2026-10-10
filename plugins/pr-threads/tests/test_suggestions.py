@@ -65,12 +65,83 @@ class AcceptTest(unittest.TestCase):
         self.assertEqual(lines[9], "fixed 10")
         self.assertEqual(lines[-1], "local tail")
 
-    def test_target_lines_moved_since_the_review_are_refused(self):
-        before = "inserted\n" + self.repo.read("app.py")
-        self.repo.write("app.py", before)
-        with self.assertRaises(StaleSuggestion):
-            accept(self.repo.path, self.repo.head, "app.py", 10, 10, "fixed 10\n")
-        self.assertEqual(self.repo.read("app.py"), before)
+
+class AcceptByContentTest(unittest.TestCase):
+    """accept finds its target by what the reviewer saw, not by the reviewed line numbers.
+
+    Local edits elsewhere in the file shift line numbers, above or below, adding or removing
+    lines; none of them is a reason to refuse. Only a change to the target lines themselves is.
+    The reviewed head has `changed 10` at line 10 and `new a`, `new b` at lines 21-22.
+    """
+
+    # (name, edit to the reviewed file) applied before accepting
+    SHIFTS = [
+        ("one line added above", lambda t: "inserted\n" + t),
+        ("three lines added above", lambda t: "a\nb\nc\n" + t),
+        ("two lines removed above", lambda t: t.replace("line 1\nline 2\n", "")),
+        ("one line split in two above", lambda t: t.replace("line 5\n", "line 5a\nline 5b\n")),
+        ("lines added below", lambda t: t + "tail 1\ntail 2\n"),
+        ("lines removed below", lambda t: t.replace("line 29\nline 30\n", "")),
+        ("added above and removed below", lambda t: ("top\n" + t).replace("line 30\n", "")),
+    ]
+    # (start, end, what the reviewer saw there, replacement)
+    TARGETS = [(10, 10, ["changed 10"], "fixed 10\n"), (21, 22, ["new a", "new b"], "x = 1\n")]
+
+    def setUp(self):
+        isolate_git(self)
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.pushed = self.repo.read("app.py")
+
+    def accept(self, start, end, replacement):
+        accept(self.repo.path, self.repo.head, "app.py", start, end, replacement)
+
+    def expected(self, text, seen, replacement):
+        """`text` with the block the reviewer saw replaced once, by content."""
+        block = "".join(line + "\n" for line in seen)
+        self.assertEqual(text.count(block), 1, "fixture: the reviewed block is unique")
+        return text.replace(block, replacement)
+
+    def test_local_edits_that_shift_lines_do_not_block_accept(self):
+        for name, edit in self.SHIFTS:
+            for start, end, seen, replacement in self.TARGETS:
+                with self.subTest(edit=name, target=f"{start}-{end}"):
+                    edited = edit(self.pushed)
+                    self.repo.write("app.py", edited)
+                    self.accept(start, end, replacement)
+                    self.assertEqual(self.repo.read("app.py"), self.expected(edited, seen, replacement))
+
+    def test_several_accepts_in_a_row_apply_in_either_order(self):
+        # each accept changes the line count, so the next suggestion's lines have moved
+        first, second = self.TARGETS
+        for order in ((first, second), (second, first)):
+            for grow in ("two\nlines\n", ""):
+                with self.subTest(order=[f"{s}-{e}" for s, e, _, _ in order], replacement=grow):
+                    self.repo.write("app.py", self.pushed)
+                    want = self.pushed
+                    for start, end, seen, _ in order:
+                        self.accept(start, end, grow)
+                        want = self.expected(want, seen, grow)
+                    self.assertEqual(self.repo.read("app.py"), want)
+
+    def test_a_change_to_the_target_itself_still_refuses_wherever_it_moved(self):
+        changes = [
+            ("rewritten in place", lambda t: t.replace("changed 10\n", "rewritten 10\n")
+                                             .replace("new b\n", "newer b\n")),
+            ("rewritten and moved down", lambda t: "inserted\n" + t.replace("changed 10\n", "rewritten 10\n")
+                                                                   .replace("new b\n", "newer b\n")),
+            ("rewritten and moved up", lambda t: t.replace("line 1\n", "").replace("changed 10\n", "rewritten 10\n")
+                                                 .replace("new b\n", "newer b\n")),
+            ("deleted", lambda t: t.replace("changed 10\n", "").replace("new a\nnew b\n", "")),
+        ]
+        for name, edit in changes:
+            for start, end, _, replacement in self.TARGETS:
+                with self.subTest(change=name, target=f"{start}-{end}"):
+                    before = edit(self.pushed)
+                    self.repo.write("app.py", before)
+                    with self.assertRaises(StaleSuggestion):
+                        self.accept(start, end, replacement)
+                    self.assertEqual(self.repo.read("app.py"), before, "a refused accept leaves the file alone")
 
 
 class OutdatedAcceptTest(unittest.TestCase):
