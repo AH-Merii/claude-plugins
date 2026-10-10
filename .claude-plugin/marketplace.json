@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "ah-merii",
+  "owner": { "name": "AH-Merii (AbdulHamid Merii)", "url": "https://github.com/AH-Merii" },
+  "metadata": { "description": "Claude Code skills and mods by AH-Merii" },
+  "plugins": [
+    {
+      "name": "screen-lab",
+      "source": "./skills/screen-lab",
+      "category": "development",
+      "tags": ["skill", "testing", "tui", "terminal", "niri", "ghostty"]
+    }
+  ]
+}
