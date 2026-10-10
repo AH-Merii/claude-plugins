@@ -90,6 +90,23 @@ class LiveRoundTest(unittest.TestCase):
         self.assertIn("user-attachments", comment["body"])
         self.assertIn("<img", comment["body_html"], "GitHub rendered it as an image, not a link")
 
+    def test_post_comments_on_the_conversation_as_the_user(self):
+        # post goes through gh issue comment, whose --attach uploads the image itself
+        with open(os.path.join(self.dir, "proof.png"), "wb") as f:
+            f.write(tiny_png())
+        sh(sys.executable, "-m", "pr_threads", "post", self.pr, "Plain note.", cwd=self.dir,
+           env={"PYTHONPATH": PLUGIN})
+        sh(sys.executable, "-m", "pr_threads", "post", self.pr, "With proof.", "--attach",
+           "proof.png#a red pixel", cwd=self.dir, env={"PYTHONPATH": PLUGIN})
+        me = sh("gh", "api", "user", "--jq", ".login")
+        plain, attached = json.loads(sh("gh", "api", "-H", "Accept: application/vnd.github.full+json",
+                                        f"repos/{REPO}/issues/{self.pr}/comments"))
+        self.assertEqual([plain["user"]["login"], attached["user"]["login"]], [me, me])
+        self.assertIn("Plain note.", plain["body"])
+        self.assertIn("With proof.", attached["body"])
+        self.assertIn("user-attachments", attached["body"])
+        self.assertIn("<img", attached["body_html"], "GitHub rendered it as an image, not a link")
+
 
 def tiny_png():
     """A valid 1x1 red PNG, built with the standard library."""
