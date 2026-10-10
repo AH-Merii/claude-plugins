@@ -6,6 +6,7 @@ author); `dispute` is its reply rejecting it. Threads here are built from what t
 and `verify` actually post, so no test depends on how a marker is spelled.
 """
 import json
+import re
 import unittest
 
 from helpers import BOT, BOT_SLUG, INSTALL_URL, Repo, bot_reply, node, pages
@@ -26,6 +27,10 @@ def withdrawn():
 
 def disputed():
     return bot_reply("dispute", "The cache was cold in #12; measure it warm.")
+
+
+def reopened():
+    return bot_reply("reopen", "The fix in #12 still misses an empty list.")
 
 
 class PushbackRepliesTest(unittest.TestCase):
@@ -157,6 +162,125 @@ class PushbackResolveTest(unittest.TestCase):
                 self.assertEqual(writes, [], "nothing is resolved, not even the verified thread")
                 lines = " ".join(line for line in out.stderr.splitlines() if "T_bad" in line)
                 self.assertRegex(lines, r"(?i)disput", f"the refusal doesn't say T_bad is disputed: {out.stderr}")
+
+
+class ReopenReplyTest(PushbackRepliesTest):
+    """`reopen T REASON` is the bot's reply that the fix in T didn't work.
+
+    It follows the rules of withdraw and dispute: one reply in T, as the bot, with its
+    reason; no empty or blank reason; without the bot, the install link and nothing posted.
+    """
+
+    VERBS = ("reopen",)
+
+
+class ReopenStateTest(unittest.TestCase):
+    """A thread the bot reopened is open, isn't disputed, and doesn't resolve.
+
+    The bot's latest verdict decides a thread's state: a reopen after a dispute ends the
+    dispute, a dispute after a reopen is a dispute, and a verification or withdrawal after
+    a reopen lets the thread resolve. Only the bot's own reopen counts.
+    """
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+
+    def status(self, *threads):
+        """(text output, status --json) for a PR the bot approved, with review `threads`."""
+        gh = fake(self.repo, "BOT_TOKEN", *threads)
+        self.addCleanup(gh.cleanup)
+        gh.set_answer("GET /reviews", pages=pages([bot("APPROVED", 10)]))
+        text = gh.run("--pr", "5", "status").stdout
+        return text, json.loads(gh.run("--pr", "5", "status", "--json").stdout)
+
+    def resolve(self, threads, ids):
+        gh = fake(self.repo, "BOT_TOKEN", *threads)
+        self.addCleanup(gh.cleanup)
+        out = gh.run("--pr", "5", "resolve", *ids, check=False)
+        return out, gh.writes()
+
+    def test_status_reads_the_bots_latest_verdict(self):
+        plain = node("T_plain", (BOT_SLUG, "Rename this."), resolved=False)
+        cases = {
+            "reopened after the author said it's fixed":
+                (False, [(BOT_SLUG, "Cache this."), (USER, "Fixed."), (BOT_SLUG, reopened())]),
+            "reopened after a verification":
+                (False, [(BOT_SLUG, "Cache this."), (BOT_SLUG, verified()), (BOT_SLUG, reopened())]),
+            "the author argued on after a reopen":
+                (False, [(BOT_SLUG, "Cache this."), (BOT_SLUG, reopened()), (USER, "It works here.")]),
+            "reopened after a dispute":
+                (False, [(BOT_SLUG, "Cache this."), (USER, REASON), (BOT_SLUG, disputed()),
+                         (USER, "Fixed it your way."), (BOT_SLUG, reopened())]),
+            "disputed after a reopen":
+                (True, [(BOT_SLUG, "Cache this."), (BOT_SLUG, reopened()), (USER, REASON), (BOT_SLUG, disputed())]),
+            "a reopen pasted by the author after a dispute":
+                (True, [(BOT_SLUG, "Cache this."), (USER, REASON), (BOT_SLUG, disputed()), (USER, reopened())]),
+        }
+        for name, (is_disputed, comments) in cases.items():
+            with self.subTest(name):
+                text, got = self.status(plain, node("T_x", *comments, resolved=False))
+                self.assertEqual(got["disputed"], ["T_x"] if is_disputed else [])
+                self.assertEqual((got["state"], got["open"]), ("approved", 2),
+                                 "a reopened thread is still open, and blocks pass")
+                clause = re.search(r"(?i)\bdisputed:\s*([^;\n]*)", text)
+                listed = clause[1] if clause else ""
+                if is_disputed:
+                    self.assertIn("T_x", listed, f"the text doesn't list T_x as disputed: {text}")
+                else:
+                    self.assertNotIn("T_x", listed, f"the text lists T_x as disputed: {text}")
+        with self.subTest("only a reopened thread open still blocks pass"):
+            only = node("T_x", (BOT_SLUG, "Cache this."), (BOT_SLUG, verified()), (BOT_SLUG, reopened()),
+                        resolved=False)
+            _, got = self.status(only)
+            self.assertEqual((got["disputed"], got["state"], got["open"]), ([], "approved", 1))
+
+    def test_resolve_refuses_a_reopened_thread(self):
+        cases = {
+            "reopened after the author said it's fixed":
+                [(BOT_SLUG, "Cache this."), (USER, "Fixed."), (BOT_SLUG, reopened())],
+            "verified, then reopened": [(BOT_SLUG, "Cache this."), (BOT_SLUG, verified()), (BOT_SLUG, reopened())],
+            "withdrawn, then reopened":
+                [(BOT_SLUG, "Cache this."), (USER, REASON), (BOT_SLUG, withdrawn()), (BOT_SLUG, reopened())],
+            "reopened after a dispute":
+                [(BOT_SLUG, "Cache this."), (BOT_SLUG, disputed()), (BOT_SLUG, reopened())],
+            "the author replied after a reopen":
+                [(BOT_SLUG, "Cache this."), (BOT_SLUG, verified()), (BOT_SLUG, reopened()), (USER, "Now?")],
+        }
+        ok = node("T_ok", (BOT_SLUG, "Rename this."), (BOT_SLUG, verified()))
+        for name, comments in cases.items():
+            with self.subTest(name):
+                out, writes = self.resolve([ok, node("T_bad", *comments)], ["T_ok", "T_bad"])
+                self.assertNotEqual(out.returncode, 0, f"resolve went through: {out.stdout}")
+                self.assertEqual(writes, [], "nothing is resolved, not even the verified thread")
+                self.assertIn("T_bad", out.stderr)
+                self.assertNotIn("Traceback", out.stderr)
+                if comments[-1][0] == BOT_SLUG:
+                    # the bot's own reopen is the last word: say so, not that someone else wrote it
+                    lines = " ".join(line for line in out.stderr.splitlines() if "T_bad" in line)
+                    self.assertRegex(lines, r"(?i)reopen", f"the refusal doesn't say T_bad was reopened: {out.stderr}")
+                    self.assertNotRegex(lines, r"(?i)not the bot", f"the refusal disowns the bot's reopen: {out.stderr}")
+        with self.subTest("disputed after a reopen"):
+            comments = [(BOT_SLUG, "Cache this."), (BOT_SLUG, reopened()), (BOT_SLUG, disputed())]
+            out, writes = self.resolve([ok, node("T_bad", *comments)], ["T_ok", "T_bad"])
+            self.assertEqual((out.returncode != 0, writes), (True, []))
+            lines = " ".join(line for line in out.stderr.splitlines() if "T_bad" in line)
+            self.assertRegex(lines, r"(?i)disput", f"the refusal doesn't say T_bad is disputed: {out.stderr}")
+
+    def test_a_reopened_thread_resolves_once_the_bot_verifies_or_withdraws_again(self):
+        cases = {
+            "reopened, then fixed and verified":
+                [(BOT_SLUG, "Cache this."), (BOT_SLUG, verified()), (BOT_SLUG, reopened()),
+                 (USER, "Fixed for real."), (BOT_SLUG, verified())],
+            "reopened, then withdrawn":
+                [(BOT_SLUG, "Cache this."), (BOT_SLUG, reopened()), (USER, REASON), (BOT_SLUG, withdrawn())],
+        }
+        for name, comments in cases.items():
+            with self.subTest(name):
+                out, writes = self.resolve([node("T_a", *comments)], ["T_a"])
+                self.assertEqual(out.returncode, 0, out.stderr)
+                (write,) = writes
+                self.assertEqual(write["threads"], ["T_a"])
 
 
 def review(login, state, hour, kind="User"):
