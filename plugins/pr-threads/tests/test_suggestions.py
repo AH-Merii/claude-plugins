@@ -98,5 +98,41 @@ class OutdatedAcceptTest(unittest.TestCase):
         self.assertEqual((lines[9], lines[29]), ("fixed 10", "edited 28"))
 
 
+class AcceptCliTest(unittest.TestCase):
+    """`accept <thread>` finds the suggestion and where it was made from the thread itself."""
+
+    SUGGESTION = "Clearer name.\n\n```suggestion\nfixed 10\n```\n"
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.reviewed = self.repo.head
+
+    def accept_outdated(self):
+        """The author pushed after the review; the thread now only knows its original place."""
+        git(self.repo.path, "commit", "-qam", "after the review")
+        self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
+        gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
+        self.addCleanup(gh.cleanup)
+        gh.set_answer("graphql reviewThreads", json.dumps(response(
+            thread("T1", outdated=True, line=10, comments=(("bot", self.SUGGESTION),), commit=self.reviewed))))
+        return gh, gh.run("--pr", "5", "accept", "T1", check=False)
+
+    def test_applies_at_the_original_line_of_the_reviewed_commit(self):
+        self.repo.write("app.py", self.repo.read("app.py").replace("line 28\n", "edited 28\n"))
+        gh, out = self.accept_outdated()
+        self.assertEqual(out.returncode, 0, out.stderr)
+        lines = self.repo.read("app.py").splitlines()
+        self.assertEqual((lines[9], lines[29]), ("fixed 10", "edited 28"))
+        self.assertEqual([c for c in gh.calls() if c["method"] == "POST" and c["endpoint"] != "graphql"], [])
+
+    def test_lines_rewritten_since_the_reviewed_commit_are_refused(self):
+        # against the current head these lines look untouched; only the reviewed commit shows the clash
+        self.repo.write("app.py", self.repo.read("app.py").replace("changed 10\n", "rewritten 10\n"))
+        _, out = self.accept_outdated()
+        self.assertNotEqual(out.returncode, 0)
+        self.assertIn("rewritten 10", self.repo.read("app.py"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -363,12 +363,21 @@ class FakeGh:
         open(self.uploads + ".fail", "w").close()
 
 
-def thread(id, resolved=False, outdated=False, line=10, start=None, comments=(("bot", "hi"),)):
-    """One review thread as GitHub's GraphQL API returns it."""
+def thread(id, resolved=False, outdated=False, line=10, start=None, comments=(("bot", "hi"),),
+           commit=None):
+    """One review thread as GitHub's GraphQL API returns it.
+
+    `commit` is the commit the comments were written on (their originalCommit). An outdated
+    thread has no current line; only originalLine/originalStartLine in that commit remain.
+    """
+    nodes = [{"author": {"login": a}, "body": b} for a, b in comments]
+    if commit:
+        for node in nodes:
+            node["originalCommit"] = {"oid": commit}
     return {"id": id, "isResolved": resolved, "isOutdated": outdated, "path": "app.py",
             "line": None if outdated else line, "startLine": None if outdated else start,
             "originalLine": line, "originalStartLine": start,
-            "comments": {"nodes": [{"author": {"login": a}, "body": b} for a, b in comments]}}
+            "comments": {"nodes": nodes}}
 
 
 def threads_response(*threads):
