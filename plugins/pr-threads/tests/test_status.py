@@ -9,8 +9,28 @@ from pr_threads.review import review_body
 from pr_threads.status import handoff
 
 
+BOT, USER = "ah-merii-claude-reviewer[bot]", "AH-Merii"
+
+
 def review(verdict, at, state="COMMENTED"):
     return {"state": state, "body": review_body(verdict, "summary"), "submitted_at": at}
+
+
+def bot(verdict, at):
+    """The bot's verdict: a formal review state, since the bot never authors the PR."""
+    state = {"pass": "APPROVED", "changes": "CHANGES_REQUESTED"}[verdict]
+    return {"user": {"login": BOT, "type": "Bot"}, "state": state,
+            "body": review_body(verdict, "summary"), "submitted_at": at}
+
+
+def mine(body, at):
+    """The user's review on their own PR: GitHub only lets a PR's author comment."""
+    return {"user": {"login": USER, "type": "User"}, "state": "COMMENTED", "body": body, "submitted_at": at}
+
+
+def theirs(state, at, body="Looks good."):
+    """A human reviewer who isn't the PR's author."""
+    return {"user": {"login": "octocat", "type": "User"}, "state": state, "body": body, "submitted_at": at}
 
 
 class HandoffTest(unittest.TestCase):
@@ -53,36 +73,108 @@ class HandoffTest(unittest.TestCase):
 
 
 class HumanVerdictTest(unittest.TestCase):
-    """The user's own review counts: the latest verdict wins, whoever gave it."""
+    """The user's own review counts: the latest verdict wins, whoever gave it.
 
-    def human(self, state, at, body="Looks good."):
-        return {"state": state, "body": body, "submitted_at": at}
+    The user opens these PRs, and GitHub refuses APPROVE and REQUEST_CHANGES from a PR's
+    author (422), so their verdict is a COMMENTED review whose first line is `pass` or
+    `changes`. The bot isn't the author and gives formal review states.
+    """
 
-    def test_approval_with_no_open_threads_is_a_pass(self):
-        got = handoff(response(thread("T1", resolved=True)), [self.human("APPROVED", "2026-10-10T10:00:00Z")])
-        self.assertEqual((got["state"], got["open"]), ("pass", 0))
+    def assertHandoff(self, reviews, state, open_count=0, *threads):
+        got = handoff(response(*threads), reviews)
+        self.assertEqual((got["state"], got["open"]), (state, open_count))
 
-    def test_approval_after_a_bot_change_request_is_a_pass(self):
-        reviews = [review("changes", "2026-10-10T10:00:00Z"), self.human("APPROVED", "2026-10-10T11:00:00Z")]
-        self.assertEqual(handoff(response(), reviews)["state"], "pass")
+    def test_the_authors_keyword_review_is_their_verdict(self):
+        self.assertHandoff([mine("pass", "2026-10-10T10:00:00Z")], "pass", 0, thread("T1", resolved=True))
+        self.assertHandoff([mine("changes", "2026-10-10T10:00:00Z")], "changes", 0, thread("T1", resolved=True))
 
-    def test_a_later_bot_change_request_overrides_an_older_approval(self):
-        reviews = [self.human("APPROVED", "2026-10-10T10:00:00Z"), review("changes", "2026-10-10T11:00:00Z")]
-        self.assertEqual(handoff(response(), reviews)["state"], "changes")
+    def test_text_after_the_keyword_line_is_free(self):
+        self.assertHandoff([mine("pass\nThanks, the rename reads better.", "2026-10-10T10:00:00Z")], "pass")
+        self.assertHandoff([mine("changes\n\nRename this first.\npass it through the linter too.",
+                                 "2026-10-10T10:00:00Z")], "changes")
 
-    def test_approval_does_not_close_open_threads(self):
-        got = handoff(response(thread("T1"), thread("T2")), [self.human("APPROVED", "2026-10-10T10:00:00Z")])
-        self.assertEqual((got["state"], got["open"]), ("approved", 2))
+    def test_the_keyword_ignores_case_and_surrounding_whitespace(self):
+        for body, verdict in (("PASS", "pass"), ("  Pass  \nok", "pass"), ("\tChanges\r\nRename it.", "changes"),
+                              ("cHaNgEs ", "changes")):
+            with self.subTest(body=body):
+                self.assertHandoff([bot("pass" if verdict == "changes" else "changes", "2026-10-10T10:00:00Z"),
+                                    mine(body, "2026-10-10T11:00:00Z")], verdict)
 
-    def test_change_request_blocks_even_after_a_bot_pass(self):
-        reviews = [review("pass", "2026-10-10T10:00:00Z"),
-                   self.human("CHANGES_REQUESTED", "2026-10-10T11:00:00Z", "Rename this first.")]
-        self.assertEqual(handoff(response(), reviews)["state"], "changes")
+    def test_a_comment_review_without_the_keyword_carries_no_verdict(self):
+        # the keyword must be the whole first line, not a word in it or a later line
+        for body in ("Looks good.", "", "passes locally, will look again", "changes look fine",
+                     "Nice.\npass", "LGTM"):
+            with self.subTest(body=body):
+                for verdict in ("pass", "changes"):
+                    self.assertHandoff([bot(verdict, "2026-10-10T10:00:00Z"), mine(body, "2026-10-10T11:00:00Z")],
+                                       verdict)
+                self.assertHandoff([mine(body, "2026-10-10T11:00:00Z")], "pending")
 
-    def test_a_later_bot_pass_overrides_an_older_change_request(self):
-        reviews = [self.human("CHANGES_REQUESTED", "2026-10-10T10:00:00Z", "Rename this first."),
-                   review("pass", "2026-10-10T11:00:00Z")]
-        self.assertEqual(handoff(response(), reviews)["state"], "pass")
+    def test_the_bots_comment_reviews_never_carry_a_verdict(self):
+        for body in ("pass", "changes", review_body("pass", "summary"), review_body("changes", "summary")):
+            with self.subTest(body=body):
+                for verdict in ("pass", "changes"):
+                    said = {**bot(verdict, "2026-10-10T11:00:00Z"), "state": "COMMENTED", "body": body}
+                    self.assertHandoff([bot(verdict, "2026-10-10T10:00:00Z"), said], verdict)
+                self.assertHandoff([{**bot("pass", "2026-10-10T10:00:00Z"), "state": "COMMENTED", "body": body}],
+                                   "pending")
+
+    def test_the_authors_pass_after_a_bot_change_request_is_a_pass(self):
+        self.assertHandoff([bot("changes", "2026-10-10T10:00:00Z")], "changes")
+        self.assertHandoff([bot("changes", "2026-10-10T10:00:00Z"), mine("pass", "2026-10-10T11:00:00Z")], "pass")
+
+    def test_a_later_bot_change_request_overrides_the_authors_pass(self):
+        self.assertHandoff([mine("pass", "2026-10-10T10:00:00Z"), bot("changes", "2026-10-10T11:00:00Z")], "changes")
+        self.assertHandoff([mine("pass", "2026-10-10T10:00:00Z"), bot("pass", "2026-10-10T11:00:00Z")], "pass")
+
+    def test_the_authors_changes_blocks_even_after_a_bot_pass(self):
+        self.assertHandoff([bot("pass", "2026-10-10T10:00:00Z"), mine("changes", "2026-10-10T11:00:00Z")], "changes")
+        self.assertHandoff([bot("pass", "2026-10-10T10:00:00Z")], "pass")
+
+    def test_a_later_bot_pass_overrides_the_authors_older_changes(self):
+        self.assertHandoff([mine("changes", "2026-10-10T10:00:00Z"), bot("pass", "2026-10-10T11:00:00Z")], "pass")
+        self.assertHandoff([mine("changes", "2026-10-10T10:00:00Z"), bot("changes", "2026-10-10T11:00:00Z")],
+                           "changes")
+
+    def test_the_authors_pass_does_not_close_open_threads(self):
+        self.assertHandoff([mine("pass", "2026-10-10T10:00:00Z")], "approved", 2,
+                           thread("T1"), thread("T2"), thread("T3", resolved=True))
+        self.assertHandoff([mine("pass", "2026-10-10T10:00:00Z")], "pass", 0,
+                           thread("T1", resolved=True), thread("T2", resolved=True))
+        self.assertHandoff([bot("changes", "2026-10-10T10:00:00Z"), mine("Pass\nShip it once T1 is in.",
+                                                                         "2026-10-10T11:00:00Z")],
+                           "approved", 1, thread("T1"))
+
+    # a human reviewer who isn't the PR's author can approve or request changes, and that counts
+    def test_another_reviewers_approval_with_no_open_threads_is_a_pass(self):
+        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z")], "pass", 0, thread("T1", resolved=True))
+        self.assertHandoff([theirs("CHANGES_REQUESTED", "2026-10-10T10:00:00Z")], "changes", 0,
+                           thread("T1", resolved=True))
+
+    def test_another_reviewers_approval_after_a_bot_change_request_is_a_pass(self):
+        self.assertHandoff([bot("changes", "2026-10-10T10:00:00Z")], "changes")
+        self.assertHandoff([bot("changes", "2026-10-10T10:00:00Z"), theirs("APPROVED", "2026-10-10T11:00:00Z")],
+                           "pass")
+
+    def test_a_later_bot_change_request_overrides_another_reviewers_approval(self):
+        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z")], "pass")
+        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z"), bot("changes", "2026-10-10T11:00:00Z")],
+                           "changes")
+
+    def test_another_reviewers_approval_does_not_close_open_threads(self):
+        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z")], "approved", 2, thread("T1"), thread("T2"))
+        self.assertHandoff([theirs("APPROVED", "2026-10-10T10:00:00Z")], "pass", 0,
+                           thread("T1", resolved=True), thread("T2", resolved=True))
+
+    def test_another_reviewers_change_request_blocks_even_after_a_bot_pass(self):
+        self.assertHandoff([bot("pass", "2026-10-10T10:00:00Z")], "pass")
+        self.assertHandoff([bot("pass", "2026-10-10T10:00:00Z"),
+                            theirs("CHANGES_REQUESTED", "2026-10-10T11:00:00Z", "Rename this first.")], "changes")
+
+    def test_a_later_bot_pass_overrides_another_reviewers_change_request(self):
+        self.assertHandoff([theirs("CHANGES_REQUESTED", "2026-10-10T10:00:00Z", "Rename this first.")], "changes")
+        self.assertHandoff([theirs("CHANGES_REQUESTED", "2026-10-10T10:00:00Z", "Rename this first."),
+                            bot("pass", "2026-10-10T11:00:00Z")], "pass")
 
 
 class VerdictRoundTripTest(unittest.TestCase):
@@ -170,6 +262,17 @@ class StatusCliTest(unittest.TestCase):
         self.assertRegex(out, r"\b2\b")
         got = json.loads(self.gh.run("--pr", "5", "status", "--json").stdout)
         self.assertEqual((got["state"], got["open"]), ("approved", 2), "resolved threads aren't counted")
+
+    def test_reads_the_users_keyword_review_on_their_own_pr(self):
+        reviews = [bot("changes", "2026-10-10T10:00:00Z"),
+                   {**bot("changes", "2026-10-10T10:30:00Z"), "state": "COMMENTED", "body": "changes"},
+                   mine(" Pass\nThanks, merging.", "2026-10-10T11:00:00Z")]
+        out = self.status(reviews, thread("T1", resolved=True))
+        self.assertRegex(out, r"\bpass\b")
+        self.assertNotRegex(out, r"\bchanges\b")
+        self.status(reviews, thread("T1"), thread("T2", resolved=True))
+        got = json.loads(self.gh.run("--pr", "5", "status", "--json").stdout)
+        self.assertEqual((got["state"], got["open"]), ("approved", 1), "the user's pass leaves T1 open")
 
 
 if __name__ == "__main__":
