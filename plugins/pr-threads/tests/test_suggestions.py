@@ -125,6 +125,38 @@ class AcceptByContentTest(unittest.TestCase):
                         want = self.expected(want, seen, grow)
                     self.assertEqual(self.repo.read("app.py"), want)
 
+    def test_a_copy_of_the_reviewed_block_elsewhere_is_never_edited(self):
+        # accept may replace the copy nearest the reviewed position or refuse, but a copy
+        # further away is never the one changed, whichever comes first in the file
+        for start, end, seen, replacement in self.TARGETS:
+            block, at, n = [line + "\n" for line in seen], start - 1, end - start + 1
+            size = len(self.pushed.splitlines())
+            # (name, [(index in the reviewed file, lines inserted there)])
+            for name, inserts in [
+                ("copy far above", [(0, block)]),
+                ("copy near above", [(at - n - 1, block)]),
+                ("copy far below", [(size, block)]),
+                ("copy near below, lines added above", [(0, ["inserted\n"]), (at + n + 2, block)]),
+                ("copies above and below", [(0, block), (size, block)]),
+            ]:
+                with self.subTest(name, target=f"{start}-{end}"):
+                    lines = self.pushed.splitlines(keepends=True)
+                    for index, new in sorted(inserts, reverse=True):
+                        lines[index:index] = new
+                    edited = "".join(lines)
+                    target = at + sum(len(new) for index, new in inserts if index <= at)
+                    copies = [i for i in range(len(lines)) if lines[i:i + n] == block]
+                    self.assertEqual(min(copies, key=lambda i: abs(i - at)), target,
+                                     "fixture: the reviewed block is the copy nearest its old place")
+                    self.repo.write("app.py", edited)
+                    try:
+                        self.accept(start, end, replacement)
+                    except StaleSuggestion:
+                        self.assertEqual(self.repo.read("app.py"), edited, "a refused accept leaves the file alone")
+                        continue
+                    lines[target:target + n] = [replacement]
+                    self.assertEqual(self.repo.read("app.py"), "".join(lines), "only the nearest copy changed")
+
     def test_a_change_to_the_target_itself_still_refuses_wherever_it_moved(self):
         changes = [
             ("rewritten in place", lambda t: t.replace("changed 10\n", "rewritten 10\n")
