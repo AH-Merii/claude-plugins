@@ -40,7 +40,14 @@ jobs:
               continue
             fi
             echo "::group::plugins/$name"
-            python3 -m unittest discover -s "plugins/$name/tests" || status=1
+            rc=0
+            python3 -m unittest discover -s "plugins/$name/tests" || rc=$?
             echo "::endgroup::"
+            # unittest exits 5 when it finds no tests (e.g. a mod's claude plugin test files).
+            if [ "$rc" -eq 5 ]; then
+              echo "::notice::plugins/$name/tests has no Python tests; skipping."
+            elif [ "$rc" -ne 0 ]; then
+              status=1
+            fi
           done
           exit "$status"
