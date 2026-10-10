@@ -11,7 +11,7 @@ import tempfile
 import time
 import unittest
 
-from helpers import PLUGIN, numbered
+from helpers import GIT_REPO_VARS, PLUGIN, numbered
 
 REPO = os.environ.get("PR_THREADS_LIVE_REPO", "AH-Merii/test")
 BOT = "ah-merii-claude-reviewer[bot]"
@@ -19,7 +19,8 @@ BOT = "ah-merii-claude-reviewer[bot]"
 
 def sh(*args, cwd=None, input_text=None, env=None):
     out = subprocess.run(args, cwd=cwd, capture_output=True, text=True, input=input_text,
-                         env={**os.environ, **(env or {})})
+                         env={**{k: v for k, v in os.environ.items() if k not in GIT_REPO_VARS},
+                              **(env or {})})
     if out.returncode:
         raise AssertionError(f"{args} failed: {out.stderr}")
     return out.stdout.strip()

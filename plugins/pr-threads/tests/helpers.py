@@ -14,6 +14,16 @@ GIT_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 
+# git sets these for hooks; inherited, they point every fixture git at the outer repo
+GIT_REPO_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                 "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_PREFIX")
+
+
+def clean_env(**extra):
+    """os.environ without the outer repo's GIT_* pointers, with the fixture git config."""
+    env = {k: v for k, v in os.environ.items() if k not in GIT_REPO_VARS}
+    return {**env, **GIT_ENV, **extra}
+
 
 def isolate_git(test):
     """Give in-process code under test the same git config CI has: none of the developer's."""
@@ -23,11 +33,14 @@ def isolate_git(test):
                                            "XDG_CONFIG_HOME": os.path.join(home.name, ".config")})
     patcher.start()
     test.addCleanup(patcher.stop)
+    # patch.dict restores the whole environment on stop, these included
+    for name in GIT_REPO_VARS:
+        os.environ.pop(name, None)
 
 
 def git(repo, *args):
     out = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True,
-                         check=True, env={**os.environ, **GIT_ENV})
+                         check=True, env=clean_env())
     return out.stdout.strip()
 
 
@@ -550,11 +563,11 @@ class FakeGh:
     def run(self, *args, check=True, input_text=""):
         isolated = {name: os.path.join(self.home, name.lower()) for name in
                     ("XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME")}
-        env = {**os.environ, **GIT_ENV, **isolated, "HOME": self.home,
-               "PATH": self.dir + os.pathsep + os.environ["PATH"],
-               "FAKE_GH_LOG": self.log, "FAKE_GH_TABLE": self.table,
-               "PR_THREADS_TOKEN_CMD": self.token_cmd, "PR_THREADS_UPLOAD_CMD": self.upload_cmd,
-               "FAKE_UPLOAD_LOG": self.uploads, "PYTHONPATH": PLUGIN}
+        env = clean_env(**isolated, HOME=self.home,
+                        PATH=self.dir + os.pathsep + os.environ["PATH"],
+                        FAKE_GH_LOG=self.log, FAKE_GH_TABLE=self.table,
+                        PR_THREADS_TOKEN_CMD=self.token_cmd, PR_THREADS_UPLOAD_CMD=self.upload_cmd,
+                        FAKE_UPLOAD_LOG=self.uploads, PYTHONPATH=PLUGIN)
         # gh reads any of these; a token from the developer's shell would hide who posted
         for name in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
             env.pop(name, None)
