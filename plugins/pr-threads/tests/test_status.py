@@ -40,6 +40,36 @@ class HandoffTest(unittest.TestCase):
         self.assertEqual(handoff(response(), reviews)["state"], "pass")
 
 
+class VerdictRoundTripTest(unittest.TestCase):
+    """What submit writes is what handoff reads, as the bot and in the fallback."""
+
+    STATES = {"APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED", "COMMENT": "COMMENTED"}
+
+    def setUp(self):
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+
+    def posted_review(self, verdict, token):
+        gh = FakeGh(self.repo.path, pr_table(self.repo), token=token)
+        self.addCleanup(gh.cleanup)
+        gh.run("--pr", "5", "submit", verdict, "Summary.")
+        (sent,) = gh.review_posts()
+        # GitHub stores the event as a review state
+        return {"state": self.STATES[sent["event"]], "body": sent.get("body", ""),
+                "submitted_at": "2026-10-10T10:00:00Z"}
+
+    def test_each_verdict_reads_back_the_same(self):
+        for token in ("BOT_TOKEN", None):
+            for verdict in ("pass", "changes"):
+                with self.subTest(verdict=verdict, bot=bool(token)):
+                    got = handoff(response(), [self.posted_review(verdict, token)])
+                    self.assertEqual(got["state"], verdict)
+
+    def test_bot_change_request_holds_even_with_no_open_threads(self):
+        got = handoff(response(), [review("changes", "2026-10-10T10:00:00Z", state="CHANGES_REQUESTED")])
+        self.assertEqual(got["state"], "changes")
+
+
 class ResolveTest(unittest.TestCase):
     def setUp(self):
         self.repo = Repo()
