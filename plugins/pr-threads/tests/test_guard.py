@@ -33,6 +33,15 @@ DENIED = [
     "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"T1\"}) { thread { id } } }'",
     "gh api graphql -f query='mutation { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: \"T1\", body: \"ok\"}) { comment { id } } }'",
     "gh api graphql -f query='mutation($id: ID!) { addPullRequestReview(input: {pullRequestId: $id, event: COMMENT}) { pullRequestReview { id } } }'",
+    "gh api graphql -f query='mutation { addComment(input: {subjectId: \"PR_1\", body: \"x\"}) { commentEdge { node { id } } } }'",
+    "gh api graphql -f query='mutation { addPullRequestReviewThread(input: {pullRequestReviewId: \"R\", path: \"a.py\", line: 3, body: \"x\"}) { thread { id } } }'",
+    "gh api graphql -f query='mutation { submitPullRequestReview(input: {pullRequestReviewId: \"R\", event: APPROVE}) { pullRequestReview { id } } }'",
+    "gh api graphql -f query='mutation { updateIssueComment(input: {id: \"IC_1\", body: \"x\"}) { issueComment { id } } }'",
+    "gh api graphql -f query='mutation { deleteIssueComment(input: {id: \"IC_1\"}) { clientMutationId } }'",
+    # no body at all: only the method makes these writes (a bare POST opens a pending review)
+    "gh api --method=POST repos/o/r/pulls/5/reviews",
+    "gh api -XPOST repos/o/r/pulls/5/reviews",
+    "gh api repos/o/r/pulls/5/comments/123/replies -f body=ok",
 ]
 
 ALLOWED = [
@@ -41,6 +50,8 @@ ALLOWED = [
     "gh api repos/o/r/pulls/5/comments",
     "gh api repos/o/r/pulls/5/reviews --jq '.[].state'",
     "gh api -X GET repos/o/r/pulls/5/comments -f per_page=100",
+    "gh api -XGET repos/o/r/pulls/5/comments -f per_page=100",
+    "gh api --method=GET repos/o/r/pulls/5/reviews -f per_page=100",
     "gh api repos/o/r/issues/5/comments",
     "gh api repos/o/r/issues/5/comments --jq '.[].body'",
     "gh api graphql -f query='mutation { updatePullRequest(input: {pullRequestId: \"P\", title: \"t\"}) { pullRequest { id } } }'",
@@ -87,6 +98,7 @@ class FindViolationTest(unittest.TestCase):
             ("gh api graphql -f query='mutation { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: \"T\", body: \"x\"}) { comment { id } } }'", "reply"),
             ("gh issue comment 5 --body x", "post"),
             ("gh api repos/o/r/issues/5/comments -f body=x", "post"),
+            ("gh api repos/o/r/pulls/5/comments/123/replies -f body=x", "reply"),
         ]:
             with self.subTest(command=command):
                 self.assertIn("pr-threads", find_violation(command))
