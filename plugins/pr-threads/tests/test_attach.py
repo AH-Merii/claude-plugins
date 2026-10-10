@@ -3,7 +3,7 @@ import json
 import os
 import unittest
 
-from helpers import FakeGh, Repo, pr_table, write_png
+from helpers import FakeGh, Repo, git, pr_table, write_png
 
 from pr_threads.suggestions import parse_suggestion
 
@@ -82,6 +82,64 @@ class AttachTest(unittest.TestCase):
         out = self.gh.run("--pr", "5", "reply", "T1", "Again.", "--attach", "after.png", check=False)
         self.assertNotEqual(out.returncode, 0)
         self.assertFalse(any("Again." in json.dumps(c) for c in self.gh.calls()[before:]))
+
+
+class UploadLastTest(unittest.TestCase):
+    """No image is uploaded unless its comment will be staged or sent.
+
+    An uploaded asset can't be deleted, so every refusal comes before any upload.
+    """
+
+    def fresh(self):
+        """A new repo and fake gh for one case."""
+        self.repo = Repo()
+        self.addCleanup(self.repo.cleanup)
+        self.gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
+        self.addCleanup(self.gh.cleanup)
+        write_png(self.repo.path, "after.png")
+
+    def move_pr_head(self):
+        """Stage a comment, then let the PR head move on, with the local branch following it."""
+        self.gh.run("--pr", "5", "comment", "app.py:10", "Staged first.")
+        self.repo.write("other.py", "pushed after the review\n")
+        git(self.repo.path, "commit", "-qam", "pushed after the review")
+        self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
+        self.gh.set_answer("pr view 5", pr_table(self.repo)["pr view 5"]["stdout"])
+
+    def commit_locally(self):
+        self.repo.write("other.py", "not pushed\n")
+        git(self.repo.path, "commit", "-qam", "not pushed")
+
+    def fall_behind(self):
+        self.commit_locally()
+        self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
+        self.gh.set_answer("pr view 5", pr_table(self.repo)["pr view 5"]["stdout"])
+        git(self.repo.path, "reset", "-q", "--hard", "HEAD~1")
+
+    def edit_locally(self):
+        self.repo.write("app.py", "inserted\n" + self.repo.read("app.py"))
+
+    def test_every_refusal_comes_before_any_upload(self):
+        comment = ("comment", "app.py:10", "Look.")
+        suggest = ("suggest", "app.py:10", "Look.")
+        nothing = lambda: None  # noqa: E731
+        for name, prepare, args, stdin in [
+            ("comment after the PR head moved", self.move_pr_head, comment, ""),
+            ("suggest after the PR head moved", self.move_pr_head, suggest, "x = 1\n"),
+            ("submit after the PR head moved", self.move_pr_head, ("submit", "pass", "Fine."), ""),
+            ("unpushed local commit", self.commit_locally, comment, ""),
+            ("branch behind the PR head", self.fall_behind, comment, ""),
+            ("uncommitted edit to the file", self.edit_locally, comment, ""),
+            ("line outside the diff", nothing, ("comment", "app.py:1", "Look."), ""),
+            ("blank suggestion", nothing, suggest, ""),
+        ]:
+            with self.subTest(name):
+                self.fresh()
+                prepare()
+                out = self.gh.run("--pr", "5", *args, "--attach", "after.png#shot",
+                                  check=False, input_text=stdin)
+                self.assertEqual(self.gh.upload_calls(), [], f"uploaded, then: {out.stderr or out.stdout}")
+                self.assertNotEqual(out.returncode, 0)
 
 
 if __name__ == "__main__":
