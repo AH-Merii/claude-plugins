@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from helpers import FakeGh, Repo, pr_table
+from helpers import FakeGh, Repo, git, pr_table
 
 
 class SubmitTest(unittest.TestCase):
@@ -72,6 +72,26 @@ class SubmitTest(unittest.TestCase):
         gh.run("--pr", "5", "submit", "changes", "S.")
         (sent,) = gh.review_posts()[-1]["comments"]
         self.assertEqual(sent["line"], 10)
+
+    def test_comments_are_refused_when_the_local_branch_is_not_the_pr_head(self):
+        # issue #7: line numbers only mean something against the pushed head
+        gh = self.gh()
+        self.repo.write("other.py", "local only\n")
+        git(self.repo.path, "commit", "-qam", "not pushed yet")
+        for args in (("comment", "app.py:10", "Hmm."), ("suggest", "app.py:10", "Hmm.")):
+            with self.subTest(command=args[0]):
+                out = gh.run("--pr", "5", *args, check=False, input_text="x\n")
+                self.assertNotEqual(out.returncode, 0)
+                self.assertIn("push", out.stderr.lower())
+        git(self.repo.path, "reset", "-q", "--hard", self.repo.head)
+        gh.run("--pr", "5", "submit", "pass", "Nothing staged.")
+        self.assertEqual(gh.review_posts()[-1].get("comments", []), [], "refused comments were not staged")
+
+    def test_comment_on_a_locally_edited_file_is_refused(self):
+        gh = self.gh()
+        self.repo.write("app.py", "inserted\n" + self.repo.read("app.py"))
+        out = gh.run("--pr", "5", "comment", "app.py:10", "Hmm.", check=False)
+        self.assertNotEqual(out.returncode, 0)
 
 
 if __name__ == "__main__":
