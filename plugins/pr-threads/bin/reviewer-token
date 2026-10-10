@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Print a 1-hour token for the reviewer bot, limited to pull_requests:write on one repo.
+# Usage: reviewer-token [owner/repo]   (defaults to the current repo's GitHub remote)
+set -euo pipefail
+
+dir="${CLAUDE_REVIEWER_DIR:-$HOME/.config/claude-reviewer}"
+if [[ ! -f "$dir/app.json" || ! -f "$dir/private-key.pem" ]]; then
+  echo "reviewer-token: no reviewer app set up in $dir" >&2
+  echo "set it up once: python3 $(dirname "$(readlink -f "$0")")/../scripts/reviewer-setup.py" >&2
+  exit 1
+fi
+repo="${1:-$(gh repo view --json nameWithOwner -q .nameWithOwner)}"
+app_id=$(jq -r .id "$dir/app.json")
+
+b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+now=$(date +%s)
+header=$(printf '{"alg":"RS256","typ":"JWT"}' | b64url)
+# iat is backdated a minute for clock drift; GitHub caps exp at 10 minutes
+payload=$(printf '{"iat":%d,"exp":%d,"iss":"%s"}' $((now - 60)) $((now + 540)) "$app_id" | b64url)
+sig=$(printf '%s.%s' "$header" "$payload" | openssl dgst -sha256 -sign "$dir/private-key.pem" -binary | b64url)
+jwt="$header.$payload.$sig"
+
+api() { curl -fsS -H "Authorization: Bearer $jwt" -H "Accept: application/vnd.github+json" "$@"; }
+
+installation=$(api "https://api.github.com/repos/$repo/installation" | jq -r .id) || {
+  echo "reviewer-token: $(jq -r .slug "$dir/app.json") is not installed on $repo" >&2
+  echo "install it: $(jq -r .html_url "$dir/app.json")/installations/new" >&2
+  exit 1
+}
+api -X POST "https://api.github.com/app/installations/$installation/access_tokens" \
+  -d "{\"repositories\":[\"${repo#*/}\"],\"permissions\":{\"pull_requests\":\"write\"}}" | jq -r .token
