@@ -49,20 +49,21 @@ def follow(repo, commit, path, start, end):
     """Where lines start..end of `path` at `commit` are in the local file now, or None.
 
     The lines are followed through the diff from `commit` to the working tree, so edits
-    elsewhere only shift them. None if any of them changed: a copy of their text elsewhere
-    is other code. The histogram diff anchors on unique lines, so it doesn't mistake a
-    copy for the original.
+    elsewhere only shift them. None if a change touches them or the line on either side:
+    there the diff can't tell the lines surviving from a copy of them taking their place
+    (a copy directly above a rewritten target lines up as the original), so guessing
+    could edit a copy.
     """
     out = git(repo, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames",
-              "--diff-algorithm=histogram", "-U0", commit, "--", path)
+              "-U0", commit, "--", path)
     shift = 0
     for old, old_n, new_n in LOCAL_HUNK.findall(out.stdout):
         old, old_n, new_n = int(old), int(old_n or 1), int(new_n or 1)
         # a hunk removing nothing inserts after line `old`
         first, last = (old + 1, old) if old_n == 0 else (old, old + old_n - 1)
-        if last < start:
+        if last < start - 1:
             shift += new_n - old_n
-        elif first > end:
+        elif first > end + 1:
             break
         else:
             return None
@@ -73,7 +74,7 @@ def accept(repo, commit, path, start, end, replacement):
     """Replace lines start..end of `path`, as they were at `commit`, with `replacement`.
 
     The lines are found where local edits since `commit` moved them. Refused, leaving the
-    file alone, if those lines themselves changed. Every other byte stays as it was: line
+    file alone, if those lines or the lines next to them changed. Every other byte stays as it was: line
     endings, and a missing final newline.
     """
     shown = git(repo, "show", f"{commit}:{path}", check=False)
@@ -89,8 +90,9 @@ def accept(repo, commit, path, start, end, replacement):
     if len(shown.stdout.splitlines()) >= end:
         at = follow(repo, commit, path, start, end)
     if at is None:
-        raise StaleSuggestion(f"{path}:{start}-{end} changed since the review at {commit[:12]}, "
-                              "so the suggestion no longer applies: make the change by hand")
+        raise StaleSuggestion(f"{path}:{start}-{end}, or a line next to it, changed since the review "
+                              f"at {commit[:12]}, so it's ambiguous which lines were reviewed: "
+                              "make the change by hand, or re-suggest on the current lines")
     lines = re.findall(rb"[^\n]*\n|[^\n]+\Z", data)
     new = replacement.encode()
     ends = [line for line in lines if line.endswith(b"\n")]
