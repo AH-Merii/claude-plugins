@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <title>shoop — boat riding its own wake loop (v1)</title>
+  <!-- wake: runs from the stern, round the loop, and curls up ahead of the bow -->
+  <path d="M25.5 19.1 A19 19 0 1 0 46.6 24.8 C44.5 22 40.2 23 40.5 26.5 C40.7 29 44 29 44 27"
+        fill="none" stroke="#22b8a8" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- boat -->
+  <path d="M31.5 1.5 V11" stroke="#1f2a44" stroke-width="1.6" stroke-linecap="round"/>
+  <path d="M33 2.5 L33 10 L41 10 Z" fill="#ffd166"/>
+  <path d="M30 4 L30 10 L24 10 Z" fill="#ffd166"/>
+  <path d="M19 11 H45 L41 18 Q40.2 19 38.5 19 H25 Q23.6 19 22.8 18 Z" fill="#ff6b57"/>
+  <circle cx="27" cy="14.5" r="1.4" fill="#1f2a44"/>
+</svg>
