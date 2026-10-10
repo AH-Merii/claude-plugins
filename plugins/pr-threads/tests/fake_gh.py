@@ -8,6 +8,7 @@ would reject (conflicting response names, a thread under the wrong input key) fa
 and so does a canned GraphQL answer holding a field the query doesn't select. A canned
 reviewThreads list is served a page at a time, by the query's `first` and `after`, like
 GitHub's connections. A key whose endpoint part ends in "$" only matches that exact endpoint.
+An answer may carry stderr, printed as gh prints its errors.
 
 Like real gh it expands {owner}/{repo} in api endpoints, builds nested payloads from
 `key[sub]=v` and `key[]=v` fields, applies simple `.a.b` paths given to --jq/-q
@@ -454,6 +455,7 @@ def main(args):
             if "pages" in answer:
                 answer_pages(answer["pages"])
             stdout, code = answer.get("stdout", ""), answer.get("exit", 0)
+            sys.stderr.write(answer.get("stderr", ""))
             if args[:2] == ["issue", "comment"]:
                 # gh issue comment prints the new comment's URL, not the API's JSON
                 stdout = json.loads(stdout)["html_url"] + "\n" if code == 0 and stdout else ""

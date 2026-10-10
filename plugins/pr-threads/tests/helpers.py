@@ -140,11 +140,12 @@ class FakeGh:
         with open(self.table, "w") as f:
             json.dump(table, f)
 
-    def set_answer(self, key, stdout="", exit=0, pages=None):
-        """Answer `key` with stdout and exit, or, for a paginated REST list, with `pages`."""
+    def set_answer(self, key, stdout="", exit=0, pages=None, stderr=""):
+        """Answer `key` with stdout, stderr and exit, or, for a paginated REST list, with `pages`."""
         with open(self.table) as f:
             table = json.load(f)
-        table[key] = {"pages": pages} if pages is not None else {"stdout": stdout, "exit": exit}
+        table[key] = {"pages": pages} if pages is not None else {"stdout": stdout, "exit": exit,
+                                                                  "stderr": stderr}
         self._write_table(table)
 
     def run(self, *args, check=True, input_text=""):
