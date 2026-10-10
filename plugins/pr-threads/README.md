@@ -6,7 +6,8 @@ requests as threads pinned to local `path:line`:
 - **The reviewer** stages comments and suggested changes locally, then submits them as one
   review with a `pass` or `changes` verdict, posted by a reviewer bot (GitHub won't let you
   approve or request changes on your own PRs). Lines outside the PR diff, uncommitted
-  edits, and a branch that's ahead of or behind the pushed head are refused up front.
+  edits, and a branch that's ahead of, behind or diverged from the pushed head are refused
+  up front.
 - **The author** sees only open threads, replies as you, and applies a suggestion to the
   local file, so it goes through the normal commit path.
 - **Either side** reads the handoff state with `status`: `pending`, `changes`, `approved`

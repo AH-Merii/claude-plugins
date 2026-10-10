@@ -11,8 +11,8 @@ Code is always named by local `path:line` or `path:start-end`, as in your checko
 ## Reviewer
 
 1. Check out the PR branch at its pushed head. Comments are refused while the local
-   branch is ahead (push), behind (pull), or the file has uncommitted edits, and on lines
-   outside the PR diff; the refusal says which lines are commentable.
+   branch is ahead, behind or diverged, or the file has uncommitted edits, and on lines
+   outside the PR diff; the refusal says what to do and which lines are commentable.
 2. Stage comments. Nothing is posted yet, and they survive across commands:
    - `pr-threads comment app.py:10 "Why change this?"`
    - `pr-threads suggest app.py:21-22 "Name these."` with the replacement lines on stdin
