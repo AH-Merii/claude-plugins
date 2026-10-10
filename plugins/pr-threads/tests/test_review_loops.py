@@ -175,8 +175,11 @@ class StatusLoopTest(unittest.TestCase):
     `disputed` lists the open threads whose bot's latest verdict is a dispute: a later bot
     verification or withdrawal ends it, the author arguing on doesn't, and only the bot's own
     dispute counts. A disputed thread is still open: `open` counts it and it blocks `pass`.
-    `round` is how many reviews the bot has submitted on the PR; only reporting it, not
-    capping it. Other reviewers' reviews don't count, and a dismissed bot review still does.
+    `round` is how many verdicts the bot has submitted on the PR; only reporting it, not
+    capping it. Other reviewers' reviews don't count, and a dismissed bot verdict still does.
+    The bot's COMMENTED reviews are not rounds: submit only sends APPROVE or REQUEST_CHANGES,
+    and GitHub wraps each of the bot's thread replies (verify, withdraw, dispute) in a
+    COMMENTED review of its own.
     """
 
     def setUp(self):
@@ -247,6 +250,27 @@ class StatusLoopTest(unittest.TestCase):
                 text, got = self.status(reviews)
                 self.assertIn("round", got, f"status --json doesn't report the round: {got}")
                 self.assertEqual(got["round"], want)
+                self.assertRegex(text, rf"(?i)\bround\D*\b{want}\b", f"the text doesn't give round {want}: {text}")
+
+    def test_the_bots_comment_reviews_are_not_rounds(self):
+        # what the live run on AH-Merii/test#7 listed: a verdict, a COMMENTED review around each
+        # verify reply, then the next verdict; status said round 4
+        replies = lambda hour, n: [bot("COMMENTED", hour + i) for i in range(n)]  # noqa: E731
+        cases = {
+            "a comment review per reply between two verdicts":
+                ([bot("CHANGES_REQUESTED", 1)] + replies(2, 2) + [bot("APPROVED", 5)], 2),
+            "comment reviews only": (replies(1, 3), 0),
+            "comment reviews after the last verdict": ([bot("CHANGES_REQUESTED", 1)] + replies(2, 3), 1),
+            "a dismissed verdict among comment reviews":
+                ([bot("DISMISSED", 1)] + replies(2, 2) + [bot("CHANGES_REQUESTED", 5)] + replies(6, 1)
+                 + [bot("APPROVED", 8)], 3),
+            "comment reviews past the first page":
+                ([bot("CHANGES_REQUESTED", 0)] + replies(1, 31) + [bot("APPROVED", 9)], 2),
+        }
+        for name, (reviews, want) in cases.items():
+            with self.subTest(name):
+                text, got = self.status(reviews)
+                self.assertEqual(got.get("round"), want, "only the bot's verdicts are rounds")
                 self.assertRegex(text, rf"(?i)\bround\D*\b{want}\b", f"the text doesn't give round {want}: {text}")
 
 
