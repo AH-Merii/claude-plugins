@@ -52,6 +52,12 @@ DENIED = [
     "gh api --method=POST repos/o/r/pulls/5/reviews",
     "gh api -XPOST repos/o/r/pulls/5/reviews",
     "gh api repos/o/r/pulls/5/comments/123/replies -f body=ok",
+    # shlex can't split these (an odd quote), so only the raw text shows the write; a
+    # parse failure must not wave them through
+    "gh pr comment 5 --body-file - <<'EOF'\nit's broken\nEOF",
+    "gh pr review 5 --approve -b 'it's fine'",
+    "gh pr comment 5 --body 'unterminated",
+    "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"T1\"}) { thread { id } } }' && echo 'done",
 ]
 
 ALLOWED = [
@@ -78,6 +84,10 @@ ALLOWED = [
     "pr-threads --pr 5 resolve T1 T2",
     "echo 'gh pr comment 5 --body nope'",
     "git commit -m 'gh pr review 5 --approve'",
+    # shlex can't split these either, but nothing in them is a PR write
+    "echo 'it's fine'",
+    "git commit -m \"don't stop",
+    "cat <<'EOF'\nit's a note\nEOF",
 ]
 
 
@@ -115,9 +125,6 @@ class FindViolationTest(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertIn("pr-threads", find_violation(command))
                 self.assertIn(verb, find_violation(command))
-
-    def test_unparseable_command_is_let_through(self):
-        self.assertIsNone(find_violation("gh pr comment 5 --body 'unterminated"))
 
 
 class HookProcessTest(unittest.TestCase):
