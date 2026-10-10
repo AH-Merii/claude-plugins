@@ -81,6 +81,19 @@ FAKE_GH = textwrap.dedent('''\
     ''')
 
 
+FAKE_UPLOAD = textwrap.dedent('''\
+    #!/usr/bin/env python3
+    """Stands in for the image upload: records who uploaded what, prints the asset URL."""
+    import json, os, sys
+    path = sys.argv[1]
+    with open(os.environ["FAKE_UPLOAD_LOG"], "a") as f:
+        f.write(json.dumps({"file": path, "gh_token": os.environ.get("GH_TOKEN")}) + "\\n")
+    if os.path.exists(os.environ["FAKE_UPLOAD_LOG"] + ".fail"):
+        sys.exit(1)
+    print("https://github.com/user-attachments/assets/" + os.path.basename(path))
+    ''')
+
+
 class FakeGh:
     """Puts a recording `gh` and a token command on PATH for CLI runs."""
 
@@ -94,6 +107,8 @@ class FakeGh:
         self._exe("gh", FAKE_GH)
         script = f"#!/bin/sh\necho {token}\n" if token else "#!/bin/sh\nexit 1\n"
         self.token_cmd = self._exe("token", script)
+        self.uploads = os.path.join(self.dir, "uploads.jsonl")
+        self.upload_cmd = self._exe("upload", FAKE_UPLOAD)
 
     def _exe(self, name, text):
         path = os.path.join(self.dir, name)
@@ -111,7 +126,8 @@ class FakeGh:
     def run(self, *args, check=True, input_text=""):
         env = {**os.environ, **GIT_ENV, "PATH": self.dir + os.pathsep + os.environ["PATH"],
                "FAKE_GH_LOG": self.log, "FAKE_GH_TABLE": self.table,
-               "PR_THREADS_TOKEN_CMD": self.token_cmd, "PYTHONPATH": PLUGIN}
+               "PR_THREADS_TOKEN_CMD": self.token_cmd, "PR_THREADS_UPLOAD_CMD": self.upload_cmd,
+               "FAKE_UPLOAD_LOG": self.uploads, "PYTHONPATH": PLUGIN}
         env.pop("GH_TOKEN", None)
         out = subprocess.run([sys.executable, "-m", "pr_threads", *args], cwd=self.repo,
                              capture_output=True, text=True, env=env, input=input_text)
@@ -125,6 +141,15 @@ class FakeGh:
         with open(self.log) as f:
             rows = [json.loads(line) for line in f]
         return [r for r in rows if needle in " ".join(r["argv"])]
+
+    def upload_calls(self):
+        if not os.path.exists(self.uploads):
+            return []
+        with open(self.uploads) as f:
+            return [json.loads(line) for line in f]
+
+    def fail_uploads(self):
+        open(self.uploads + ".fail", "w").close()
 
 
 def pr_table(repo, number=5):

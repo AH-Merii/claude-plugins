@@ -78,6 +78,31 @@ class LiveRoundTest(unittest.TestCase):
         self.assertEqual((status["state"], status["open"]), ("pass", 0))
         self.assertEqual(self.reviews()[-1]["state"], "APPROVED")
 
+    def test_attached_image_renders_inside_an_inline_comment(self):
+        image = os.path.join(self.dir, "proof.png")
+        with open(image, "wb") as f:
+            f.write(tiny_png())
+        self.cli("comment", "live.txt:3", "See proof.", "--attach", "proof.png#a red pixel")
+        self.cli("submit", "changes", "One point.")
+        (comment,) = json.loads(sh("gh", "api", "-H", "Accept: application/vnd.github.full+json",
+                                   f"repos/{REPO}/pulls/{self.pr}/comments"))
+        self.assertEqual(comment["user"]["login"], BOT)
+        self.assertIn("user-attachments", comment["body"])
+        self.assertIn("<img", comment["body_html"], "GitHub rendered it as an image, not a link")
+
+
+def tiny_png():
+    """A valid 1x1 red PNG, built with the standard library."""
+    import struct
+    import zlib
+
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    header = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)
+    pixels = zlib.compress(b"\x00\xff\x00\x00")
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IDAT", pixels) + chunk(b"IEND", b"")
+
 
 if __name__ == "__main__":
     unittest.main()
