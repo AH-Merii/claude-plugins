@@ -68,9 +68,16 @@ FAKE_GH = textwrap.dedent('''\
 
     Routes: "pr view <n>", "repo view", "<METHOD> <endpoint part>" for REST, and
     "graphql <field>" for GraphQL. Known review mutations are answered with their real
-    shape, so a reply or resolve never gets a thread listing back.
+    shape, so a reply or resolve never gets a thread listing back. A key whose endpoint
+    part ends in "$" only matches that exact endpoint.
+
+    Like real gh it expands {owner}/{repo} in api endpoints, applies simple `.a.b` paths
+    given to --jq/-q (anything else fails loudly), and treats `gh issue comment N` as the
+    POST to issues/N/comments it is.
     """
     import json, os, re, sys
+
+    OWNER, REPO = "o", "r"
 
     VALUE_OPTS = {"-X", "--method", "-H", "--header", "-f", "--raw-field", "-F", "--field",
                   "--input", "-q", "--jq", "-t", "--template", "--hostname", "-p", "--preview",
@@ -89,6 +96,21 @@ FAKE_GH = textwrap.dedent('''\
             return int(value)
         except ValueError:
             return value
+
+    def option(args, *names):
+        for i, arg in enumerate(args[:-1]):
+            if arg in names:
+                return args[i + 1]
+        return None
+
+    def jq(data, path):
+        """The subset of jq the fake understands: `.` and `.a.b` field paths."""
+        if path != "." and not re.fullmatch(r"(\\.[A-Za-z_]\\w*)+", path):
+            sys.stderr.write("fake gh: unsupported --jq " + path)
+            sys.exit(3)
+        for key in [p for p in path.split(".") if p]:
+            data = data[key]
+        return data if isinstance(data, str) else json.dumps(data)
 
     def parse(args):
         """Split gh args into (positionals, method, body)."""
@@ -164,10 +186,24 @@ FAKE_GH = textwrap.dedent('''\
         return None
 
     args = sys.argv[1:]
-    positionals, method, body = parse(args[1:] if args[:1] == ["api"] else args)
+    if args[:2] == ["issue", "comment"]:
+        positionals, method, body = [a for a in args[2:3]], "POST", None
+        text = option(args, "--body", "-b")
+        source = option(args, "--body-file", "-F")
+        if source is not None:
+            text = sys.stdin.read() if source == "-" else read(source)
+        body = {"body": text}
+    else:
+        positionals, method, body = parse(args[1:] if args[:1] == ["api"] else args)
+    if args[:1] == ["api"] and positionals:
+        positionals[0] = positionals[0].replace("{owner}", OWNER).replace("{repo}", REPO)
     record = {"argv": args, "method": None, "endpoint": None, "body": body, "fields": [],
               "gh_token": os.environ.get("GH_TOKEN")}
-    if args[:2] == ["pr", "view"]:
+    if args[:2] == ["issue", "comment"]:
+        endpoint = f"repos/{OWNER}/{REPO}/issues/{positionals[0]}/comments"
+        record.update(method="POST", endpoint=endpoint)
+        route = "POST " + endpoint
+    elif args[:2] == ["pr", "view"]:
         route = f"pr view {positionals[2] if len(positionals) > 2 else ''}".strip()
     elif args[:2] == ["repo", "view"]:
         route = "repo view"
@@ -185,16 +221,29 @@ FAKE_GH = textwrap.dedent('''\
     with open(os.environ["FAKE_GH_LOG"], "a") as f:
         f.write(json.dumps(record) + "\\n")
 
+    def rest_match(key):
+        verb, _, part = key.partition(" ")
+        if not route.startswith(verb + " "):
+            return False
+        if part.endswith("$"):
+            return route.rstrip("/").endswith(part[:-1])
+        return part in route
+
+    def answer_with(stdout, code):
+        path = option(args, "--jq", "-q")
+        if path is not None and code == 0 and stdout:
+            stdout = jq(json.loads(stdout), path) + "\\n"
+        sys.stdout.write(stdout)
+        sys.exit(code)
+
     with open(os.environ["FAKE_GH_TABLE"]) as f:
         table = json.load(f)
     for key, answer in table.items():
         if key == route or (key.startswith(("GET ", "POST ", "PATCH ", "PUT ", "DELETE "))
-                            and route.startswith(key.split(" ", 1)[0] + " ")
-                            and key.split(" ", 1)[1] in route) \\
+                            and rest_match(key)) \\
                 or (key.startswith("graphql ") and record["endpoint"] == "graphql"
                     and re.search(r"\\b" + re.escape(key[8:]) + r"\\b", (body or {}).get("query", ""))):
-            sys.stdout.write(answer.get("stdout", ""))
-            sys.exit(answer.get("exit", 0))
+            answer_with(answer.get("stdout", ""), answer.get("exit", 0))
     if record["endpoint"] == "graphql":
         data = {}
         for alias, field, field_args in top_fields((body or {}).get("query", "")):
@@ -204,8 +253,7 @@ FAKE_GH = textwrap.dedent('''\
             data[alias] = answer
         else:
             if data:
-                sys.stdout.write(json.dumps({"data": data}))
-                sys.exit(0)
+                answer_with(json.dumps({"data": data}), 0)
     sys.stderr.write("fake gh: no answer for " + route)
     sys.exit(1)
     ''')
@@ -322,8 +370,11 @@ def pr_table(repo, number=5):
     """Answers for the lookups every CLI run makes about PR `number`."""
     meta = {"number": number, "baseRefOid": repo.base, "headRefOid": repo.head,
             "headRefName": "feature"}
+    rest = {"number": number, "base": {"sha": repo.base, "ref": "main"},
+            "head": {"sha": repo.head, "ref": "feature"}}
     return {
         f"pr view {number}": {"stdout": json.dumps(meta)},
+        f"GET repos/o/r/pulls/{number}$": {"stdout": json.dumps(rest)},
         "repo view": {"stdout": json.dumps({"nameWithOwner": "o/r"})},
         "POST /reviews": {"stdout": json.dumps({"html_url": f"https://github.com/o/r/pull/{number}"})},
         "GET /reviews": {"stdout": "[]"},
