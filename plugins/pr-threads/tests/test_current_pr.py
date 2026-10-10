@@ -24,8 +24,8 @@ class NoPrForBranchTest(unittest.TestCase):
         ("status",),
         ("discard",),
     ]
-    # advice to pass it, not just the option's name (argparse's usage line has "[--pr PR]")
-    ADVICE = r"(?i)\b(pass|use|give|add|with)\b[^.\n]*--pr\b"
+    # --pr with a number or a placeholder for one; argparse's usage line "[--pr PR]" isn't advice
+    ADVICE = r"--pr[ =](?:N\b|NUMBER\b|<\w+>|\d+\b)"
 
     def setUp(self):
         self.repo = Repo()
