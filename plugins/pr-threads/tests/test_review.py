@@ -78,7 +78,7 @@ class SubmitTest(unittest.TestCase):
         (sent,) = gh.review_posts()[-1]["comments"]
         self.assertEqual(sent["line"], 10)
 
-    def test_comments_are_refused_when_the_local_branch_is_not_the_pr_head(self):
+    def test_comments_are_refused_while_the_local_branch_has_unpushed_commits(self):
         # issue #7: line numbers only mean something against the pushed head
         gh = self.gh()
         self.repo.write("other.py", "local only\n")
@@ -91,6 +91,30 @@ class SubmitTest(unittest.TestCase):
         git(self.repo.path, "reset", "-q", "--hard", self.repo.head)
         gh.run("--pr", "5", "submit", "pass", "Nothing staged.")
         self.assertEqual(gh.review_posts()[-1].get("comments", []), [], "refused comments were not staged")
+
+    def test_comments_are_refused_while_the_local_branch_is_behind_the_pr_head(self):
+        # someone pushed to the PR since this clone last pulled
+        local = self.repo.head
+        self.repo.write("other.py", "pushed from elsewhere\n")
+        git(self.repo.path, "commit", "-qam", "pushed from elsewhere")
+        self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
+        gh = self.gh()
+        git(self.repo.path, "reset", "-q", "--hard", local)
+        for args in (("comment", "app.py:10", "Hmm."), ("suggest", "app.py:10", "Hmm.")):
+            with self.subTest(command=args[0]):
+                out = gh.run("--pr", "5", *args, check=False, input_text="x\n")
+                self.assertNotEqual(out.returncode, 0)
+                self.assertIn("pull", out.stderr.lower(), "the fix is to pull, not to push")
+        git(self.repo.path, "reset", "-q", "--hard", self.repo.head)
+        gh.run("--pr", "5", "submit", "pass", "Nothing staged.")
+        self.assertEqual(gh.review_posts()[-1].get("comments", []), [], "refused comments were not staged")
+
+    def test_comments_are_refused_when_the_pr_head_was_never_fetched(self):
+        self.repo.head = "0" * 40
+        gh = self.gh()
+        out = gh.run("--pr", "5", "comment", "app.py:10", "Hmm.", check=False)
+        self.assertNotEqual(out.returncode, 0)
+        self.assertRegex(out.stderr.lower(), r"\bfetch\b|\bpull\b")
 
     def test_comment_on_a_locally_edited_file_is_refused(self):
         gh = self.gh()

@@ -3,7 +3,7 @@ import unittest
 
 from helpers import Repo, git, isolate_git
 
-from pr_threads.anchor import LocalDiffers, NotInDiff, NotPushed, anchor, check_synced
+from pr_threads.anchor import LocalDiffers, NotInDiff, NotPulled, NotPushed, anchor, check_synced
 
 
 class AnchorTest(unittest.TestCase):
@@ -78,12 +78,26 @@ class SyncTest(unittest.TestCase):
     def test_unpushed_local_commit_is_refused(self):
         self.repo.write("other.py", "more\n")
         git(self.repo.path, "commit", "-qam", "local only")
-        with self.assertRaises(NotPushed):
+        with self.assertRaises(NotPushed) as caught:
             check_synced(self.repo.path, "feature", self.repo.head)
+        self.assertIn("push", str(caught.exception).lower())
+
+    # behind is a different fix from ahead: the user pulls, not pushes
+    def test_branch_behind_the_pr_head_is_refused(self):
+        self.repo.write("other.py", "pushed from elsewhere\n")
+        git(self.repo.path, "commit", "-qam", "pushed from elsewhere")
+        pr_head = git(self.repo.path, "rev-parse", "HEAD")
+        git(self.repo.path, "reset", "-q", "--hard", self.repo.head)
+        with self.assertRaises(NotPulled) as caught:
+            check_synced(self.repo.path, "feature", pr_head)
+        self.assertNotIsInstance(caught.exception, NotPushed)
+        self.assertIn("pull", str(caught.exception).lower())
 
     def test_pr_head_missing_locally_is_refused(self):
-        with self.assertRaises(NotPushed):
+        with self.assertRaises(NotPulled) as caught:
             check_synced(self.repo.path, "feature", "0" * 40)
+        self.assertNotIsInstance(caught.exception, NotPushed)
+        self.assertRegex(str(caught.exception).lower(), r"\bfetch\b|\bpull\b")
 
 
 if __name__ == "__main__":
