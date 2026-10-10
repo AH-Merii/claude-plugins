@@ -5,51 +5,18 @@ contents:write), and the bot gets no write access to code. So the two acts are s
 `verify` is the bot's reply that the fix is in a commit of the PR, and `resolve` runs as the
 user, only on threads where that reply is still the last word.
 """
-import json
 import unittest
 
-from helpers import BOT_SLUG, INSTALL_URL, FakeGh, Repo, git, pr_table, threads_response
+from helpers import BOT_SLUG, INSTALL_URL, Repo, bot_reply, git, node
+from helpers import fake_with_threads as fake
 
 USER = "AH-Merii"  # the PR's author, whose own gh login resolve runs as
 HUMAN = "octocat"  # another reviewer
 
 
-def node(id, *comments):
-    """A review thread holding only its id and its (author login, body) comments, oldest first.
-
-    An author of None is a deleted account, which GitHub's GraphQL API returns as null.
-    """
-    return {"id": id, "comments": {"nodes": [
-        {"author": None if login is None else {"login": login}, "body": body}
-        for login, body in comments]}}
-
-
-def fake(repo, token="BOT_TOKEN", *threads):
-    """A fake gh for PR 5 at repo.head, whose review threads are `threads`."""
-    gh = FakeGh(repo.path, pr_table(repo), token=token)
-    gh.set_answer("graphql reviewThreads", json.dumps(threads_response(*threads)))
-    return gh
-
-
-_verifications = {}
-
-
 def verification(note=None):
-    """The body `verify` posts as the bot, so no test here depends on how its marker is spelled."""
-    if note not in _verifications:
-        repo = Repo()
-        gh = fake(repo, "BOT_TOKEN", node("T1", (BOT_SLUG, "Rename this.")))
-        try:
-            out = gh.run("--pr", "5", "verify", "T1", repo.head, *([note] if note else []), check=False)
-            replies = [r for call in gh.writes() for r in call.get("replies", [])]
-            if out.returncode or len(replies) != 1:
-                raise AssertionError(f"verify posted no reply whose body resolve could accept: "
-                                     f"{out.stderr.strip()}")
-            _verifications[note] = replies[0]["body"]
-        finally:
-            gh.cleanup()
-            repo.cleanup()
-    return _verifications[note]
+    """The body `verify` posts as the bot."""
+    return bot_reply("verify", *([note] if note else []))
 
 
 class VerifyTest(unittest.TestCase):

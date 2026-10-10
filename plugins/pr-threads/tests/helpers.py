@@ -303,3 +303,51 @@ def assert_keeps_local_work(test, message, local):
     names_local = any(local.startswith(sha) for sha in re.findall(r"\b[0-9a-f]{7,40}\b", message))
     test.assertTrue(names_local or advises(message, "rebase"),
                     f"doesn't point at the local-only commit {local[:12]}: {message}")
+
+
+def node(id, *comments, resolved=None):
+    """A review thread holding its id and its (author login, body) comments, oldest first.
+
+    An author of None is a deleted account, which GitHub's GraphQL API returns as null.
+    isResolved is included only when `resolved` is given, for readers that select it.
+    """
+    found = {"id": id, "comments": {"nodes": [
+        {"author": None if login is None else {"login": login}, "body": body}
+        for login, body in comments]}}
+    if resolved is not None:
+        found["isResolved"] = resolved
+    return found
+
+
+def fake_with_threads(repo, token="BOT_TOKEN", *threads):
+    """A fake gh for PR 5 at repo.head, whose review threads are `threads`."""
+    gh = FakeGh(repo.path, pr_table(repo), token=token)
+    gh.set_answer("graphql reviewThreads", json.dumps(threads_response(*threads)))
+    return gh
+
+
+_bot_replies = {}
+
+
+def bot_reply(verb, *args):
+    """The body `pr-threads <verb> T1 [head] args...` posts as the bot.
+
+    Tests build threads from what the verbs actually post, so none of them depends on how a
+    marker is spelled. `verify` is given the PR head as its commit.
+    """
+    key = (verb, args)
+    if key not in _bot_replies:
+        repo = Repo()
+        gh = fake_with_threads(repo, "BOT_TOKEN", node("T1", (BOT_SLUG, "Rename this.")))
+        try:
+            extra = (repo.head,) if verb == "verify" else ()
+            out = gh.run("--pr", "5", verb, "T1", *extra, *args, check=False)
+            replies = [r for call in gh.writes() for r in call.get("replies", [])]
+            if out.returncode or len(replies) != 1:
+                raise AssertionError(f"{verb} posted no reply to build a thread from: "
+                                     f"{out.stderr.strip()}")
+            _bot_replies[key] = replies[0]["body"]
+        finally:
+            gh.cleanup()
+            repo.cleanup()
+    return _bot_replies[key]
