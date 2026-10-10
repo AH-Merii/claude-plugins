@@ -17,7 +17,7 @@ requests as threads pinned to local `path:line`:
   local file, so it goes through the normal commit path.
 - **Either side** reads the handoff state with `status`: `pending`, `changes`, `approved`
   (with open threads), or `pass`, plus the threads the bot disputes and the round (how many
-  reviews the bot has submitted).
+  verdicts the bot has submitted).
 - **The guard** denies raw `gh pr comment`, `gh pr review`, `gh issue comment` and `gh api`
   review and comment writes, and names the `pr-threads` verb to use instead.
 

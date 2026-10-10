@@ -60,7 +60,7 @@ login, for notes that belong to no line.
 - `pass`: approved, no change request outstanding, no open threads.
 
 It also names the threads the bot disputes (still open, so they block `pass`) and gives
-the round: how many reviews the bot has submitted.
+the round: how many verdicts the bot has submitted.
 
 ## Images
 

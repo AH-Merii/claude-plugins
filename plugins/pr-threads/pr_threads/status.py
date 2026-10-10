@@ -11,8 +11,9 @@ def handoff(response, reviews, bot=None):
     Each reviewer's latest formal review counts, as on GitHub: COMMENTED and PENDING
     reviews change no one's standing, and a DISMISSED one leaves its reviewer with none.
     With the bot's slug, it also gives the open threads the bot disputes (still counted
-    as open, so they block a pass) and the round: every review the bot submitted, in any
-    state, matched by its REST login `<slug>[bot]`.
+    as open, so they block a pass) and the round: how many verdicts the bot submitted
+    (approvals and change requests, dismissed or not), matched by its REST login
+    `<slug>[bot]`. Its COMMENTED reviews aren't rounds: GitHub wraps each thread reply in one.
     """
     latest = {}
     for review in reviews:  # GitHub lists them oldest first
@@ -30,7 +31,8 @@ def handoff(response, reviews, bot=None):
             "changes_requested_by": sorted(k for k, v in latest.items() if v == "CHANGES_REQUESTED"),
             "approved_by": sorted(k for k, v in latest.items() if v == "APPROVED"),
             "disputed": [t["id"] for t in nodes(response) if bot and is_disputed(t, bot)],
-            "round": sum(1 for r in reviews if bot and (r.get("user") or {}).get("login") == f"{bot}[bot]")}
+            "round": sum(1 for r in reviews if bot and r.get("state") in VERDICTS
+                         and (r.get("user") or {}).get("login") == f"{bot}[bot]")}
 
 
 def render(got):
