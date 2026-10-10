@@ -125,29 +125,39 @@ class AcceptByContentTest(unittest.TestCase):
                         want = self.expected(want, seen, grow)
                     self.assertEqual(self.repo.read("app.py"), want)
 
-    def test_a_copy_of_the_reviewed_block_elsewhere_is_never_edited(self):
-        # accept may replace the copy nearest the reviewed position or refuse, but a copy
-        # further away is never the one changed, whichever comes first in the file
+    def copies(self, start, end):
+        """(name, [(index in the reviewed file, lines inserted there)]) placing copies of the
+        reviewed block around its target, near and far, so the target's own lines shift."""
+        block, at, n = self.block(start, end), start - 1, end - start + 1
+        size = len(self.pushed.splitlines())
+        return [
+            ("copy far above", [(0, block)]),
+            ("copy near above", [(at - n - 1, block)]),
+            ("copy far below", [(size, block)]),
+            ("copy near below, lines added above", [(0, ["inserted\n"]), (at + n + 3, block)]),
+            ("copies above and below", [(0, block), (size, block)]),
+        ]
+
+    def block(self, start, end):
+        return self.pushed.splitlines(keepends=True)[start - 1:end]
+
+    def with_inserts(self, lines, inserts):
+        lines = list(lines)
+        for index, new in sorted(inserts, reverse=True):
+            lines[index:index] = new
+        return lines
+
+    def test_the_target_is_followed_past_copies_of_its_text(self):
+        # accept follows the reviewed lines through the local edits; copies of their text
+        # elsewhere are other code, never edited in their place
         for start, end, seen, replacement in self.TARGETS:
-            block, at, n = [line + "\n" for line in seen], start - 1, end - start + 1
-            size = len(self.pushed.splitlines())
-            # (name, [(index in the reviewed file, lines inserted there)])
-            for name, inserts in [
-                ("copy far above", [(0, block)]),
-                ("copy near above", [(at - n - 1, block)]),
-                ("copy far below", [(size, block)]),
-                ("copy near below, lines added above", [(0, ["inserted\n"]), (at + n + 2, block)]),
-                ("copies above and below", [(0, block), (size, block)]),
-            ]:
+            at, n = start - 1, end - start + 1
+            for name, inserts in self.copies(start, end):
                 with self.subTest(name, target=f"{start}-{end}"):
-                    lines = self.pushed.splitlines(keepends=True)
-                    for index, new in sorted(inserts, reverse=True):
-                        lines[index:index] = new
+                    lines = self.with_inserts(self.pushed.splitlines(keepends=True), inserts)
                     edited = "".join(lines)
+                    # where the reviewed lines themselves ended up after the inserts
                     target = at + sum(len(new) for index, new in inserts if index <= at)
-                    copies = [i for i in range(len(lines)) if lines[i:i + n] == block]
-                    self.assertEqual(min(copies, key=lambda i: abs(i - at)), target,
-                                     "fixture: the reviewed block is the copy nearest its old place")
                     self.repo.write("app.py", edited)
                     try:
                         self.accept(start, end, replacement)
@@ -155,7 +165,24 @@ class AcceptByContentTest(unittest.TestCase):
                         self.assertEqual(self.repo.read("app.py"), edited, "a refused accept leaves the file alone")
                         continue
                     lines[target:target + n] = [replacement]
-                    self.assertEqual(self.repo.read("app.py"), "".join(lines), "only the nearest copy changed")
+                    self.assertEqual(self.repo.read("app.py"), "".join(lines),
+                                     "only the reviewed lines changed, not a copy of them")
+
+    def test_a_rewritten_target_refuses_even_when_a_copy_of_its_text_survives(self):
+        # the reviewed lines changed, so the suggestion no longer applies; a copy of their
+        # old text elsewhere is not a stand-in for them
+        for start, end, seen, replacement in self.TARGETS:
+            at, n = start - 1, end - start + 1
+            rewritten = [f"rewritten {line}\n" for line in seen]
+            for name, inserts in self.copies(start, end):
+                with self.subTest(name, target=f"{start}-{end}"):
+                    lines = self.pushed.splitlines(keepends=True)
+                    lines[at:at + n] = rewritten
+                    before = "".join(self.with_inserts(lines, inserts))
+                    self.repo.write("app.py", before)
+                    with self.assertRaises(StaleSuggestion):
+                        self.accept(start, end, replacement)
+                    self.assertEqual(self.repo.read("app.py"), before, "a refused accept leaves the file alone")
 
     def test_a_change_to_the_target_itself_still_refuses_wherever_it_moved(self):
         changes = [
