@@ -4,6 +4,7 @@ import unittest
 
 from helpers import Repo, git, isolate_git
 
+from pr_threads import Refusal
 from pr_threads.anchor import LocalDiffers, NotInDiff, NotPulled, NotPushed, anchor, check_synced
 
 
@@ -149,6 +150,53 @@ class SyncTest(unittest.TestCase):
             check_synced(self.repo.path, "feature", pr_head)
         self.assertNotIsInstance(caught.exception, NotPushed)
         self.assertIn("pull", str(caught.exception).lower())
+
+    def assertSaysResetNotPullPush(self, message):
+        """A diverged branch is fixed by moving to the PR head, never by pulling and pushing.
+
+        For a reviewer, divergence almost always means the author rewrote the PR (rebase,
+        amend, force-push); pulling merges the old commits back and pushing undoes the rewrite.
+        """
+        lower = message.lower()
+        self.assertNotRegex(lower, r"\bpull\b(?!\s+request)", "must not advise pulling")
+        self.assertNotRegex(lower, r"\bpush\b", "must not advise pushing")
+        self.assertRegex(lower, r"\breset\b|\bcheck ?out\b", "says to reset to or check out the PR head")
+
+    def diverged(self):
+        """(name, PR head) for each way the PR head and the local branch can part ways."""
+        path, local = self.repo.path, self.repo.head
+        cases = []
+        # the author amended the reviewed commit and force-pushed
+        git(path, "commit", "-q", "--amend", "-m", "head, reworded")
+        cases.append(("amended", git(path, "rev-parse", "HEAD")))
+        # the author rebased the PR onto a newer main
+        git(path, "checkout", "-q", "main")
+        self.repo.write("other.py", "main moved on\n")
+        git(path, "commit", "-qam", "main moves on")
+        git(path, "checkout", "-q", "-B", "rebased", local)
+        git(path, "rebase", "-q", "main")
+        cases.append(("rebased", git(path, "rev-parse", "HEAD")))
+        # the PR moved on while this clone made its own commit
+        git(path, "checkout", "-q", "-B", "remote", local)
+        self.repo.write("app.py", self.repo.read("app.py") + "pushed from elsewhere\n")
+        git(path, "commit", "-qam", "pushed from elsewhere")
+        cases.append(("both moved", git(path, "rev-parse", "HEAD")))
+        git(path, "checkout", "-q", "feature")
+        git(path, "reset", "-q", "--hard", local)
+        self.repo.write("other.py", "local only\n")
+        git(path, "commit", "-qam", "local only")
+        return cases, git(path, "rev-parse", "HEAD")
+
+    def test_diverged_branch_is_told_to_reset_to_the_pr_head_not_to_pull_and_push(self):
+        cases, local_commit = self.diverged()
+        for name, pr_head in cases:
+            with self.subTest(name):
+                # only "both moved" keeps the local commit; the others diverge from the reviewed head
+                git(self.repo.path, "reset", "-q", "--hard",
+                    local_commit if name == "both moved" else self.repo.head)
+                with self.assertRaises(Refusal) as caught:
+                    check_synced(self.repo.path, "feature", pr_head)
+                self.assertSaysResetNotPullPush(str(caught.exception))
 
     def test_pr_head_missing_locally_is_refused(self):
         with self.assertRaises(NotPulled) as caught:

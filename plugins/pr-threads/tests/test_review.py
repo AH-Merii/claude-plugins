@@ -107,6 +107,23 @@ class SubmitTest(unittest.TestCase):
         gh.run("--pr", "5", "submit", "pass", "Nothing staged.")
         self.assertEqual(gh.review_posts()[-1].get("comments", []), [], "refused comments were not staged")
 
+    def test_diverged_branch_is_told_to_reset_to_the_pr_head_not_to_pull_and_push(self):
+        # the author amended and force-pushed after this clone checked the PR out
+        reviewed = self.repo.head
+        git(self.repo.path, "commit", "-q", "--amend", "-m", "head, reworded")
+        self.repo.head = git(self.repo.path, "rev-parse", "HEAD")
+        gh = self.gh()
+        git(self.repo.path, "reset", "-q", "--hard", reviewed)
+        for args in (("comment", "app.py:10", "Hmm."), ("suggest", "app.py:10", "Hmm.")):
+            with self.subTest(command=args[0]):
+                out = gh.run("--pr", "5", *args, check=False, input_text="x\n")
+                self.assertNotEqual(out.returncode, 0)
+                lower = out.stderr.lower()
+                self.assertNotRegex(lower, r"\bpull\b(?!\s+request)", "pulling merges the old commits back")
+                self.assertNotRegex(lower, r"\bpush\b", "pushing undoes the author's rewrite")
+                self.assertRegex(lower, r"\breset\b|\bcheck ?out\b", "says to move to the PR head")
+        self.assertEqual(gh.review_posts(), [])
+
     def test_comments_are_refused_when_the_pr_head_was_never_fetched(self):
         self.repo.head = "0" * 40
         gh = self.gh()
