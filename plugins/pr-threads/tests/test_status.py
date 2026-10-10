@@ -2,7 +2,7 @@
 import json
 import unittest
 
-from helpers import BOT, FakeGh, Repo, pages, pr_table, resolved_response, thread
+from helpers import BOT, INSTALL_URL, FakeGh, Repo, pages, pr_table, resolved_response, thread
 from helpers import threads_response as response
 
 from pr_threads.review import review_body
@@ -109,7 +109,7 @@ class HumanVerdictTest(unittest.TestCase):
 
 
 class VerdictRoundTripTest(unittest.TestCase):
-    """What submit writes is what handoff reads, as the bot and in the fallback."""
+    """What the bot's submit writes is what handoff reads."""
 
     STATES = {"APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED", "COMMENT": "COMMENTED"}
 
@@ -117,21 +117,20 @@ class VerdictRoundTripTest(unittest.TestCase):
         self.repo = Repo()
         self.addCleanup(self.repo.cleanup)
 
-    def posted_review(self, verdict, token):
-        gh = FakeGh(self.repo.path, pr_table(self.repo), token=token)
+    def posted_review(self, verdict):
+        gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
         self.addCleanup(gh.cleanup)
         gh.run("--pr", "5", "submit", verdict, "Summary.")
         (sent,) = gh.review_posts()
-        # GitHub stores the event as a review state
-        return {"state": self.STATES[sent["event"]], "body": sent.get("body", ""),
-                "submitted_at": "2026-10-10T10:00:00Z"}
+        # GitHub stores the event as a review state, under the bot's login
+        return {"user": {"login": BOT, "type": "Bot"}, "state": self.STATES[sent["event"]],
+                "body": sent.get("body", ""), "submitted_at": "2026-10-10T10:00:00Z"}
 
     def test_each_verdict_reads_back_the_same(self):
-        for token in ("BOT_TOKEN", None):
-            for verdict in ("pass", "changes"):
-                with self.subTest(verdict=verdict, bot=bool(token)):
-                    got = handoff(response(), [self.posted_review(verdict, token)])
-                    self.assertEqual(got["state"], verdict)
+        for verdict in ("pass", "changes"):
+            with self.subTest(verdict=verdict):
+                got = handoff(response(), [self.posted_review(verdict)])
+                self.assertEqual(got["state"], verdict)
 
     def test_bot_change_request_holds_even_with_no_open_threads(self):
         got = handoff(response(), [review("changes", "2026-10-10T10:00:00Z", state="CHANGES_REQUESTED")])
@@ -144,6 +143,14 @@ class ResolveTest(unittest.TestCase):
         self.addCleanup(self.repo.cleanup)
         self.gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
         self.addCleanup(self.gh.cleanup)
+
+    def test_without_the_bot_nothing_is_resolved(self):
+        gh = FakeGh(self.repo.path, pr_table(self.repo), token=None)
+        self.addCleanup(gh.cleanup)
+        out = gh.run("--pr", "5", "resolve", "T1", check=False)
+        self.assertNotEqual(out.returncode, 0)
+        self.assertEqual([c for c in gh.calls("graphql") if "resolveReviewThread" in c["fields"]], [])
+        self.assertIn(INSTALL_URL, out.stderr)
 
     def test_several_threads_resolve_in_one_request_as_the_bot(self):
         self.gh.run("--pr", "5", "resolve", "T1", "T2", "T3")

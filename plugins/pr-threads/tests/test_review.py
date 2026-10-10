@@ -42,16 +42,14 @@ class SubmitTest(unittest.TestCase):
                 (post,) = [c for c in gh.calls("POST") if c["body"] == review]
                 self.assertEqual(post["gh_token"], "BOT_TOKEN")
 
-    def test_without_the_bot_the_review_is_a_comment_from_the_user(self):
+    def test_without_the_bot_nothing_is_submitted(self):
+        # no fallback to the user's login: GitHub refuses the author's own verdict
         gh = self.gh(token=None)
-        out = gh.run("--pr", "5", "submit", "changes", "Summary.")
-        (review,) = gh.review_posts()
-        self.assertEqual(review["event"], "COMMENT")
-        (post,) = [c for c in gh.calls("POST") if c["body"] == review]
-        self.assertIsNone(post["gh_token"])
-        self.assertIn("changes", review["body"])
-        self.assertIn("bot", out.stderr.lower(), "the fallback is explained, not silent")
-        self.assertIn(INSTALL_URL, out.stderr, "and says how to set the bot up for this repo")
+        self.stage_two(gh)
+        out = gh.run("--pr", "5", "submit", "changes", "Summary.", check=False)
+        self.assertNotEqual(out.returncode, 0)
+        self.assertEqual(gh.review_posts(), [], "nothing is posted")
+        self.assertIn(INSTALL_URL, out.stderr, "it says how to set the bot up for this repo")
 
     def test_failed_submit_keeps_the_staged_comments(self):
         gh = self.gh()
