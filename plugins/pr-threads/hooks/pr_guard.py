@@ -17,7 +17,7 @@ import sys
 VERBS = {
     "comment": "an inline comment on a diff line",
     "reply": "a reply in a review thread",
-    "resolve": "resolving review threads",
+    "resolve": "resolving threads the bot verified or withdrew, as you",
     "submit": "a review with a verdict, posted as the bot",
     "post": "a general comment on a PR or issue conversation",
 }

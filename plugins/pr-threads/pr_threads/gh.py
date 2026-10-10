@@ -1,7 +1,7 @@
 """The only place pr-threads talks to GitHub: gh, the bot's token command and the upload command.
 
-Reads and the author's writes go out as the user's own gh login. The reviewer's writes
-(submit, resolve) carry the bot's token in GH_TOKEN.
+Reads, the author's writes and resolve go out as the user's own gh login. The bot's
+writes (submit, verify, withdraw, dispute) carry its token in GH_TOKEN.
 """
 import functools
 import json
@@ -153,17 +153,20 @@ REPLY = """mutation($thread: ID!, $body: String!) {
 }"""
 
 
-def reply(thread, body):
-    return graphql(REPLY, thread=thread, body=body,
+def reply(thread, body, token=None):
+    return graphql(REPLY, token=token, thread=thread, body=body,
                    jq=".data.addPullRequestReviewThreadReply.comment.url")
 
 
-def resolve(threads, token):
-    """Resolve every thread in one request, each under its own alias."""
+def resolve(threads):
+    """Resolve every thread in one request, each under its own alias, as the user.
+
+    Not as the bot: GitHub refuses resolveReviewThread from an app without contents:write.
+    """
     params = ", ".join(f"$t{i}: ID!" for i in range(len(threads)))
     fields = "\n".join(f"  t{i}: resolveReviewThread(input: {{threadId: $t{i}}}) {{ thread {{ id }} }}"
                        for i in range(len(threads)))
-    graphql(f"mutation({params}) {{\n{fields}\n}}", token=token,
+    graphql(f"mutation({params}) {{\n{fields}\n}}",
             **{f"t{i}": t for i, t in enumerate(threads)})
 
 

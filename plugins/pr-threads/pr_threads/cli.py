@@ -5,13 +5,16 @@ import os
 import re
 import sys
 
-from pr_threads import Refusal, gh
-from pr_threads.anchor import anchor, check_synced, git
+from pr_threads import Refusal, gh, verdicts
+from pr_threads.anchor import anchor, check_synced, git, has_commit, is_ancestor
 from pr_threads.status import handoff, render as render_status
 from pr_threads.suggestions import accept, parse_suggestion, suggestion_body
 from pr_threads.threads import FIELDS, nodes, open_threads, render as render_threads
 
 EVENTS = {"pass": "APPROVE", "changes": "REQUEST_CHANGES"}
+# pushback verb -> (how its reply opens, what the reason records)
+PUSHBACK = {"withdraw": ("Withdrawn", "why the finding was dropped"),
+            "dispute": ("Disputed", "why the finding stands")}
 
 
 # --- staged review comments, kept per repo and PR until submit succeeds ---
@@ -154,9 +157,36 @@ def cmd_discard(args):
     print(f"discarded {count} staged comment{'' if count == 1 else 's'} on PR {number}")
 
 
+def bot_reply(thread, kind, text):
+    """Post a verdict in `thread` as the bot, or refuse with the install link."""
+    token = gh.bot_token(gh.repo())
+    print(gh.reply(thread, verdicts.body(kind, text), token))
+
+
+def cmd_verify(args):
+    pr = gh.pull_request(args.pr)
+    root, head = toplevel(), pr["headRefOid"]
+    if not has_commit(root, head):
+        raise Refusal(f"the PR head {head[:12]} isn't in this clone: fetch it, so {args.sha} "
+                      "can be checked against it")
+    sha = git(root, "rev-parse", "--verify", "-q", f"{args.sha}^{{commit}}", check=False).stdout.strip()
+    if not sha or not is_ancestor(root, sha, head):
+        raise Refusal(f"{args.sha} isn't in the history of the PR head {head[:12]} on GitHub, so "
+                      "it can't hold the fix: push it first, or name a commit of the PR")
+    bot_reply(args.thread, "verify", f"Verified in {sha}." + (f" {args.note}" if args.note else ""))
+
+
+def cmd_pushback(args):
+    opening, records = PUSHBACK[args.verb]
+    if not args.reason.strip():
+        raise Refusal(f"{args.verb} needs a reason: it's the record of {records}")
+    bot_reply(args.thread, args.verb, f"{opening}: {args.reason}")
+
+
 def cmd_resolve(args):
-    repo = gh.repo()
-    gh.resolve(args.threads, gh.bot_token(repo))
+    response = gh.review_threads(gh.repo(), pr_number(args), verdicts.FIELDS)
+    verdicts.check_resolvable(response, args.threads, verdicts.bot_slug())
+    gh.resolve(args.threads)
     print(f"resolved {', '.join(args.threads)}")
 
 
@@ -205,7 +235,8 @@ def cmd_post(args):
 
 def cmd_status(args):
     repo, number = gh.repo(), pr_number(args)
-    got = handoff(gh.review_threads(repo, number, "isResolved"), gh.reviews(repo, number))
+    got = handoff(gh.review_threads(repo, number, verdicts.FIELDS), gh.reviews(repo, number),
+                  verdicts.bot_slug())
     print(json.dumps(got) if args.json else render_status(got))
 
 
@@ -235,7 +266,15 @@ def parser():
     v.add_argument("verdict", choices=EVENTS)
     v.add_argument("body")
     verb("discard", cmd_discard, "drop this PR's staged comments")
-    v = verb("resolve", cmd_resolve, "resolve threads as the bot, in one request")
+    v = verb("verify", cmd_verify, "say as the bot that a thread's fix is in a commit of the PR")
+    v.add_argument("thread")
+    v.add_argument("sha")
+    v.add_argument("note", nargs="?")
+    for name, (_, records) in PUSHBACK.items():
+        v = verb(name, cmd_pushback, f"{name} a finding after pushback, as the bot, with {records}")
+        v.add_argument("thread")
+        v.add_argument("reason")
+    v = verb("resolve", cmd_resolve, "resolve threads the bot verified or withdrew, as you, in one request")
     v.add_argument("threads", nargs="+")
     v = verb("threads", cmd_threads, "list open threads at local path:line")
     v.add_argument("--json", action="store_true")
@@ -247,7 +286,7 @@ def parser():
     v = verb("post", cmd_post, "general comment on an issue or PR conversation, as you", attach=True)
     v.add_argument("number", type=int)
     v.add_argument("body")
-    v = verb("status", cmd_status, "handoff state: pending, changes, approved or pass")
+    v = verb("status", cmd_status, "handoff state (pending, changes, approved or pass), disputes and round")
     v.add_argument("--json", action="store_true")
     return p
 

@@ -25,11 +25,14 @@ so always pass `--pr N` there.
    every staged comment as one review from the reviewer bot. If it fails, the staged
    comments are kept; fix the cause and submit again. If they went stale (the PR head
    moved) or GitHub rejects them, `pr-threads discard` drops them.
-4. Next round, after the author pushes: check their replies with `pr-threads threads`, then
-   `pr-threads resolve T1 T2 ...` for every thread that is settled, in one call.
+4. Next round, after the author pushes, read their replies with `pr-threads threads` and
+   answer each thread as the bot:
+   - `pr-threads verify T1 <sha> ["note"]`: the fix is in `<sha>`, a commit of the PR.
+   - `pr-threads withdraw T1 "reason"`: the author's pushback holds.
+   - `pr-threads dispute T1 "reason"`: the finding stands.
 
-`submit` and `resolve` only run as the bot. If they print an install link, stop and give
-it to the user; never fall back to posting from their account.
+`submit`, `verify`, `withdraw` and `dispute` only run as the bot. If they print an install
+link, stop and give it to the user; never fall back to posting from their account.
 
 ## Author
 
@@ -39,8 +42,10 @@ it to the user; never fall back to posting from their account.
 2. For each thread, fix the code, or `pr-threads accept T1` to apply its suggestion to the
    local file. Accept refuses if those lines changed since the review; then edit by hand.
 3. Commit and push the fixes with the normal workflow.
-4. `pr-threads reply T1 "Fixed in abc123."` on each thread, as the user. Don't resolve
-   threads you were reviewed on; the reviewer resolves them.
+4. `pr-threads reply T1 "Fixed in abc123."` on each thread, as the user, or push back
+   with a reason.
+5. `pr-threads resolve T1 T2 ...`, as the user, once the bot has verified or withdrawn
+   each thread. It resolves all or none, and says why any thread can't be resolved yet.
 
 `pr-threads post N "text"` leaves a general comment on issue or PR `N` from the user's
 login, for notes that belong to no line.
@@ -53,6 +58,9 @@ login, for notes that belong to no line.
 - `changes`: some reviewer's latest verdict requests changes.
 - `approved`: approved, but threads are still open (the count is shown).
 - `pass`: approved, no change request outstanding, no open threads.
+
+It also names the threads the bot disputes (still open, so they block `pass`) and gives
+the round: how many reviews the bot has submitted.
 
 ## Images
 
