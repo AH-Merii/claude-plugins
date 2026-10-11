@@ -1,23 +1,36 @@
 """Shared test fixtures: real git repos in temp dirs, and a recording stand-in for `gh`."""
+
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
-import shlex
 import tempfile
 from unittest import mock
 
 PLUGIN = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PLUGIN)
 
-GIT_ENV = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
-           "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-           "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+GIT_ENV = {
+    "GIT_CONFIG_GLOBAL": os.devnull,
+    "GIT_CONFIG_NOSYSTEM": "1",
+    "GIT_AUTHOR_NAME": "t",
+    "GIT_AUTHOR_EMAIL": "t@t",
+    "GIT_COMMITTER_NAME": "t",
+    "GIT_COMMITTER_EMAIL": "t@t",
+}
 
 # git sets these for hooks; inherited, they point every fixture git at the outer repo
-GIT_REPO_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
-                 "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_COMMON_DIR", "GIT_PREFIX")
+GIT_REPO_VARS = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+)
 
 
 def clean_env(**extra):
@@ -30,8 +43,9 @@ def isolate_git(test):
     """Give in-process code under test the same git config CI has: none of the developer's."""
     home = tempfile.TemporaryDirectory()
     test.addCleanup(home.cleanup)
-    patcher = mock.patch.dict(os.environ, {**GIT_ENV, "HOME": home.name,
-                                           "XDG_CONFIG_HOME": os.path.join(home.name, ".config")})
+    patcher = mock.patch.dict(
+        os.environ, {**GIT_ENV, "HOME": home.name, "XDG_CONFIG_HOME": os.path.join(home.name, ".config")}
+    )
     patcher.start()
     test.addCleanup(patcher.stop)
     # patch.dict restores the whole environment on stop, these included
@@ -40,8 +54,7 @@ def isolate_git(test):
 
 
 def git(repo, *args):
-    out = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True,
-                         check=True, env=clean_env())
+    out = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True, check=True, env=clean_env())
     return out.stdout.strip()
 
 
@@ -118,9 +131,14 @@ class FakeGh:
         self._write_table(table)
         self._exe("gh", self._python(FAKE_GH))
         # without a token, fail the way reviewer-token does when the app isn't installed
-        script = f"#!/bin/sh\necho {token}\n" if token else (
-            "#!/bin/sh\necho 'reviewer-token: bot is not installed on o/r' >&2\n"
-            f"echo 'install it: {INSTALL_URL}' >&2\nexit 1\n")
+        script = (
+            f"#!/bin/sh\necho {token}\n"
+            if token
+            else (
+                "#!/bin/sh\necho 'reviewer-token: bot is not installed on o/r' >&2\n"
+                f"echo 'install it: {INSTALL_URL}' >&2\nexit 1\n"
+            )
+        )
         self.token_cmd = self._exe("token", script)
         self.uploads = os.path.join(self.dir, "uploads.jsonl")
         self.upload_cmd = self._exe("upload", self._python(FAKE_GH, "--upload"))
@@ -136,7 +154,7 @@ class FakeGh:
     @staticmethod
     def _python(*args):
         """A shell wrapper running this Python on `args` plus whatever it is given."""
-        return f"#!/bin/sh\nexec {shlex.join([sys.executable, *args])} \"$@\"\n"
+        return f'#!/bin/sh\nexec {shlex.join([sys.executable, *args])} "$@"\n'
 
     def _exe(self, name, text):
         path = os.path.join(self.dir, name)
@@ -153,24 +171,38 @@ class FakeGh:
         """Answer `key` with stdout, stderr and exit, or, for a paginated REST list, with `pages`."""
         with open(self.table) as f:
             table = json.load(f)
-        table[key] = {"pages": pages} if pages is not None else {"stdout": stdout, "exit": exit,
-                                                                  "stderr": stderr}
+        table[key] = {"pages": pages} if pages is not None else {"stdout": stdout, "exit": exit, "stderr": stderr}
         self._write_table(table)
 
     def run(self, *args, check=True, input_text=""):
-        isolated = {name: os.path.join(self.home, name.lower()) for name in
-                    ("XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME")}
-        env = clean_env(**isolated, HOME=self.home,
-                        PATH=self.dir + os.pathsep + os.environ["PATH"],
-                        FAKE_GH_LOG=self.log, FAKE_GH_TABLE=self.table,
-                        PR_THREADS_TOKEN_CMD=self.token_cmd, PR_THREADS_UPLOAD_CMD=self.upload_cmd,
-                        CLAUDE_REVIEWER_DIR=self.reviewer_dir,
-                        FAKE_UPLOAD_LOG=self.uploads, PYTHONPATH=PLUGIN)
+        isolated = {
+            name: os.path.join(self.home, name.lower())
+            for name in ("XDG_CONFIG_HOME", "XDG_STATE_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME")
+        }
+        env = clean_env(
+            **isolated,
+            HOME=self.home,
+            PATH=self.dir + os.pathsep + os.environ["PATH"],
+            FAKE_GH_LOG=self.log,
+            FAKE_GH_TABLE=self.table,
+            PR_THREADS_TOKEN_CMD=self.token_cmd,
+            PR_THREADS_UPLOAD_CMD=self.upload_cmd,
+            CLAUDE_REVIEWER_DIR=self.reviewer_dir,
+            FAKE_UPLOAD_LOG=self.uploads,
+            PYTHONPATH=PLUGIN,
+        )
         # gh reads any of these; a token from the developer's shell would hide who posted
         for name in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
             env.pop(name, None)
-        out = subprocess.run([sys.executable, "-m", "pr_threads", *args], cwd=self.repo,
-                             capture_output=True, text=True, env=env, input=input_text)
+        out = subprocess.run(
+            [sys.executable, "-m", "pr_threads", *args],
+            cwd=self.repo,
+            capture_output=True,
+            text=True,
+            env=env,
+            input=input_text,
+            check=False,
+        )
         if check and out.returncode != 0:
             raise AssertionError(f"pr-threads {args} failed: {out.stderr}")
         return out
@@ -185,16 +217,21 @@ class FakeGh:
 
     def review_posts(self):
         """Bodies of submitted reviews, however the CLI sent them (stdin, file or fields)."""
-        return [c["body"] for c in self.calls() if c["method"] == "POST"
-                and (c["endpoint"] or "").rstrip("/").endswith("/reviews")]
+        return [
+            c["body"]
+            for c in self.calls()
+            if c["method"] == "POST" and (c["endpoint"] or "").rstrip("/").endswith("/reviews")
+        ]
 
     def writes(self):
         """Requests that change something on GitHub: GraphQL mutations and REST writes."""
+
         def is_write(call):
             if call["endpoint"] == "graphql":
                 body = call["body"] if isinstance(call["body"], dict) else {}
                 return body.get("query", "").lstrip().startswith("mutation")
             return call["method"] not in (None, "GET", "HEAD")
+
         return [c for c in self.calls() if is_write(c)]
 
     def upload_calls(self):
@@ -216,11 +253,10 @@ def write_png(directory, *names):
 
 def pages(items, size=30):
     """`items` split into JSON pages the way a REST list returns them: 30 to a page by default."""
-    return [json.dumps(items[i:i + size]) for i in range(0, len(items), size)] or ["[]"]
+    return [json.dumps(items[i : i + size]) for i in range(0, len(items), size)] or ["[]"]
 
 
-def thread(id, resolved=False, outdated=False, line=10, start=None, comments=(("bot", "hi"),),
-           commit=None):
+def thread(id, resolved=False, outdated=False, line=10, start=None, comments=(("bot", "hi"),), commit=None):
     """One review thread as GitHub's GraphQL API returns it.
 
     `commit` is the commit the comments were written on (their originalCommit). An outdated
@@ -230,16 +266,30 @@ def thread(id, resolved=False, outdated=False, line=10, start=None, comments=(("
     if commit:
         for node in nodes:
             node["originalCommit"] = {"oid": commit}
-    return {"id": id, "isResolved": resolved, "isOutdated": outdated, "path": "app.py",
-            "line": None if outdated else line, "startLine": None if outdated else start,
-            "originalLine": line, "originalStartLine": start,
-            "comments": {"nodes": nodes}}
+    return {
+        "id": id,
+        "isResolved": resolved,
+        "isOutdated": outdated,
+        "path": "app.py",
+        "line": None if outdated else line,
+        "startLine": None if outdated else start,
+        "originalLine": line,
+        "originalStartLine": start,
+        "comments": {"nodes": nodes},
+    }
 
 
 def threads_response(*threads):
     """A reviewThreads query response holding `threads`."""
-    return {"data": {"repository": {"pullRequest": {"reviewThreads": {
-        "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": list(threads)}}}}}
+    return {
+        "data": {
+            "repository": {
+                "pullRequest": {
+                    "reviewThreads": {"pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": list(threads)}
+                }
+            }
+        }
+    }
 
 
 def resolved_response(*resolved):
@@ -253,10 +303,8 @@ def resolved_response(*resolved):
 
 def pr_table(repo, number=5):
     """Answers for the lookups every CLI run makes about PR `number`."""
-    meta = {"number": number, "baseRefOid": repo.base, "headRefOid": repo.head,
-            "headRefName": "feature"}
-    rest = {"number": number, "base": {"sha": repo.base, "ref": "main"},
-            "head": {"sha": repo.head, "ref": "feature"}}
+    meta = {"number": number, "baseRefOid": repo.base, "headRefOid": repo.head, "headRefName": "feature"}
+    rest = {"number": number, "base": {"sha": repo.base, "ref": "main"}, "head": {"sha": repo.head, "ref": "feature"}}
     return {
         f"pr view {number}": {"stdout": json.dumps(meta)},
         f"GET repos/o/r/pulls/{number}$": {"stdout": json.dumps(rest)},
@@ -275,11 +323,19 @@ def advises(message, verb):
     push", "force-pushed" and "pull request" are mentions.
     """
     verb = re.escape(verb).replace(r"\ ", r"\s+")
-    starts = (r"(?:^|[:;.!?]\s+|,\s+(?:(?:or|and|then)\s+)?|`"
-              r"|\b(?:then|and|first|so|run|can|could|should|please)\s+)")
+    starts = (
+        r"(?:^|[:;.!?]\s+|,\s+(?:(?:or|and|then)\s+)?|`"
+        r"|\b(?:then|and|first|so|run|can|could|should|please)\s+)"
+    )
     command = r"(?:git\s+|gh\s+pr\s+)"
-    return re.search(rf"{starts}{command}?{verb}\b(?!\s+request)|(?<!n't )(?<!not )\b{command}{verb}\b",
-                     message, re.I | re.M) is not None
+    return (
+        re.search(
+            rf"{starts}{command}?{verb}\b(?!\s+request)|(?<!n't )(?<!not )\b{command}{verb}\b",
+            message,
+            re.IGNORECASE | re.MULTILINE,
+        )
+        is not None
+    )
 
 
 def assert_moves_to_pr_head(test, message):
@@ -291,20 +347,24 @@ def assert_moves_to_pr_head(test, message):
     test.assertFalse(advises(message, "pull"), f"advises pulling: {message}")
     test.assertFalse(advises(message, "push"), f"advises pushing: {message}")
     test.assertFalse(advises(message, "rebase"), f"advises rebasing: {message}")
-    test.assertTrue(any(advises(message, v) for v in ("reset", "check out", "checkout", "switch")),
-                    f"doesn't say to reset to or check out the PR head: {message}")
+    test.assertTrue(
+        any(advises(message, v) for v in ("reset", "check out", "checkout", "switch")),
+        f"doesn't say to reset to or check out the PR head: {message}",
+    )
 
 
 def assert_keeps_local_work(test, message, local):
     """The PR moved on and the clone has its own commits: point at them, never drop them."""
     test.assertFalse(advises(message, "pull"), f"advises pulling: {message}")
     # checking out the PR head elsewhere is fine; resetting or forcing over the branch isn't
-    test.assertFalse(advises(message, "reset")
-                     or re.search(r"--(hard|force)\b|\b(checkout|switch)\s+-[BCf]\b", message) is not None,
-                     f"advice that drops the local commits: {message}")
+    test.assertFalse(
+        advises(message, "reset") or re.search(r"--(hard|force)\b|\b(checkout|switch)\s+-[BCf]\b", message) is not None,
+        f"advice that drops the local commits: {message}",
+    )
     names_local = any(local.startswith(sha) for sha in re.findall(r"\b[0-9a-f]{7,40}\b", message))
-    test.assertTrue(names_local or advises(message, "rebase"),
-                    f"doesn't point at the local-only commit {local[:12]}: {message}")
+    test.assertTrue(
+        names_local or advises(message, "rebase"), f"doesn't point at the local-only commit {local[:12]}: {message}"
+    )
 
 
 def node(id, *comments, resolved=None):
@@ -313,9 +373,12 @@ def node(id, *comments, resolved=None):
     An author of None is a deleted account, which GitHub's GraphQL API returns as null.
     isResolved is included only when `resolved` is given, for readers that select it.
     """
-    found = {"id": id, "comments": {"nodes": [
-        {"author": None if login is None else {"login": login}, "body": body}
-        for login, body in comments]}}
+    found = {
+        "id": id,
+        "comments": {
+            "nodes": [{"author": None if login is None else {"login": login}, "body": body} for login, body in comments]
+        },
+    }
     if resolved is not None:
         found["isResolved"] = resolved
     return found
@@ -346,8 +409,7 @@ def bot_reply(verb, *args):
             out = gh.run("--pr", "5", verb, "T1", *extra, *args, check=False)
             replies = [r for call in gh.writes() for r in call.get("replies", [])]
             if out.returncode or len(replies) != 1:
-                raise AssertionError(f"{verb} posted no reply to build a thread from: "
-                                     f"{out.stderr.strip()}")
+                raise AssertionError(f"{verb} posted no reply to build a thread from: {out.stderr.strip()}")
             _bot_replies[key] = replies[0]["body"]
         finally:
             gh.cleanup()

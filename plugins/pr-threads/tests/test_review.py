@@ -1,10 +1,12 @@
 """#9: comments are collected across separate commands and submitted as one review."""
+
 import json
 import re
 import unittest
+from collections.abc import Callable
+from typing import Any
 
 from helpers import INSTALL_URL, FakeGh, Repo, assert_keeps_local_work, assert_moves_to_pr_head, git, pr_table
-
 from pr_threads.suggestions import parse_suggestion
 
 
@@ -31,8 +33,11 @@ class SubmitTest(unittest.TestCase):
         self.assertEqual(len(review["comments"]), 2)
         self.assertEqual(review["commit_id"], self.repo.head)
         (suggestion,) = [c for c in review["comments"] if "```suggestion" in c["body"]]
-        self.assertEqual((suggestion["path"], suggestion.get("start_line"), suggestion["line"]),
-                         ("app.py", 21, 22), "the replacement covers both lines, not just the last")
+        self.assertEqual(
+            (suggestion["path"], suggestion.get("start_line"), suggestion["line"]),
+            ("app.py", 21, 22),
+            "the replacement covers both lines, not just the last",
+        )
         self.assertIn("```suggestion\nx = 1\n```", suggestion["body"])
 
     def test_bot_verdicts_are_formal_review_states(self):
@@ -196,16 +201,21 @@ class SubmitMovedHeadTest(MovedHeadCase):
     def assertSaysTheHeadMoved(self, message, reviewed):
         shas = re.findall(r"\b[0-9a-f]{7,40}\b", message)
         names_a_head = any(h.startswith(sha) for sha in shas for h in (reviewed, self.repo.head))
-        self.assertTrue(names_a_head or re.search(r"\b(moved|new commits?|since)\b", message, re.I),
-                        f"the refusal doesn't say the PR has new commits: {message}")
+        self.assertTrue(
+            names_a_head or re.search(r"\b(moved|new commits?|since)\b", message, re.IGNORECASE),
+            f"the refusal doesn't say the PR has new commits: {message}",
+        )
 
     def test_pass_is_refused_once_the_pr_head_moved_past_the_staged_comments(self):
         for move in self.MOVES:
             with self.subTest(move=move):
                 gh, reviewed = self.staged_then_moved(move)
                 out = gh.run("--pr", "5", "submit", "pass", "Summary.", check=False)
-                self.assertEqual(gh.review_posts(), [], f"a pass went out on {reviewed[:12]}, "
-                                 f"though the PR is now at {self.repo.head[:12]}")
+                self.assertEqual(
+                    gh.review_posts(),
+                    [],
+                    f"a pass went out on {reviewed[:12]}, though the PR is now at {self.repo.head[:12]}",
+                )
                 self.assertNotEqual(out.returncode, 0)
                 self.assertSaysTheHeadMoved(out.stderr, reviewed)
 
@@ -231,8 +241,10 @@ class StagedQueueTest(MovedHeadCase):
     """
 
     # what gh prints when GitHub rejects the review, e.g. a comment off the diff
-    REJECTED = ('gh: Unprocessable Entity (HTTP 422)\n{"message":"Unprocessable Entity","errors":'
-                '["Pull request review thread line must be part of the diff"]}\n')
+    REJECTED = (
+        'gh: Unprocessable Entity (HTTP 422)\n{"message":"Unprocessable Entity","errors":'
+        '["Pull request review thread line must be part of the diff"]}\n'
+    )
 
     def rejected(self):
         """(fake gh, reviewed head) after GitHub rejected the staged batch with a 422."""
@@ -246,8 +258,11 @@ class StagedQueueTest(MovedHeadCase):
 
     def test_refusals_caused_by_staged_state_name_discard(self):
         for move in self.MOVES:
-            for args in (("comment", "app.py:10", "More."), ("suggest", "app.py:10", "More."),
-                         ("submit", "pass", "Summary.")):
+            for args in (
+                ("comment", "app.py:10", "More."),
+                ("suggest", "app.py:10", "More."),
+                ("submit", "pass", "Summary."),
+            ):
                 with self.subTest(move=move, verb=args[0]):
                     gh, _ = self.staged_then_moved(move)
                     out = gh.run("--pr", "5", *args, check=False, input_text="x = 1\n")
@@ -273,7 +288,9 @@ class StagedQueueTest(MovedHeadCase):
         self.assertEqual([c["body"] for c in gh.review_posts()[-1]["comments"]], ["On PR 6."])
 
     def test_after_discard_staging_and_submitting_work_again(self):
-        cases = [(move, lambda move=move: self.staged_then_moved(move)) for move in self.MOVES]
+        cases: list[tuple[str, Callable[[], Any]]] = [
+            (move, lambda move=move: self.staged_then_moved(move)) for move in self.MOVES
+        ]
         cases.append(("submit rejected by GitHub", self.rejected))
         for name, stuck in cases:
             with self.subTest(name):
@@ -307,8 +324,7 @@ class SuggestInputTest(unittest.TestCase):
         return gh
 
     def suggest(self, gh, *extra, stdin=""):
-        return gh.run("--pr", "5", "suggest", "app.py:21-22", "Name these.", *extra,
-                      check=False, input_text=stdin)
+        return gh.run("--pr", "5", "suggest", "app.py:21-22", "Name these.", *extra, check=False, input_text=stdin)
 
     def submitted(self, gh):
         gh.run("--pr", "5", "submit", "changes", "S.")
@@ -324,8 +340,9 @@ class SuggestInputTest(unittest.TestCase):
                 self.assertEqual(self.submitted(gh), [], "nothing was staged")
 
     def test_blank_lines_are_a_real_replacement(self):
-        cases = [("stdin", (), text, text) for text in ("\n", "\n\n", "  \n")] + \
-                [("--replacement", ("--replacement", text), "", text) for text in ("\n", "\n\n")]
+        cases = [("stdin", (), text, text) for text in ("\n", "\n\n", "  \n")] + [
+            ("--replacement", ("--replacement", text), "", text) for text in ("\n", "\n\n")
+        ]
         for source, extra, stdin, want in cases:
             with self.subTest(source=source, replacement=want):
                 gh = self.gh()
@@ -359,9 +376,12 @@ class SuggestInputTest(unittest.TestCase):
                 gh = self.gh()
                 out = self.suggest(gh, *extra, stdin=stdin)
                 self.assertNotEqual(out.returncode, 0)
-                self.assertRegex(out.stderr, r"(?i)pick one|not both|one or the other|only one"
-                                             r"|not allowed with|mutually exclusive",
-                                 "the refusal says to pick one")
+                self.assertRegex(
+                    out.stderr,
+                    r"(?i)pick one|not both|one or the other|only one"
+                    r"|not allowed with|mutually exclusive",
+                    "the refusal says to pick one",
+                )
                 self.assertEqual(self.submitted(gh), [], "nothing was staged")
 
 

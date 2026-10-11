@@ -1,14 +1,27 @@
 """--attach: screenshots and GIFs go into the comment as images, uploaded as the user."""
+
 import json
 import os
 import re
 import subprocess
 import sys
 import unittest
+from typing import ClassVar
 
-from helpers import (BOT_SLUG, INSTALL_URL, PLUGIN, FakeGh, Repo, bot_reply, clean_env, fake_with_threads,
-                     git, node, pr_table, write_png)
-
+from helpers import (
+    BOT_SLUG,
+    INSTALL_URL,
+    PLUGIN,
+    FakeGh,
+    Repo,
+    bot_reply,
+    clean_env,
+    fake_with_threads,
+    git,
+    node,
+    pr_table,
+    write_png,
+)
 from pr_threads.suggestions import parse_suggestion
 
 TEXT = "Footer overlaps the status bar."
@@ -54,8 +67,9 @@ class AttachTest(unittest.TestCase):
         return self.gh.review_posts()[-1].get("comments", [])
 
     def test_bot_comment_embeds_images_uploaded_by_the_user(self):
-        self.gh.run("--pr", "5", "comment", "app.py:10", "Header wraps now.",
-                    "--attach", "before.png", "--attach", "after.png")
+        self.gh.run(
+            "--pr", "5", "comment", "app.py:10", "Header wraps now.", "--attach", "before.png", "--attach", "after.png"
+        )
         self.gh.run("--pr", "5", "submit", "changes", "See the screenshots.")
         uploads = self.gh.upload_calls()
         self.assertEqual([os.path.basename(u["file"]) for u in uploads], ["before.png", "after.png"])
@@ -69,11 +83,14 @@ class AttachTest(unittest.TestCase):
         self.assertIn("Header wraps now.", body)
 
     def test_alt_text_is_what_an_agent_reads_instead_of_the_image(self):
-        self.gh.run("--pr", "5", "comment", "app.py:10", "Look.", "--attach", "after.png#footer overlaps the status bar")
+        self.gh.run(
+            "--pr", "5", "comment", "app.py:10", "Look.", "--attach", "after.png#footer overlaps the status bar"
+        )
         self.gh.run("--pr", "5", "submit", "changes", "S.")
         (comment,) = self.submitted_comments()
-        self.assertIn("![footer overlaps the status bar](https://github.com/user-attachments/assets/after.png)",
-                      comment["body"])
+        self.assertIn(
+            "![footer overlaps the status bar](https://github.com/user-attachments/assets/after.png)", comment["body"]
+        )
 
     def test_missing_file_fails_before_anything_is_uploaded_or_staged(self):
         out = self.gh.run("--pr", "5", "comment", "app.py:10", "Look.", "--attach", "nope.png", check=False)
@@ -90,8 +107,9 @@ class AttachTest(unittest.TestCase):
         self.assertEqual(self.submitted_comments(), [])
 
     def test_suggestion_keeps_its_fence_intact_next_to_the_image(self):
-        self.gh.run("--pr", "5", "suggest", "app.py:21-22", "Name these.", "--attach", "after.png#renamed",
-                    input_text="x = 1\n")
+        self.gh.run(
+            "--pr", "5", "suggest", "app.py:21-22", "Name these.", "--attach", "after.png#renamed", input_text="x = 1\n"
+        )
         self.gh.run("--pr", "5", "submit", "changes", "S.")
         (comment,) = self.submitted_comments()
         self.assertEqual(parse_suggestion(comment["body"]), "x = 1\n", "the image didn't break the suggestion")
@@ -141,10 +159,16 @@ class EveryVerbAttachTest(unittest.TestCase):
 
     def test_every_verb_is_held_to_the_rule_or_known_to_post_no_text(self):
         """A verb added later fails here until it's listed in TEXT_VERBS or OTHER_VERBS."""
-        out = subprocess.run([sys.executable, "-m", "pr_threads", "--help"], capture_output=True,
-                             text=True, env=clean_env(PYTHONPATH=PLUGIN))
+        out = subprocess.run(
+            [sys.executable, "-m", "pr_threads", "--help"],
+            capture_output=True,
+            text=True,
+            env=clean_env(PYTHONPATH=PLUGIN),
+            check=False,
+        )
         listed = re.search(r"\{([\w,-]+)\}", out.stdout)
-        self.assertTrue(listed, f"no verb list in --help: {out.stdout}")
+        if listed is None:
+            self.fail(f"no verb list in --help: {out.stdout}")
         verbs = set(listed[1].split(","))
         self.assertEqual(verbs - TEXT_VERBS.keys() - OTHER_VERBS, set(), "verbs nobody classified")
         self.assertEqual(TEXT_VERBS.keys() - verbs, set(), "text verbs pr-threads doesn't have")
@@ -161,9 +185,10 @@ class EveryVerbAttachTest(unittest.TestCase):
                     self.gh.run("--pr", "5", "submit", "changes", "See the comments.")
                 posted = [s for s in strings(self.gh.writes()) if TEXT in s]
                 self.assertTrue(posted, f"{verb} posted nothing with its text")
-                self.assertTrue(any(before in s and after in s and s.index(before) < s.index(after)
-                                    for s in posted),
-                                f"the images aren't in what {verb} posted, in order: {posted}")
+                self.assertTrue(
+                    any(before in s and after in s and s.index(before) < s.index(after) for s in posted),
+                    f"the images aren't in what {verb} posted, in order: {posted}",
+                )
                 uploads = self.gh.upload_calls()
                 self.assertEqual([os.path.basename(u["file"]) for u in uploads], ["before.png", "after.png"])
                 for upload in uploads:
@@ -175,8 +200,11 @@ class EveryVerbAttachTest(unittest.TestCase):
                 self.fresh()
                 out = self.run_verb(verb, "after.png", "nope.png")
                 self.assertNotEqual(out.returncode, 0, f"{verb} went through: {out.stdout}")
-                self.assertRegex(out.stderr, r"(?i)nope\.png\W.*no such file|no such file\W.*nope\.png",
-                                 "the refusal names the missing file")
+                self.assertRegex(
+                    out.stderr,
+                    r"(?i)nope\.png\W.*no such file|no such file\W.*nope\.png",
+                    "the refusal names the missing file",
+                )
                 self.assertEqual(self.gh.upload_calls(), [])
                 self.assertEqual(self.gh.writes(), [])
 
@@ -202,8 +230,12 @@ class BotVerdictAttachTest(unittest.TestCase):
     """
 
     # verb -> (the bot's earlier verdict, disputed, resolves)
-    VERDICTS = {"verify": ("dispute", False, True), "withdraw": ("dispute", False, True),
-                "dispute": ("withdraw", True, False), "reopen": ("dispute", False, False)}
+    VERDICTS: ClassVar = {
+        "verify": ("dispute", False, True),
+        "withdraw": ("dispute", False, True),
+        "dispute": ("withdraw", True, False),
+        "reopen": ("dispute", False, False),
+    }
 
     def attached_reply(self, verb):
         """The body `verb` posts as the bot with an image attached."""
@@ -225,9 +257,14 @@ class BotVerdictAttachTest(unittest.TestCase):
                 body = self.attached_reply(verb)
                 repo = Repo()
                 self.addCleanup(repo.cleanup)
-                thread = node("T1", (BOT_SLUG, "Cache this."), ("AH-Merii", "Fixed."),
-                              (BOT_SLUG, bot_reply(earlier, "An earlier verdict.")), (BOT_SLUG, body),
-                              resolved=False)
+                thread = node(
+                    "T1",
+                    (BOT_SLUG, "Cache this."),
+                    ("AH-Merii", "Fixed."),
+                    (BOT_SLUG, bot_reply(earlier, "An earlier verdict.")),
+                    (BOT_SLUG, body),
+                    resolved=False,
+                )
                 gh = fake_with_threads(repo, "BOT_TOKEN", thread)
                 self.addCleanup(gh.cleanup)
                 got = json.loads(gh.run("--pr", "5", "status", "--json").stdout)
@@ -274,7 +311,7 @@ class UploadLastTest(unittest.TestCase):
     def test_every_refusal_comes_before_any_upload(self):
         comment = ("comment", "app.py:10", "Look.")
         suggest = ("suggest", "app.py:10", "Look.")
-        nothing = lambda: None  # noqa: E731
+        nothing = lambda: None
         for name, prepare, args, stdin in [
             ("comment after the PR head moved", self.move_pr_head, comment, ""),
             ("suggest after the PR head moved", self.move_pr_head, suggest, "x = 1\n"),
@@ -288,21 +325,25 @@ class UploadLastTest(unittest.TestCase):
             with self.subTest(name):
                 self.fresh()
                 prepare()
-                out = self.gh.run("--pr", "5", *args, "--attach", "after.png#shot",
-                                  check=False, input_text=stdin)
+                out = self.gh.run("--pr", "5", *args, "--attach", "after.png#shot", check=False, input_text=stdin)
                 self.assertEqual(self.gh.upload_calls(), [], f"uploaded, then: {out.stderr or out.stdout}")
                 self.assertNotEqual(out.returncode, 0)
 
-
     def test_the_bots_refusals_come_before_any_upload(self):
         """Without the bot, with a blank reason, or verifying a commit outside the PR."""
-        cases = [(f"{verb} without the bot", None, (verb, "T1", "The cache was cold."), INSTALL_URL)
-                 for verb in ("withdraw", "dispute", "reopen")]
-        cases += [(f"{verb} with a blank reason", "BOT_TOKEN", (verb, "T1", "  "), "(?i)reason")
-                  for verb in ("withdraw", "dispute", "reopen")]
-        cases += [("submit without the bot", None, ("submit", "changes", "Fix it."), INSTALL_URL),
-                  ("verify without the bot", None, ("verify", "T1", "HEAD"), INSTALL_URL),
-                  ("verify a commit outside the PR", "BOT_TOKEN", ("verify", "T1", "0" * 40), "0000000")]
+        cases = [
+            (f"{verb} without the bot", None, (verb, "T1", "The cache was cold."), INSTALL_URL)
+            for verb in ("withdraw", "dispute", "reopen")
+        ]
+        cases += [
+            (f"{verb} with a blank reason", "BOT_TOKEN", (verb, "T1", "  "), "(?i)reason")
+            for verb in ("withdraw", "dispute", "reopen")
+        ]
+        cases += [
+            ("submit without the bot", None, ("submit", "changes", "Fix it."), INSTALL_URL),
+            ("verify without the bot", None, ("verify", "T1", "HEAD"), INSTALL_URL),
+            ("verify a commit outside the PR", "BOT_TOKEN", ("verify", "T1", "0" * 40), "0000000"),
+        ]
         for name, token, args, says in cases:
             with self.subTest(name):
                 self.repo = Repo()
@@ -313,8 +354,9 @@ class UploadLastTest(unittest.TestCase):
                 args = tuple(self.repo.head if a == "HEAD" else a for a in args)
                 out = self.gh.run("--pr", "5", *args, "--attach", "after.png#shot", check=False)
                 self.assertNotEqual(out.returncode, 0)
-                self.assertRegex(out.stderr, says if says.startswith("(?i)") else re.escape(says),
-                                 "it refuses for its own reason")
+                self.assertRegex(
+                    out.stderr, says if says.startswith("(?i)") else re.escape(says), "it refuses for its own reason"
+                )
                 self.assertEqual(self.gh.upload_calls(), [], f"uploaded, then: {out.stderr}")
                 self.assertEqual(self.gh.writes(), [])
 

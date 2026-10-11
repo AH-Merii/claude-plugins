@@ -1,16 +1,20 @@
 """pr-threads verbs: review a PR as the bot, and work through its threads as the author."""
+
 import argparse
 import json
 import os
 import re
 import sys
-from typing import Callable, NamedTuple
+from collections.abc import Callable
+from typing import NamedTuple
 
 from pr_threads import Refusal, gh, verdicts
 from pr_threads.anchor import anchor, check_synced, git, has_commit, is_ancestor
-from pr_threads.status import handoff, render as render_status
+from pr_threads.status import handoff
+from pr_threads.status import render as render_status
 from pr_threads.suggestions import accept, parse_suggestion, suggestion_body
-from pr_threads.threads import FIELDS, nodes, open_threads, render as render_threads
+from pr_threads.threads import FIELDS, nodes, open_threads
+from pr_threads.threads import render as render_threads
 
 EVENTS = {"pass": "APPROVE", "changes": "REQUEST_CHANGES"}
 # the bot's verdicts given with a reason -> (how its reply opens, what the reason records, help)
@@ -22,6 +26,7 @@ REASONED = {
 
 
 # --- staged review comments, kept per repo and PR until submit succeeds ---
+
 
 def staged_path(repo, number):
     state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
@@ -46,8 +51,10 @@ def save_staged(repo, number, staged):
 
 # --- the one path for every verb that posts text ---
 
+
 class Message(NamedTuple):
     """What a text verb posts, returned once every refusal of its own has passed."""
+
     text: str
     post: Callable[[str], None]  # posts, or stages, the finished body
     marker: str | None = None  # the kind of the bot's verdict, hidden at the end of the body
@@ -100,15 +107,18 @@ def toplevel():
 
 # --- reviewer ---
 
+
 def stage(args, replacement=None):
     path, start, end = parse_location(args.location)
     repo = gh.repo()
     pr = gh.pull_request(args.pr)
     staged = load_staged(repo, pr["number"])
     if staged["comments"] and staged["head"] != pr["headRefOid"]:
-        raise Refusal(f"the PR head moved to {pr['headRefOid'][:12]} since the staged comments were "
-                      f"pinned on {staged['head'][:12]}: send them with `pr-threads submit changes`, "
-                      "or drop them with `pr-threads discard`, before adding more")
+        raise Refusal(
+            f"the PR head moved to {pr['headRefOid'][:12]} since the staged comments were "
+            f"pinned on {staged['head'][:12]}: send them with `pr-threads submit changes`, "
+            "or drop them with `pr-threads discard`, before adding more"
+        )
     root = toplevel()
     check_synced(root, pr["headRefName"], pr["headRefOid"])
     rel = os.path.relpath(os.path.abspath(path), root)
@@ -119,6 +129,7 @@ def stage(args, replacement=None):
         comments = staged["comments"] + [pinned]
         save_staged(repo, pr["number"], {"head": pr["headRefOid"], "comments": comments})
         print(f"staged {args.location} ({len(comments)} pending); nothing is posted until submit")
+
     return Message(args.body, save)
 
 
@@ -134,8 +145,10 @@ def replacement(args):
         raise Refusal(f"replacement lines came on stdin and with {flag}: pick one")
     text = "" if args.delete else piped if args.replacement is None else args.replacement
     if not text and not args.delete:
-        raise Refusal("the replacement is empty: give it on stdin or with --replacement, "
-                      "or pass --delete to suggest deleting the lines")
+        raise Refusal(
+            "the replacement is empty: give it on stdin or with --replacement, "
+            "or pass --delete to suggest deleting the lines"
+        )
     return text
 
 
@@ -150,10 +163,12 @@ def cmd_submit(args):
     staged = load_staged(repo, pr["number"])
     if args.verdict == "pass" and staged["comments"] and staged["head"] != pr["headRefOid"]:
         # changes may still go out on the staged head: asking for changes there approves nothing
-        raise Refusal(f"the PR head moved to {pr['headRefOid'][:12]} since the staged comments were "
-                      f"pinned on {staged['head'][:12]}, so a pass would approve commits nobody "
-                      "reviewed: submit `changes` on the staged head, or drop the comments with "
-                      "`pr-threads discard` and review the new head")
+        raise Refusal(
+            f"the PR head moved to {pr['headRefOid'][:12]} since the staged comments were "
+            f"pinned on {staged['head'][:12]}, so a pass would approve commits nobody "
+            "reviewed: submit `changes` on the staged head, or drop the comments with "
+            "`pr-threads discard` and review the new head"
+        )
     commit = staged["head"] if staged["comments"] else pr["headRefOid"]
 
     def submit(body):
@@ -165,11 +180,14 @@ def cmd_submit(args):
         except gh.GhError as e:
             if not staged["comments"]:
                 raise
-            raise Refusal(f"{e}\nthe staged comments are kept: fix the cause and submit again, or "
-                          "if GitHub rejects them, drop them with `pr-threads discard`") from None
+            raise Refusal(
+                f"{e}\nthe staged comments are kept: fix the cause and submit again, or "
+                "if GitHub rejects them, drop them with `pr-threads discard`"
+            ) from None
         if staged["comments"]:
             os.remove(staged_path(repo, pr["number"]))
         print(f"submitted {args.verdict} with {len(staged['comments'])} comments: {url}")
+
     return Message(args.body, submit)
 
 
@@ -191,12 +209,13 @@ def cmd_verify(args):
     pr = gh.pull_request(args.pr)
     root, head = toplevel(), pr["headRefOid"]
     if not has_commit(root, head):
-        raise Refusal(f"the PR head {head[:12]} isn't in this clone: fetch it, so {args.sha} "
-                      "can be checked against it")
+        raise Refusal(f"the PR head {head[:12]} isn't in this clone: fetch it, so {args.sha} can be checked against it")
     sha = git(root, "rev-parse", "--verify", "-q", f"{args.sha}^{{commit}}", check=False).stdout.strip()
     if not sha or not is_ancestor(root, sha, head):
-        raise Refusal(f"{args.sha} isn't in the history of the PR head {head[:12]} on GitHub, so "
-                      "it can't hold the fix: push it first, or name a commit of the PR")
+        raise Refusal(
+            f"{args.sha} isn't in the history of the PR head {head[:12]} on GitHub, so "
+            "it can't hold the fix: push it first, or name a commit of the PR"
+        )
     note = f" {args.note}" if args.note else ""
     return bot_verdict(args.thread, "verify", f"Verified in {sha}.{note}")
 
@@ -217,6 +236,7 @@ def cmd_resolve(args):
 
 # --- author ---
 
+
 def pr_number(args):
     return args.pr or gh.pull_request()["number"]
 
@@ -236,8 +256,7 @@ def cmd_accept(args):
     if thread is None:
         raise Refusal(f"no review thread {args.thread} on this PR")
     comments = thread["comments"]["nodes"]
-    replacement = next((s for c in reversed(comments)
-                        if (s := parse_suggestion(c["body"])) is not None), None)
+    replacement = next((s for c in reversed(comments) if (s := parse_suggestion(c["body"])) is not None), None)
     if replacement is None:
         raise Refusal(f"thread {args.thread} has no suggestion to accept")
     commit = (comments[0].get("originalCommit") or {}).get("oid")
@@ -246,8 +265,7 @@ def cmd_accept(args):
     end = thread["originalLine"]
     start = thread["originalStartLine"] or end
     accept(toplevel(), commit, thread["path"], start, end, replacement)
-    print(f"applied the suggestion from {args.thread} to {thread['path']}:{start}-{end}; "
-          "commit it as part of your fix")
+    print(f"applied the suggestion from {args.thread} to {thread['path']}:{start}-{end}; commit it as part of your fix")
 
 
 def cmd_post(args):
@@ -256,10 +274,10 @@ def cmd_post(args):
 
 # --- either side ---
 
+
 def cmd_status(args):
     repo, number = gh.repo(), pr_number(args)
-    got = handoff(gh.review_threads(repo, number, verdicts.FIELDS), gh.reviews(repo, number),
-                  verdicts.bot_slug())
+    got = handoff(gh.review_threads(repo, number, verdicts.FIELDS), gh.reviews(repo, number), verdicts.bot_slug())
     print(json.dumps(got) if args.json else render_status(got))
 
 
@@ -277,8 +295,13 @@ def parser():
         """A verb that posts text: it runs through send(), so it takes --attach like the rest."""
         v = verb(name, send, help)
         v.set_defaults(prepare=prepare)
-        v.add_argument("--attach", action="append", default=[], metavar="FILE[#ALT]",
-                       help="image or GIF to embed, uploaded with your login (repeatable)")
+        v.add_argument(
+            "--attach",
+            action="append",
+            default=[],
+            metavar="FILE[#ALT]",
+            help="image or GIF to embed, uploaded with your login (repeatable)",
+        )
         return v
 
     v = text_verb("comment", cmd_comment, "stage a comment on path:line[-end]")

@@ -1,12 +1,12 @@
 """#10: the handoff state reads straight off the PR. Resolving threads: test_resolve.py."""
+
 import json
 import unittest
+from typing import ClassVar
 
 from helpers import BOT, FakeGh, Repo, pages, pr_table, resolved_response, thread
 from helpers import threads_response as response
-
 from pr_threads.status import handoff
-
 
 HUMAN = "octocat"
 
@@ -17,8 +17,7 @@ def at(hour):
 
 def by(login, state, hour, body="", kind="User"):
     """A submitted review as GitHub's REST API lists it."""
-    return {"user": {"login": login, "type": kind}, "state": state, "body": body,
-            "submitted_at": at(hour)}
+    return {"user": {"login": login, "type": kind}, "state": state, "body": body, "submitted_at": at(hour)}
 
 
 def bot(state, hour):
@@ -119,19 +118,24 @@ class PerReviewerTest(HandoffCase):
         self.assertHandoff([human("DISMISSED", 10, "Rename this first."), bot("APPROVED", 11)], "pass")
 
     def test_a_comment_does_not_lift_a_change_request(self):
-        self.assertHandoff([human("CHANGES_REQUESTED", 10, "Rename this first."), bot("APPROVED", 11),
-                            human("COMMENTED", 12, "Done?")], "changes")
+        self.assertHandoff(
+            [
+                human("CHANGES_REQUESTED", 10, "Rename this first."),
+                bot("APPROVED", 11),
+                human("COMMENTED", 12, "Done?"),
+            ],
+            "changes",
+        )
 
     def test_another_reviewers_approval_does_not_close_open_threads(self):
         self.assertHandoff([human("APPROVED", 10)], "approved", 2, thread("T1"), thread("T2"))
-        self.assertHandoff([human("APPROVED", 10)], "pass", 0,
-                           thread("T1", resolved=True), thread("T2", resolved=True))
+        self.assertHandoff([human("APPROVED", 10)], "pass", 0, thread("T1", resolved=True), thread("T2", resolved=True))
 
 
 class VerdictRoundTripTest(unittest.TestCase):
     """What the bot's submit writes is what handoff reads."""
 
-    STATES = {"APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED", "COMMENT": "COMMENTED"}
+    STATES: ClassVar = {"APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED", "COMMENT": "COMMENTED"}
 
     def setUp(self):
         self.repo = Repo()
@@ -143,8 +147,12 @@ class VerdictRoundTripTest(unittest.TestCase):
         gh.run("--pr", "5", "submit", verdict, "Summary.")
         (sent,) = gh.review_posts()
         # GitHub stores the event as a review state, under the bot's login
-        return {"user": {"login": BOT, "type": "Bot"}, "state": self.STATES[sent["event"]],
-                "body": sent.get("body", ""), "submitted_at": "2026-10-10T10:00:00Z"}
+        return {
+            "user": {"login": BOT, "type": "Bot"},
+            "state": self.STATES[sent["event"]],
+            "body": sent.get("body", ""),
+            "submitted_at": "2026-10-10T10:00:00Z",
+        }
 
     def test_each_verdict_reads_back_the_same(self):
         for verdict in ("pass", "changes"):

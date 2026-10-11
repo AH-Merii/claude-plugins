@@ -8,6 +8,7 @@ bin/reviewer-token reads them. Then install the app on the repos it should revie
 
 The owner defaults to your gh login. Runs on any OS with Python and gh.
 """
+
 import argparse
 import html
 import json
@@ -23,15 +24,22 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 def options():
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    p.add_argument("--owner", default=os.environ.get("REVIEWER_APP_OWNER"),
-                   help="GitHub user or org the app belongs to (env REVIEWER_APP_OWNER, "
-                        "default: your gh login)")
+    p.add_argument(
+        "--owner",
+        default=os.environ.get("REVIEWER_APP_OWNER"),
+        help="GitHub user or org the app belongs to (env REVIEWER_APP_OWNER, default: your gh login)",
+    )
     p.add_argument("--org", action="store_true", help="create the app under the --owner org")
-    p.add_argument("--name", default=os.environ.get("REVIEWER_APP_NAME"),
-                   help="app name, so the bot shows as <name>[bot] (default: <owner>-claude-reviewer)")
-    p.add_argument("--dir", default=os.environ.get("CLAUDE_REVIEWER_DIR",
-                                                   os.path.expanduser("~/.config/claude-reviewer")),
-                   help="where to save app.json and private-key.pem (env CLAUDE_REVIEWER_DIR)")
+    p.add_argument(
+        "--name",
+        default=os.environ.get("REVIEWER_APP_NAME"),
+        help="app name, so the bot shows as <name>[bot] (default: <owner>-claude-reviewer)",
+    )
+    p.add_argument(
+        "--dir",
+        default=os.environ.get("CLAUDE_REVIEWER_DIR", os.path.expanduser("~/.config/claude-reviewer")),
+        help="where to save app.json and private-key.pem (env CLAUDE_REVIEWER_DIR)",
+    )
     p.add_argument("--port", type=int, default=8765)
     args = p.parse_args()
     args.owner = args.owner or gh_login()
@@ -40,7 +48,7 @@ def options():
 
 
 def gh_login():
-    out = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True)
+    out = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True, check=False)
     if out.returncode or not out.stdout.strip():
         sys.exit(f"can't read your gh login ({out.stderr.strip()}): log in with gh, or pass --owner")
     return out.stdout.strip()
@@ -60,8 +68,11 @@ def manifest(args):
 
 
 def form(args):
-    action = (f"https://github.com/organizations/{args.owner}/settings/apps/new" if args.org
-              else "https://github.com/settings/apps/new")
+    action = (
+        f"https://github.com/organizations/{args.owner}/settings/apps/new"
+        if args.org
+        else "https://github.com/settings/apps/new"
+    )
     return f"""<!doctype html><html><body>
 <form id="f" method="post" action="{action}">
 <input type="hidden" name="manifest" value="{html.escape(json.dumps(manifest(args)))}">
@@ -80,7 +91,7 @@ def save(app, out):
 
 def handler(args):
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *a):
+        def log_message(self, format, *args):
             pass
 
         def reply(self, body):
@@ -96,12 +107,13 @@ def handler(args):
             code = urllib.parse.parse_qs(url.query).get("code", [""])[0]
             req = urllib.request.Request(
                 f"https://api.github.com/app-manifests/{code}/conversions",
-                method="POST", headers={"Accept": "application/vnd.github+json"})
+                method="POST",
+                headers={"Accept": "application/vnd.github+json"},
+            )
             app = json.load(urllib.request.urlopen(req))
             save(app, args.dir)
             install = f"https://github.com/apps/{app['slug']}/installations/new"
-            self.reply(f"<p>Created <b>{app['slug']}</b>. Now install it: "
-                       f"<a href='{install}'>{install}</a></p>")
+            self.reply(f"<p>Created <b>{app['slug']}</b>. Now install it: <a href='{install}'>{install}</a></p>")
             print(json.dumps({"slug": app["slug"], "id": app["id"], "install_url": install}))
             raise SystemExit
 

@@ -5,6 +5,7 @@ recording $BROWSER, so no browser opens and nothing leaves the machine: the test
 fetches the manifest form from the script's local server. How the script opens a browser
 is its own business; it has to work where xdg-open doesn't exist.
 """
+
 import html
 import json
 import os
@@ -57,14 +58,21 @@ class ReviewerSetupTest(unittest.TestCase):
         """
         port = free_port()
         dirs = ["bin", "decoy"] if xdg_open else ["bin"]
-        env = clean_env(PATH=os.pathsep.join(os.path.join(self.dir, d) for d in dirs),
-                        BROWSER=os.path.join(self.dir, "bin", "browser"),
-                        FAKE_GH_LOG=os.path.join(self.dir, "calls.jsonl"), FAKE_GH_TABLE=self.table)
+        env = clean_env(
+            PATH=os.pathsep.join(os.path.join(self.dir, d) for d in dirs),
+            BROWSER=os.path.join(self.dir, "bin", "browser"),
+            FAKE_GH_LOG=os.path.join(self.dir, "calls.jsonl"),
+            FAKE_GH_TABLE=self.table,
+        )
         for name in ("REVIEWER_APP_OWNER", "REVIEWER_APP_NAME", "GH_TOKEN", "GITHUB_TOKEN"):
             env.pop(name, None)
-        proc = subprocess.Popen([sys.executable, SCRIPT, "--port", str(port),
-                                 "--dir", os.path.join(self.dir, "conf"), *args],
-                                env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        proc = subprocess.Popen(
+            [sys.executable, SCRIPT, "--port", str(port), "--dir", os.path.join(self.dir, "conf"), *args],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
         self.proc = proc
@@ -76,7 +84,8 @@ class ReviewerSetupTest(unittest.TestCase):
             if (got := check()) is not None:
                 return got
             if self.proc.poll() is not None:
-                self.fail(f"the script exited before {what}: {self.proc.stderr.read()}")
+                stderr = self.proc.stderr.read() if self.proc.stderr else ""
+                self.fail(f"the script exited before {what}: {stderr}")
             time.sleep(0.05)
         self.fail(f"timed out waiting for {what}")
 
@@ -88,15 +97,18 @@ class ReviewerSetupTest(unittest.TestCase):
 
     def manifest(self, url):
         """The app manifest in the form the script serves at `url`."""
+
         def fetch():
             try:
                 with urllib.request.urlopen(url, timeout=2) as r:
                     return r.read().decode()
             except OSError:
                 return None
+
         page = self.wait_for(fetch, "the setup page")
         m = re.search(r'name="manifest" value="([^"]*)"', page)
-        self.assertIsNotNone(m, "the page carries the app manifest")
+        if m is None:
+            self.fail("the page carries no app manifest")
         return json.loads(html.unescape(m.group(1)))
 
     def test_works_where_xdg_open_does_not_exist(self):
@@ -106,9 +118,11 @@ class ReviewerSetupTest(unittest.TestCase):
         time.sleep(0.5)  # a browser opened after the server started has had time to record
         self.proc.kill()
         printed, _ = self.proc.communicate()
-        opened = (self.opened_lines() or [])
-        self.assertTrue(url in opened or url in printed,
-                        f"the setup URL was neither opened through $BROWSER nor printed: {printed!r}")
+        opened = self.opened_lines() or []
+        self.assertTrue(
+            url in opened or url in printed,
+            f"the setup URL was neither opened through $BROWSER nor printed: {printed!r}",
+        )
 
     def test_the_app_belongs_to_the_logged_in_gh_user_unless_told_otherwise(self):
         for args, owner, name in [

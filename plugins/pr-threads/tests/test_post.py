@@ -1,4 +1,5 @@
 """post: a general comment on an issue or a PR conversation, sent with the user's own login."""
+
 import json
 import os
 import unittest
@@ -49,7 +50,10 @@ class PostTest(unittest.TestCase):
         (call,) = self.posts(gh)
         body = call["body"]["body"]
         self.assertIn("Repro below.", body)
-        self.assertLess(body.index("assets/before.png)"), body.index("![fixed](https://github.com/user-attachments/assets/after.png)"))
+        self.assertLess(
+            body.index("assets/before.png)"),
+            body.index("![fixed](https://github.com/user-attachments/assets/after.png)"),
+        )
 
     def test_failed_upload_posts_nothing(self):
         gh = self.fake({"repo view": pr_table(self.repo)["repo view"]})

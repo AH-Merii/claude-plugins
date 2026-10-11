@@ -2,6 +2,7 @@
 
 A verdict counts only when the bot wrote it: a marker pasted by anyone else is just text.
 """
+
 import json
 import os
 
@@ -11,8 +12,10 @@ from pr_threads.threads import nodes
 # marker kind -> what the reply is
 KINDS = {"verify": "verification", "withdraw": "withdrawal", "dispute": "dispute", "reopen": "reopening"}
 # the bot's latest verdict -> why it keeps the thread from resolving, whatever came after it
-BLOCKING = {"dispute": "is disputed: the bot's latest verdict on it is a dispute",
-            "reopen": "was reopened: the bot's latest verdict on it is that the fix didn't work"}
+BLOCKING = {
+    "dispute": "is disputed: the bot's latest verdict on it is a dispute",
+    "reopen": "was reopened: the bot's latest verdict on it is that the fix didn't work",
+}
 MARKER = "<!-- pr-threads:%s -->"
 # the latest comments are what count, so read from the end of each thread
 FIELDS = "id isResolved comments(last: 100) { nodes { author { login } body } }"
@@ -63,8 +66,7 @@ def unresolvable(thread, bot):
     if found and found[-1] in BLOCKING:
         return BLOCKING[found[-1]]
     if last and kind(last):
-        return (f"its last comment is a {KINDS[kind(last)]} written by "
-                f"{login(last) or 'a deleted account'}, not the bot")
+        return f"its last comment is a {KINDS[kind(last)]} written by {login(last) or 'a deleted account'}, not the bot"
     if found:
         return f"has a comment after the bot's {KINDS[found[-1]]}"
     return "has no verification or withdrawal from the bot"
@@ -73,8 +75,10 @@ def unresolvable(thread, bot):
 def check_resolvable(response, ids, bot):
     """Refuse, naming each failing thread and why, unless every one of `ids` can be resolved."""
     if not bot:
-        raise Refusal("no reviewer app is set up, so no thread can carry the bot's verification: "
-                      "run scripts/reviewer-setup.py once")
+        raise Refusal(
+            "no reviewer app is set up, so no thread can carry the bot's verification: "
+            "run scripts/reviewer-setup.py once"
+        )
     by_id = {t["id"]: t for t in nodes(response)}
     failed = []
     for id in ids:
@@ -82,5 +86,7 @@ def check_resolvable(response, ids, bot):
         if why:
             failed.append(f"{id} {why}")
     if failed:
-        raise Refusal("resolved nothing; a thread resolves once its last comment is the bot's "
-                      "verification or withdrawal:\n" + "\n".join(failed))
+        raise Refusal(
+            "resolved nothing; a thread resolves once its last comment is the bot's "
+            "verification or withdrawal:\n" + "\n".join(failed)
+        )

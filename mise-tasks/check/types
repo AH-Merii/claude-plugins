@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+#MISE description="Type-check each plugin (ty for Python)"
+#MISE tools={ty="0.0.86"}
+#USAGE arg "[plugin]..." help="Plugin folders to check; default: every folder under plugins/"
+# ty checks unannotated function bodies too, which matters here: the plugins carry
+# almost no annotations. A plugin's own ty.toml (e.g. extra-paths) is honoured.
+set -euo pipefail
+source ci/each-plugin.sh
+
+types() {
+  has_python "$1" || { echo "no Python files"; return 0; }
+  ty check --project "$1" --python-version 3.14 --error-on-warning "$1"
+}
+
+each_plugin types "$@"

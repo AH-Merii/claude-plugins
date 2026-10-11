@@ -1,0 +1,3 @@
+# Tests import the hook scripts the way Claude Code runs them: from hooks/.
+[environment]
+extra-paths = ["hooks"]

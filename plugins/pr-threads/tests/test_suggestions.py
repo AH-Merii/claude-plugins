@@ -1,11 +1,12 @@
 """#9 writes suggested changes; #8 accepts them into the local file."""
+
 import json
 import os
 import unittest
+from typing import ClassVar
 
 from helpers import FakeGh, Repo, git, isolate_git, pr_table, thread
 from helpers import threads_response as response
-
 from pr_threads.suggestions import StaleSuggestion, accept, parse_suggestion, suggestion_body
 
 
@@ -20,8 +21,7 @@ class RoundTripTest(unittest.TestCase):
 
     def test_body_written_on_github_is_read(self):
         # GitHub's own syntax, as the web UI stores it: a ```suggestion fence, CRLF line ends
-        for body in ["Name these.\n\n```suggestion\nx = 1\n```\n",
-                     "Name these.\r\n\r\n```suggestion\r\nx = 1\r\n```"]:
+        for body in ["Name these.\n\n```suggestion\nx = 1\n```\n", "Name these.\r\n\r\n```suggestion\r\nx = 1\r\n```"]:
             with self.subTest(body=body):
                 self.assertEqual(parse_suggestion(body), "x = 1\n")
 
@@ -76,7 +76,7 @@ class AcceptByContentTest(unittest.TestCase):
     """
 
     # (name, edit to the reviewed file) applied before accepting
-    SHIFTS = [
+    SHIFTS: ClassVar = [
         ("one line added above", lambda t: "inserted\n" + t),
         ("three lines added above", lambda t: "a\nb\nc\n" + t),
         ("two lines removed above", lambda t: t.replace("line 1\nline 2\n", "")),
@@ -86,7 +86,7 @@ class AcceptByContentTest(unittest.TestCase):
         ("added above and removed below", lambda t: ("top\n" + t).replace("line 30\n", "")),
     ]
     # (start, end, what the reviewer saw there, replacement)
-    TARGETS = [(10, 10, ["changed 10"], "fixed 10\n"), (21, 22, ["new a", "new b"], "x = 1\n")]
+    TARGETS: ClassVar = [(10, 10, ["changed 10"], "fixed 10\n"), (21, 22, ["new a", "new b"], "x = 1\n")]
 
     def setUp(self):
         isolate_git(self)
@@ -139,7 +139,7 @@ class AcceptByContentTest(unittest.TestCase):
         ]
 
     def block(self, start, end):
-        return self.pushed.splitlines(keepends=True)[start - 1:end]
+        return self.pushed.splitlines(keepends=True)[start - 1 : end]
 
     def with_inserts(self, lines, inserts):
         lines = list(lines)
@@ -164,9 +164,10 @@ class AcceptByContentTest(unittest.TestCase):
                     except StaleSuggestion:
                         self.assertEqual(self.repo.read("app.py"), edited, "a refused accept leaves the file alone")
                         continue
-                    lines[target:target + n] = [replacement]
-                    self.assertEqual(self.repo.read("app.py"), "".join(lines),
-                                     "only the reviewed lines changed, not a copy of them")
+                    lines[target : target + n] = [replacement]
+                    self.assertEqual(
+                        self.repo.read("app.py"), "".join(lines), "only the reviewed lines changed, not a copy of them"
+                    )
 
     def test_a_rewritten_target_refuses_even_when_a_copy_of_its_text_survives(self):
         # the reviewed lines changed, so the suggestion no longer applies; a copy of their
@@ -177,7 +178,7 @@ class AcceptByContentTest(unittest.TestCase):
             for name, inserts in self.copies(start, end):
                 with self.subTest(name, target=f"{start}-{end}"):
                     lines = self.pushed.splitlines(keepends=True)
-                    lines[at:at + n] = rewritten
+                    lines[at : at + n] = rewritten
                     before = "".join(self.with_inserts(lines, inserts))
                     self.repo.write("app.py", before)
                     with self.assertRaises(StaleSuggestion):
@@ -195,14 +196,14 @@ class AcceptByContentTest(unittest.TestCase):
             block = self.block(start, end)
             rewritten = [f"rewritten {line}" for line in block]
 
-            def rewrite(index):
+            def rewrite(index, at=at, n=n, rewritten=rewritten, block=block):
                 lines = self.pushed.splitlines(keepends=True)
-                lines[at:at + n] = rewritten
+                lines[at : at + n] = rewritten
                 return self.with_inserts(lines, [(index, block)])
 
-            def delete(index):
+            def delete(index, at=at, n=n, block=block):
                 lines = self.pushed.splitlines(keepends=True)
-                del lines[at:at + n]
+                del lines[at : at + n]
                 return self.with_inserts(lines, [(index, block)])
 
             refused = [
@@ -213,10 +214,14 @@ class AcceptByContentTest(unittest.TestCase):
                 ("deleted, a copy one line above where it was", delete(at - 1)),
                 ("deleted, a copy one line below where it was", delete(at + 1)),
                 # the target rewritten, and a line on its other side edited or removed
-                ("rewritten, a copy directly above, the line below edited",
-                 rewrite(at)[:at + 2 * n] + ["edited\n"] + rewrite(at)[at + 2 * n + 1:]),
-                ("rewritten, a copy directly below, the line above removed",
-                 rewrite(at + n)[:at - 1] + rewrite(at + n)[at:]),
+                (
+                    "rewritten, a copy directly above, the line below edited",
+                    rewrite(at)[: at + 2 * n] + ["edited\n"] + rewrite(at)[at + 2 * n + 1 :],
+                ),
+                (
+                    "rewritten, a copy directly below, the line above removed",
+                    rewrite(at + n)[: at - 1] + rewrite(at + n)[at:],
+                ),
             ]
             for name, lines in refused:
                 with self.subTest(name, target=f"{start}-{end}"):
@@ -247,17 +252,25 @@ class AcceptByContentTest(unittest.TestCase):
                         self.accept(start, end, replacement)
                     except StaleSuggestion as e:
                         self.fail(f"refused, though nothing next to the reviewed lines changed: {e}")
-                    lines[target:target + n] = [replacement]
+                    lines[target : target + n] = [replacement]
                     self.assertEqual(self.repo.read("app.py"), "".join(lines), "applied to the reviewed lines")
 
     def test_a_change_to_the_target_itself_still_refuses_wherever_it_moved(self):
         changes = [
-            ("rewritten in place", lambda t: t.replace("changed 10\n", "rewritten 10\n")
-                                             .replace("new b\n", "newer b\n")),
-            ("rewritten and moved down", lambda t: "inserted\n" + t.replace("changed 10\n", "rewritten 10\n")
-                                                                   .replace("new b\n", "newer b\n")),
-            ("rewritten and moved up", lambda t: t.replace("line 1\n", "").replace("changed 10\n", "rewritten 10\n")
-                                                 .replace("new b\n", "newer b\n")),
+            (
+                "rewritten in place",
+                lambda t: t.replace("changed 10\n", "rewritten 10\n").replace("new b\n", "newer b\n"),
+            ),
+            (
+                "rewritten and moved down",
+                lambda t: "inserted\n" + t.replace("changed 10\n", "rewritten 10\n").replace("new b\n", "newer b\n"),
+            ),
+            (
+                "rewritten and moved up",
+                lambda t: (
+                    t.replace("line 1\n", "").replace("changed 10\n", "rewritten 10\n").replace("new b\n", "newer b\n")
+                ),
+            ),
             ("deleted", lambda t: t.replace("changed 10\n", "").replace("new a\nnew b\n", "")),
         ]
         for name, edit in changes:
@@ -374,10 +387,17 @@ class AcceptCliTest(unittest.TestCase):
         """
         gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
         self.addCleanup(gh.cleanup)
-        gh.set_answer("graphql reviewThreads", json.dumps(response(
-            *before,
-            thread("T1", outdated=outdated, line=line, start=start, comments=(("bot", body),),
-                   commit=self.reviewed))))
+        gh.set_answer(
+            "graphql reviewThreads",
+            json.dumps(
+                response(
+                    *before,
+                    thread(
+                        "T1", outdated=outdated, line=line, start=start, comments=(("bot", body),), commit=self.reviewed
+                    ),
+                )
+            ),
+        )
         return gh, gh.run("--pr", "5", "accept", "T1", check=False)
 
     def thread_reads(self, gh):

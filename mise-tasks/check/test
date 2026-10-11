@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+#MISE description="Run each plugin's unittest suite under coverage, with a floor"
+#MISE tools={python="3.14", uv="0.13.0", "pipx:coverage"="7.16.2"}
+#USAGE arg "[plugin]..." help="Plugin folders to check; default: every folder under plugins/"
+# Plugins without a tests/ folder are skipped. Coverage follows subprocesses, since
+# most tests run hooks and CLIs as child processes; tests/ itself isn't measured.
+set -euo pipefail
+source ci/each-plugin.sh
+
+FAIL_UNDER=85
+
+# Print each folder under $1 that holds test*.py files but has no __init__.py:
+# unittest discover never looks inside such folders.
+undiscoverable() {
+  find "$1" -mindepth 1 -type d ! -name __pycache__ -print0 |
+    while IFS= read -r -d '' sub; do
+      if [ ! -f "$sub/__init__.py" ] && [ -n "$(find "$sub" -name 'test*.py' -print -quit)" ]; then
+        echo "$sub has test*.py files but no __init__.py, so unittest won't discover them."
+      fi
+    done
+}
+
+test_plugin() {
+  local dir=$1
+  if [ -z "$(find "$dir/tests" -name 'test*.py' -print -quit 2>/dev/null)" ]; then
+    echo "no tests/test*.py; skipping"
+    return 0
+  fi
+  local errors
+  errors=$(undiscoverable "$dir/tests")
+  if [ -n "$errors" ]; then
+    echo "$errors"
+    return 1
+  fi
+  local root work rc=0
+  root=$(cd "$dir" && pwd)
+  work=$(mktemp -d)
+  # Absolute paths: subprocesses run tests from other folders.
+  cat >"$work/coveragerc" <<RC
+[run]
+patch = subprocess
+source = $root
+omit = */tests/*
+data_file = $work/coverage
+[report]
+fail_under = $FAIL_UNDER
+show_missing = true
+skip_covered = true
+RC
+  (cd "$dir" && COVERAGE_RCFILE="$work/coveragerc" coverage run -m unittest discover -s tests) || rc=$?
+  if [ "$rc" -eq 5 ]; then
+    echo "$dir/tests has test*.py files but unittest discovered no tests."
+  elif [ "$rc" -eq 0 ]; then
+    COVERAGE_RCFILE="$work/coveragerc" coverage combine --quiet || rc=$?
+    COVERAGE_RCFILE="$work/coveragerc" coverage report || rc=$?
+  fi
+  rm -rf "$work"
+  return "$rc"
+}
+
+each_plugin test_plugin "$@"

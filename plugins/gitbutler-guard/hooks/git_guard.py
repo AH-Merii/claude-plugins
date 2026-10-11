@@ -5,6 +5,7 @@ Only repos whose HEAD is `gitbutler/workspace` are guarded, so plain git repos a
 worktrees (where `but commit` is unsupported) keep working. Read-only git is never blocked.
 Any parsing or git failure lets the command through.
 """
+
 import json
 import os
 import shlex
@@ -28,50 +29,118 @@ BLOCKED = {
     "stash": '`but commit -b <branch> -m "wip" <ids>`, then `but uncommit` it later',
     "cherry-pick": "`but pick`",
     "branch": "`but branch new <name>` to create, `but branch delete <branch>` to delete, "
-              "`but reword <branch> -m <new-name>` to rename, `but move` to restack",
+    "`but reword <branch> -m <new-name>` to rename, `but move` to restack",
     "clean": "`but discard <id>` on the untracked files (not `but clean`, which removes empty branches)",
 }
 # git subcommand -> why it's blocked and what to do, where `but` has no direct equivalent
 UNSUPPORTED = {
     "tag": "`but` has no tag command, and a tag on a workspace commit goes stale once GitButler "
-           "rewrites it (amend, squash, move, pull). Ask the user to tag released commits.",
+    "rewrites it (amend, squash, move, pull). Ask the user to tag released commits.",
     "rm": "`but` has no rm command, and GitButler doesn't use the index `git rm` stages into. "
-          "Delete with plain `rm <path>`; `but commit` picks up the deletion.",
+    "Delete with plain `rm <path>`; `but commit` picks up the deletion.",
     "mv": "`but` has no mv command, and GitButler doesn't use the index `git mv` stages into. "
-          "Rename with plain `mv <old> <new>`; `but commit` picks up the rename.",
+    "Rename with plain `mv <old> <new>`; `but commit` picks up the rename.",
     "update-ref": "`but` has no update-ref command, and moving refs behind GitButler's back "
-                  "desyncs the workspace from its branch metadata. Change history with `but move`, "
-                  "`but uncommit` or `but undo`.",
+    "desyncs the workspace from its branch metadata. Change history with `but move`, "
+    "`but uncommit` or `but undo`.",
     "notes": "`but` has no notes command, and notes hang off commit hashes that GitButler rewrites "
-             "(amend, squash, move, pull), so they'd be orphaned. Put the context in the commit "
-             "message with `but reword`.",
+    "(amend, squash, move, pull), so they'd be orphaned. Put the context in the commit "
+    "message with `but reword`.",
     "config": "Use `but config` for user, target, forge and push-remote settings (e.g. "
-              "`but config user set name \"<name>\"`). Other git config is shared with GitButler "
-              "and every agent in this repo, so ask the user before changing it.",
+    '`but config user set name "<name>"`). Other git config is shared with GitButler '
+    "and every agent in this repo, so ask the user before changing it.",
     "symbolic-ref": "GitButler owns HEAD in this workspace and keeps it on `gitbutler/workspace`; "
-                    "pointing it elsewhere or deleting it breaks the workspace. Create a branch with "
-                    "`but branch new <name>`, and pick which branches are in the workspace with "
-                    "`but apply <branch>` / `but unapply <branch>`.",
+    "pointing it elsewhere or deleting it breaks the workspace. Create a branch with "
+    "`but branch new <name>`, and pick which branches are in the workspace with "
+    "`but apply <branch>` / `but unapply <branch>`.",
 }
 
-BRANCH_WRITE = {"-d", "-D", "--delete", "-m", "-M", "--move", "-c", "-C", "--copy", "-f", "--force",
-                "-u", "--set-upstream-to", "--unset-upstream", "--edit-description", "-t", "--track",
-                "--no-track", "--create-reflog", "--recurse-submodules"}
-BRANCH_LIST = {"-l", "--list", "-a", "--all", "-r", "--remotes", "--show-current", "-v", "--verbose",
-               "--contains", "--no-contains", "--merged", "--no-merged", "--points-at"}
+BRANCH_WRITE = {
+    "-d",
+    "-D",
+    "--delete",
+    "-m",
+    "-M",
+    "--move",
+    "-c",
+    "-C",
+    "--copy",
+    "-f",
+    "--force",
+    "-u",
+    "--set-upstream-to",
+    "--unset-upstream",
+    "--edit-description",
+    "-t",
+    "--track",
+    "--no-track",
+    "--create-reflog",
+    "--recurse-submodules",
+}
+BRANCH_LIST = {
+    "-l",
+    "--list",
+    "-a",
+    "--all",
+    "-r",
+    "--remotes",
+    "--show-current",
+    "-v",
+    "--verbose",
+    "--contains",
+    "--no-contains",
+    "--merged",
+    "--no-merged",
+    "--points-at",
+}
 CONFIG_SUBCOMMANDS = {"get", "list", "set", "unset", "rename-section", "remove-section", "edit"}
-CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color",
-               "--get-colorbool", "-l", "--list"}
-CONFIG_WRITE = {"--add", "--replace-all", "--unset", "--unset-all", "--rename-section",
-                "--remove-section", "-e", "--edit"}
+CONFIG_READ = {"--get", "--get-all", "--get-regexp", "--get-urlmatch", "--get-color", "--get-colorbool", "-l", "--list"}
+CONFIG_WRITE = {
+    "--add",
+    "--replace-all",
+    "--unset",
+    "--unset-all",
+    "--rename-section",
+    "--remove-section",
+    "-e",
+    "--edit",
+}
 SYMBOLIC_REF_DELETE = {"-d", "--delete"}
 READ_ONLY_NOTES = {"list", "show", "get-ref"}
 DRY_RUN = {"-n", "--dry-run"}
-TAG_WRITE = {"-a", "--annotate", "-s", "--sign", "-u", "--local-user", "-f", "--force", "-d",
-             "--delete", "-m", "--message", "-F", "--file", "-e", "--edit", "--trailer",
-             "--cleanup", "--create-reflog"}
-TAG_LIST = {"-l", "--list", "-n", "--contains", "--no-contains", "--merged", "--no-merged",
-            "--points-at", "-v", "--verify"}
+TAG_WRITE = {
+    "-a",
+    "--annotate",
+    "-s",
+    "--sign",
+    "-u",
+    "--local-user",
+    "-f",
+    "--force",
+    "-d",
+    "--delete",
+    "-m",
+    "--message",
+    "-F",
+    "--file",
+    "-e",
+    "--edit",
+    "--trailer",
+    "--cleanup",
+    "--create-reflog",
+}
+TAG_LIST = {
+    "-l",
+    "--list",
+    "-n",
+    "--contains",
+    "--no-contains",
+    "--merged",
+    "--no-merged",
+    "--points-at",
+    "-v",
+    "--verify",
+}
 
 SEPARATORS = {";", "&", "&&", "|", "||", "|&", "(", ")", "\n"}
 WRAPPERS = {"sudo", "env", "command", "builtin", "exec", "nohup", "time", "nice"}
@@ -163,8 +232,9 @@ def branch_read_only(args):
 
 
 def tag_read_only(args):
-    flags, operands = parse_opts(args, "-u --local-user -m --message -F --file --trailer --cleanup "
-                                       "--sort --format --points-at")
+    flags, operands = parse_opts(
+        args, "-u --local-user -m --message -F --file --trailer --cleanup --sort --format --points-at"
+    )
     return not flags & TAG_WRITE and (bool(flags & TAG_LIST) or not operands)
 
 
@@ -212,7 +282,10 @@ def in_workspace(path, cache):
         try:
             out = subprocess.run(
                 ["git", "-C", path, "symbolic-ref", "--short", "-q", "HEAD"],
-                capture_output=True, text=True, timeout=5,
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
             )
             cache[path] = out.stdout.strip() == WORKSPACE_BRANCH
         except (OSError, subprocess.SubprocessError):
@@ -249,7 +322,7 @@ def main():
         command = data.get("tool_input", {}).get("command") or ""
         cwd = data.get("cwd") or os.getcwd()
         hit = find_violation(command, cwd)
-    except Exception:
+    except Exception:  # noqa: BLE001 -- fail open: a guard bug must never block the command
         return 0
     if hit:
         sub, advice = hit
