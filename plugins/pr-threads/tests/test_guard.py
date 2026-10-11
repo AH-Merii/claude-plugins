@@ -2,6 +2,7 @@
 
 Known gap: a GraphQL query read from a file (`-F query=@file`) can't be classified and goes through.
 """
+
 import json
 import os
 import subprocess
@@ -29,19 +30,19 @@ DENIED = [
     "gh issue comment 12 -F note.md",
     "/usr/bin/gh pr review 5 --approve",
     "env gh pr comment 5 -b x",
-    "bash -c \"gh pr comment 5 -b x\"",
+    'bash -c "gh pr comment 5 -b x"',
     "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"T1\"}) { thread { id } } }'",
-    "gh api graphql -f query='mutation { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: \"T1\", body: \"ok\"}) { comment { id } } }'",
+    'gh api graphql -f query=\'mutation { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: "T1", body: "ok"}) { comment { id } } }\'',
     "gh api graphql -f query='mutation($id: ID!) { addPullRequestReview(input: {pullRequestId: $id, event: COMMENT}) { pullRequestReview { id } } }'",
-    "gh api graphql -f query='mutation { addComment(input: {subjectId: \"PR_1\", body: \"x\"}) { commentEdge { node { id } } } }'",
-    "gh api graphql -f query='mutation { addPullRequestReviewThread(input: {pullRequestReviewId: \"R\", path: \"a.py\", line: 3, body: \"x\"}) { thread { id } } }'",
+    'gh api graphql -f query=\'mutation { addComment(input: {subjectId: "PR_1", body: "x"}) { commentEdge { node { id } } } }\'',
+    'gh api graphql -f query=\'mutation { addPullRequestReviewThread(input: {pullRequestReviewId: "R", path: "a.py", line: 3, body: "x"}) { thread { id } } }\'',
     "gh api graphql -f query='mutation { submitPullRequestReview(input: {pullRequestReviewId: \"R\", event: APPROVE}) { pullRequestReview { id } } }'",
-    "gh api graphql -f query='mutation { updateIssueComment(input: {id: \"IC_1\", body: \"x\"}) { issueComment { id } } }'",
+    'gh api graphql -f query=\'mutation { updateIssueComment(input: {id: "IC_1", body: "x"}) { issueComment { id } } }\'',
     "gh api graphql -f query='mutation { deleteIssueComment(input: {id: \"IC_1\"}) { clientMutationId } }'",
-    "gh api graphql -f query='mutation { addPullRequestReviewComment(input: {pullRequestReviewId: \"R\", path: \"a.py\", position: 3, body: \"x\"}) { comment { id } } }'",
-    "gh api graphql -f query='mutation { updatePullRequestReviewComment(input: {pullRequestReviewCommentId: \"PRRC_1\", body: \"x\"}) { pullRequestReviewComment { id } } }'",
+    'gh api graphql -f query=\'mutation { addPullRequestReviewComment(input: {pullRequestReviewId: "R", path: "a.py", position: 3, body: "x"}) { comment { id } } }\'',
+    'gh api graphql -f query=\'mutation { updatePullRequestReviewComment(input: {pullRequestReviewCommentId: "PRRC_1", body: "x"}) { pullRequestReviewComment { id } } }\'',
     "gh api graphql -f query='mutation { deletePullRequestReviewComment(input: {id: \"PRRC_1\"}) { clientMutationId } }'",
-    "gh api graphql -f query='mutation { dismissPullRequestReview(input: {pullRequestReviewId: \"R\", message: \"stale\"}) { pullRequestReview { id } } }'",
+    'gh api graphql -f query=\'mutation { dismissPullRequestReview(input: {pullRequestReviewId: "R", message: "stale"}) { pullRequestReview { id } } }\'',
     "gh api graphql -f query='mutation { deletePullRequestReview(input: {pullRequestReviewId: \"R\"}) { pullRequestReview { id } } }'",
     # REST edits, dismissals and deletions of reviews and review comments
     "gh api -X PUT repos/o/r/pulls/5/reviews/9 -f body=edited",
@@ -72,8 +73,8 @@ ALLOWED = [
     "gh api repos/o/r/issues/5/comments --jq '.[].body'",
     "gh api repos/o/r/pulls/5/reviews/9",
     "gh api repos/o/r/pulls/comments/123",
-    "gh api graphql -f query='mutation { updatePullRequest(input: {pullRequestId: \"P\", title: \"t\"}) { pullRequest { id } } }'",
-    "gh api graphql -f query='query { repository(owner: \"o\", name: \"r\") { pullRequest(number: 5) { reviewThreads(first: 50) { nodes { id isResolved } } } } }'",
+    'gh api graphql -f query=\'mutation { updatePullRequest(input: {pullRequestId: "P", title: "t"}) { pullRequest { id } } }\'',
+    'gh api graphql -f query=\'query { repository(owner: "o", name: "r") { pullRequest(number: 5) { reviewThreads(first: 50) { nodes { id isResolved } } } } }\'',
     "gh pr create --draft --title 'feat: x' --body 'y'",
     "gh pr edit 5 --body 'new description'",
     "gh issue create --title 'feat(x): y' --body 'z'",
@@ -118,8 +119,14 @@ class FindViolationTest(unittest.TestCase):
     def test_deny_names_the_pr_threads_command_to_use(self):
         for command, verb in [
             ("gh pr review 5 --approve", "submit"),
-            ("gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"T\"}) { thread { id } } }'", "resolve"),
-            ("gh api graphql -f query='mutation { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: \"T\", body: \"x\"}) { comment { id } } }'", "reply"),
+            (
+                "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"T\"}) { thread { id } } }'",
+                "resolve",
+            ),
+            (
+                'gh api graphql -f query=\'mutation { addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: "T", body: "x"}) { comment { id } } }\'',
+                "reply",
+            ),
             ("gh issue comment 5 --body x", "post"),
             ("gh api repos/o/r/issues/5/comments -f body=x", "post"),
             ("gh api repos/o/r/pulls/5/comments/123/replies -f body=x", "reply"),
@@ -139,18 +146,18 @@ class DataIsNotCommandsTest(unittest.TestCase):
     HEREDOCS = [
         "cat > notes.md <<EOF\ngh pr comment 5 --body hi\nEOF",
         "cat > notes.md <<'EOF'\ngh api -X POST repos/o/r/pulls/1/comments -f body=x\nEOF",
-        "cat > notes.md <<\"END\"\ngh issue comment 7 --body x\nEND",
+        'cat > notes.md <<"END"\ngh issue comment 7 --body x\nEND',
         "cat <<-EOF > notes.md\n\tgh pr review 5 --approve\n\tEOF",
         "pr-threads --pr 5 suggest x.py:3 'Use this.' <<'EOF'\ngh api -X POST repos/o/r/pulls/1/comments\nEOF",
         "pr-threads --pr 5 suggest tests/test_guard.py:20 'Add a case.' <<'EOF'\n"
-        "    \"gh pr review 5 --approve\",\n    \"gh api graphql -f query='mutation { addComment }'\",\nEOF",
+        '    "gh pr review 5 --approve",\n    "gh api graphql -f query=\'mutation { addComment }\'",\nEOF',
         # an odd quote in the body, which shlex can't split
         "cat > notes.md <<'EOF'\nit's gh pr comment 5 -b hi\nEOF",
         "cat > a.md <<A\ngh pr comment 1 -b x\nA\ncat > b.md <<B\ngh pr review 1 --approve\nB",
     ]
     QUOTED = [
         "pr-threads --pr 5 comment a.py:3 'Run this instead:\ngh pr comment 5 --body hi'",
-        "pr-threads --pr 5 comment a.py:3 \"Don't use\ngh api -X POST repos/o/r/pulls/1/reviews\"",
+        'pr-threads --pr 5 comment a.py:3 "Don\'t use\ngh api -X POST repos/o/r/pulls/1/reviews"',
         "gh pr create --title t --body 'Use gh pr comment 5 --body x, not gh api -X POST repos/o/r/pulls/5/reviews'",
         "git commit -m 'guard: deny\n\ngh pr review 5 --approve'",
     ]
@@ -240,23 +247,22 @@ class CommentsTest(unittest.TestCase):
     def test_hash_right_after_an_operator_starts_a_comment(self):
         """Wrong fixes that start a comment only after whitespace fail these."""
         self.assertIsNotNone(find_violation("cd repo;# don't\ngh pr comment 5 -b x  # it's done"))
-        for command in ["git push;# done; gh pr comment 5 -b x",
-                        "git push&&# then; gh pr review 5 --approve"]:
+        for command in ["git push;# done; gh pr comment 5 -b x", "git push&&# then; gh pr review 5 --approve"]:
             with self.subTest(command=command):
                 self.assertIsNone(find_violation(command))
 
     def test_hash_in_quotes_is_not_a_comment(self):
         for command in [
             "echo 'a # b'; gh pr comment 5 -b x",
-            "gh pr comment 5 --body \"fixes #5\"",
+            'gh pr comment 5 --body "fixes #5"',
             "git commit -m 'see #5' && gh pr review 5 --approve",
             # the write's body spans lines, so a wrongly stripped `#` can't fall back to the rough check
             "git commit -m 'refs #5' && gh pr comment 5 --body 'Fixed.\nThanks'",
-            "git commit -m \"refs #5\" && gh pr comment 5 --body \"Fixed.\nThanks\"",
+            'git commit -m "refs #5" && gh pr comment 5 --body "Fixed.\nThanks"',
             # a quote in heredoc data opens nothing for the command lines after it
             "cat > body.md <<'EOF'\nIt's fixed: the cache is warmed first.\nEOF\n"
             "git commit -qam 'Fix #12' && gh pr comment 5 --body-file body.md",
-            "cat > notes.md <<EOF\nUse a 6\" pipe\nEOF\ngit commit -m \"refs #5\" && gh pr review 5 --approve",
+            'cat > notes.md <<EOF\nUse a 6" pipe\nEOF\ngit commit -m "refs #5" && gh pr review 5 --approve',
         ]:
             with self.subTest(command=command):
                 self.assertIsNotNone(find_violation(command))
@@ -275,23 +281,22 @@ class CommentsTest(unittest.TestCase):
                 self.assertIsNone(find_violation(command))
 
     def test_write_after_a_comment_only_line_is_denied(self):
-        for command in ["# publish first\ngh pr comment 5 -b x",
-                        "cd repo; # go there\ngh pr comment 5 -b x"]:
+        for command in ["# publish first\ngh pr comment 5 -b x", "cd repo; # go there\ngh pr comment 5 -b x"]:
             with self.subTest(command=command):
                 self.assertIsNotNone(find_violation(command))
 
 
 class HookProcessTest(unittest.TestCase):
     def run_hook(self, stdin):
-        return subprocess.run([sys.executable, os.path.join(HOOKS, "pr_guard.py")],
-                              input=stdin, capture_output=True, text=True)
+        return subprocess.run(
+            [sys.executable, os.path.join(HOOKS, "pr_guard.py")], input=stdin, capture_output=True, text=True
+        )
 
     def test_denied_command_gets_a_deny_decision(self):
         out = self.run_hook(json.dumps({"tool_input": {"command": "gh pr review 5 --approve"}}))
         self.assertEqual(out.returncode, 0)
         decision = json.loads(out.stdout)["hookSpecificOutput"]
-        self.assertEqual((decision["hookEventName"], decision["permissionDecision"]),
-                         ("PreToolUse", "deny"))
+        self.assertEqual((decision["hookEventName"], decision["permissionDecision"]), ("PreToolUse", "deny"))
         self.assertIn("pr-threads", decision["permissionDecisionReason"])
 
     def test_allowed_or_malformed_input_is_silent(self):
@@ -307,8 +312,7 @@ class HookRegistrationTest(unittest.TestCase):
     def test_hooks_json_runs_the_guard_before_bash(self):
         with open(os.path.join(HOOKS, "hooks.json")) as f:
             config = json.load(f)
-        bash = [h for entry in config["hooks"]["PreToolUse"] if entry.get("matcher") == "Bash"
-                for h in entry["hooks"]]
+        bash = [h for entry in config["hooks"]["PreToolUse"] if entry.get("matcher") == "Bash" for h in entry["hooks"]]
         self.assertTrue(any("pr_guard.py" in h["command"] for h in bash))
         for h in bash:
             self.assertIn("${CLAUDE_PLUGIN_ROOT}", h["command"], "paths must not be absolute")

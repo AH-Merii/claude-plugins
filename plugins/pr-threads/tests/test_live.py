@@ -3,6 +3,7 @@
 Local only: needs the user's `gh` login, the reviewer bot installed on AH-Merii/test, and
 network. Run with PR_THREADS_LIVE=1. The PR is closed and its branch deleted afterwards.
 """
+
 import json
 import os
 import subprocess
@@ -17,9 +18,14 @@ REPO = os.environ.get("PR_THREADS_LIVE_REPO", "AH-Merii/test")
 
 
 def sh(*args, cwd=None, input_text=None, env=None):
-    out = subprocess.run(args, cwd=cwd, capture_output=True, text=True, input=input_text,
-                         env={**{k: v for k, v in os.environ.items() if k not in GIT_REPO_VARS},
-                              **(env or {})})
+    out = subprocess.run(
+        args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        input=input_text,
+        env={**{k: v for k, v in os.environ.items() if k not in GIT_REPO_VARS}, **(env or {})},
+    )
     if out.returncode:
         raise AssertionError(f"{args} failed: {out.stderr}")
     return out.stdout.strip()
@@ -51,14 +57,34 @@ class LiveRoundTest(unittest.TestCase):
         sh("git", "-c", "commit.gpgsign=false", "commit", "-qm", "live test", cwd=self.dir)
         sh("git", "push", "-q", "origin", self.branch, cwd=self.dir)
         self.addCleanup(sh, "git", "push", "-q", "origin", "--delete", self.branch, cwd=self.dir)
-        url = sh("gh", "pr", "create", "-R", REPO, "--head", self.branch,
-                 "--title", "test: pr-threads live round", "--body", "Throwaway, closed by the test.")
+        url = sh(
+            "gh",
+            "pr",
+            "create",
+            "-R",
+            REPO,
+            "--head",
+            self.branch,
+            "--title",
+            "test: pr-threads live round",
+            "--body",
+            "Throwaway, closed by the test.",
+        )
         self.pr = url.rsplit("/", 1)[1]
         self.addCleanup(sh, "gh", "pr", "close", self.pr, "-R", REPO)
 
     def cli(self, *args, input_text=""):
-        return sh(sys.executable, "-m", "pr_threads", "--pr", self.pr, *args, cwd=self.dir,
-                  input_text=input_text, env={"PYTHONPATH": PLUGIN})
+        return sh(
+            sys.executable,
+            "-m",
+            "pr_threads",
+            "--pr",
+            self.pr,
+            *args,
+            cwd=self.dir,
+            input_text=input_text,
+            env={"PYTHONPATH": PLUGIN},
+        )
 
     def reviews(self):
         return json.loads(sh("gh", "api", f"repos/{REPO}/pulls/{self.pr}/reviews"))
@@ -74,11 +100,26 @@ class LiveRoundTest(unittest.TestCase):
     def resolved_by(self):
         """{thread id: login that resolved it} for each resolved thread on the PR."""
         owner, name = REPO.split("/")
-        query = ("query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, "
-                 "name: $name) { pullRequest(number: $number) { reviewThreads(first: 100) { "
-                 "nodes { id isResolved resolvedBy { login } } } } } }")
-        data = json.loads(sh("gh", "api", "graphql", "-f", f"query={query}", "-f", f"owner={owner}",
-                             "-f", f"name={name}", "-F", f"number={self.pr}"))
+        query = (
+            "query($owner: String!, $name: String!, $number: Int!) { repository(owner: $owner, "
+            "name: $name) { pullRequest(number: $number) { reviewThreads(first: 100) { "
+            "nodes { id isResolved resolvedBy { login } } } } } }"
+        )
+        data = json.loads(
+            sh(
+                "gh",
+                "api",
+                "graphql",
+                "-f",
+                f"query={query}",
+                "-f",
+                f"owner={owner}",
+                "-f",
+                f"name={name}",
+                "-F",
+                f"number={self.pr}",
+            )
+        )
         threads = data["data"]["repository"]["pullRequest"]["reviewThreads"]["nodes"]
         return {t["id"]: t["resolvedBy"]["login"] for t in threads if t["isResolved"]}
 
@@ -91,8 +132,7 @@ class LiveRoundTest(unittest.TestCase):
         self.assertEqual((first["user"]["login"], first["state"]), (self.bot, "CHANGES_REQUESTED"))
 
         threads = json.loads(self.cli("threads", "--json"))
-        self.assertEqual(sorted((t["path"], t["line"]) for t in threads),
-                         [("live.txt", 3), ("live.txt", 6)])
+        self.assertEqual(sorted((t["path"], t["line"]) for t in threads), [("live.txt", 3), ("live.txt", 6)])
         by_line = {t["line"]: t["id"] for t in threads}
 
         self.cli("reply", by_line[3], "Because of the spec.")
@@ -108,8 +148,11 @@ class LiveRoundTest(unittest.TestCase):
         self.cli("verify", by_line[3], fixed)
         self.cli("verify", by_line[6], fixed, "Suggestion applied.")
         last = {t["id"]: t["comments"][-1] for t in json.loads(self.cli("threads", "--json"))}
-        self.assertEqual({id: c["author"] for id, c in last.items()},
-                         {by_line[3]: self.bot_slug, by_line[6]: self.bot_slug}, "the bot wrote each verification")
+        self.assertEqual(
+            {id: c["author"] for id, c in last.items()},
+            {by_line[3]: self.bot_slug, by_line[6]: self.bot_slug},
+            "the bot wrote each verification",
+        )
         self.cli("resolve", by_line[3], by_line[6])
         self.assertEqual(json.loads(self.cli("threads", "--json")), [])
         me = sh("gh", "api", "user", "--jq", ".login")
@@ -125,8 +168,9 @@ class LiveRoundTest(unittest.TestCase):
             f.write(tiny_png())
         self.cli("comment", "live.txt:3", "See proof.", "--attach", "proof.png#a red pixel")
         self.cli("submit", "changes", "One point.")
-        (comment,) = json.loads(sh("gh", "api", "-H", "Accept: application/vnd.github.full+json",
-                                   f"repos/{REPO}/pulls/{self.pr}/comments"))
+        (comment,) = json.loads(
+            sh("gh", "api", "-H", "Accept: application/vnd.github.full+json", f"repos/{REPO}/pulls/{self.pr}/comments")
+        )
         self.assertEqual(comment["user"]["login"], self.bot)
         self.assertIn("user-attachments", comment["body"])
         self.assertIn("<img", comment["body_html"], "GitHub rendered it as an image, not a link")
@@ -135,13 +179,23 @@ class LiveRoundTest(unittest.TestCase):
         # post uploads the image itself, as the user, like every verb that posts text
         with open(os.path.join(self.dir, "proof.png"), "wb") as f:
             f.write(tiny_png())
-        sh(sys.executable, "-m", "pr_threads", "post", self.pr, "Plain note.", cwd=self.dir,
-           env={"PYTHONPATH": PLUGIN})
-        sh(sys.executable, "-m", "pr_threads", "post", self.pr, "With proof.", "--attach",
-           "proof.png#a red pixel", cwd=self.dir, env={"PYTHONPATH": PLUGIN})
+        sh(sys.executable, "-m", "pr_threads", "post", self.pr, "Plain note.", cwd=self.dir, env={"PYTHONPATH": PLUGIN})
+        sh(
+            sys.executable,
+            "-m",
+            "pr_threads",
+            "post",
+            self.pr,
+            "With proof.",
+            "--attach",
+            "proof.png#a red pixel",
+            cwd=self.dir,
+            env={"PYTHONPATH": PLUGIN},
+        )
         me = sh("gh", "api", "user", "--jq", ".login")
-        plain, attached = json.loads(sh("gh", "api", "-H", "Accept: application/vnd.github.full+json",
-                                        f"repos/{REPO}/issues/{self.pr}/comments"))
+        plain, attached = json.loads(
+            sh("gh", "api", "-H", "Accept: application/vnd.github.full+json", f"repos/{REPO}/issues/{self.pr}/comments")
+        )
         self.assertEqual([plain["user"]["login"], attached["user"]["login"]], [me, me])
         self.assertIn("Plain note.", plain["body"])
         self.assertIn("With proof.", attached["body"])

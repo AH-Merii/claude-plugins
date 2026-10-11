@@ -1,4 +1,5 @@
 """#7: local path:line is pinned to a line GitHub accepts in the PR diff, or refused up front."""
+
 import os
 import re
 import shlex
@@ -6,8 +7,16 @@ import subprocess
 import tempfile
 import unittest
 
-from helpers import (Repo, advises, assert_keeps_local_work, assert_moves_to_pr_head, clean_env, git, isolate_git,
-                     numbered)
+from helpers import (
+    Repo,
+    advises,
+    assert_keeps_local_work,
+    assert_moves_to_pr_head,
+    clean_env,
+    git,
+    isolate_git,
+    numbered,
+)
 
 from pr_threads import Refusal
 from pr_threads.anchor import LocalDiffers, NotInDiff, NotPulled, NotPushed, anchor, check_synced
@@ -97,16 +106,26 @@ class RenameTest(unittest.TestCase):
         path = self.repo.path
         git(path, "checkout", "-q", "main")
         os.mkdir(os.path.join(path, "sub2"))
-        for name, old in [("pure", "pure.txt"), ("tail", "tail.txt"), ("mid", "mid.txt"),
-                          ("into", "into.txt"), ("out", "sub2/out.txt")]:
+        for name, old in [
+            ("pure", "pure.txt"),
+            ("tail", "tail.txt"),
+            ("mid", "mid.txt"),
+            ("into", "into.txt"),
+            ("out", "sub2/out.txt"),
+        ]:
             self.repo.write(old, "".join(f"{name} {i}\n" for i in range(1, 41)))
         git(path, "add", ".")
         git(path, "commit", "-qm", "files to rename")
         self.base = git(path, "rev-parse", "HEAD")
         git(path, "checkout", "-q", "-B", "feature")
         os.mkdir(os.path.join(path, "sub"))
-        for old, new in [("pure.txt", "pure2.txt"), ("tail.txt", "tail2.txt"), ("mid.txt", "mid2.txt"),
-                         ("into.txt", "sub/into.txt"), ("sub2/out.txt", "out.txt")]:
+        for old, new in [
+            ("pure.txt", "pure2.txt"),
+            ("tail.txt", "tail2.txt"),
+            ("mid.txt", "mid2.txt"),
+            ("into.txt", "sub/into.txt"),
+            ("sub2/out.txt", "out.txt"),
+        ]:
             git(path, "mv", old, new)
         self.repo.write("tail2.txt", self.repo.read("tail2.txt") + "tail 41\n")
         self.repo.write("out.txt", self.repo.read("out.txt") + "out 41\n")
@@ -187,8 +206,7 @@ class SyncTest(unittest.TestCase):
         for name, pr_head in cases:
             with self.subTest(name):
                 # only "both moved" keeps the local commit; the others diverge from the reviewed head
-                git(self.repo.path, "reset", "-q", "--hard",
-                    local_commit if name == "both moved" else self.repo.head)
+                git(self.repo.path, "reset", "-q", "--hard", local_commit if name == "both moved" else self.repo.head)
                 with self.assertRaises(Refusal) as caught:
                     check_synced(self.repo.path, "feature", pr_head)
                 if name == "both moved":
@@ -330,8 +348,9 @@ class RemoteSyncTest(unittest.TestCase):
         git(self.author, "commit", "-q", "--amend", "-m", "two, reworded")
 
     def amend_content(self):
-        self.write(self.author, "app.py",
-                   numbered(30).replace("line 10\n", "changed 10\n").replace("line 20\n", "fixed 20\n"))
+        self.write(
+            self.author, "app.py", numbered(30).replace("line 10\n", "changed 10\n").replace("line 20\n", "fixed 20\n")
+        )
         git(self.author, "commit", "-q", "--amend", "-a", "--no-edit")
 
     def amend_earlier(self):
@@ -386,12 +405,15 @@ class RemoteSyncTest(unittest.TestCase):
 
     def cases(self):
         """(shape, fast-forwarded first, rewrite name, rewrite) for every combination."""
-        return [(shape, ff, name, how) for shape in self.SHAPES for ff in (False, True)
-                for name, how in self.REWRITES]
+        return [(shape, ff, name, how) for shape in self.SHAPES for ff in (False, True) for name, how in self.REWRITES]
 
     # how a clone with its own commits followed the PR before the rewrite
-    FOLLOWS = ("stayed at two", "fast-forwarded, then committed", "committed, then pulled with rebase",
-               "committed, then pulled with pull.rebase=merges")
+    FOLLOWS = (
+        "stayed at two",
+        "fast-forwarded, then committed",
+        "committed, then pulled with rebase",
+        "committed, then pulled with pull.rebase=merges",
+    )
 
     def follow_with_own_commits(self, how=("--rebase",)):
         """The PR moves on to `three`, and the clone rebases its own commits onto it with
@@ -414,8 +436,10 @@ class RemoteSyncTest(unittest.TestCase):
 
     def assertNamesNoneOf(self, message, commits):
         for sha in re.findall(r"\b[0-9a-f]{7,40}\b", message):
-            self.assertFalse(any(c.startswith(sha) for c in commits),
-                             f"names {sha}, which the clone got from the PR, as its own: {message}")
+            self.assertFalse(
+                any(c.startswith(sha) for c in commits),
+                f"names {sha}, which the clone got from the PR, as its own: {message}",
+            )
 
     OWN = ["local only", "local only 2"]  # the clone's own commits, oldest first
 
@@ -441,13 +465,16 @@ class RemoteSyncTest(unittest.TestCase):
         commands = re.findall(r"\bgit\s+rebase\b[^)`;,\n]*", message)
         self.assertTrue(commands, f"advises rebasing without the command to run: {message}")
         command = commands[0].rstrip(". ")
-        out = subprocess.run(["git", "-C", self.clone, *shlex.split(command)[1:]],
-                             capture_output=True, text=True, env=clean_env())
+        out = subprocess.run(
+            ["git", "-C", self.clone, *shlex.split(command)[1:]], capture_output=True, text=True, env=clean_env()
+        )
         self.assertEqual(out.returncode, 0, f"`{command}` fails: {out.stdout}{out.stderr}\n{message}")
         on_top = git(self.clone, "log", "--reverse", "--format=%s", f"{pr_head}..HEAD").splitlines()
-        self.assertEqual((on_top, git(self.clone, "rev-parse", f"HEAD~{len(self.OWN)}")), (self.OWN, pr_head),
-                         f"`{command}` doesn't leave just the clone's own commits on the PR head: "
-                         f"{on_top}\n{message}")
+        self.assertEqual(
+            (on_top, git(self.clone, "rev-parse", f"HEAD~{len(self.OWN)}")),
+            (self.OWN, pr_head),
+            f"`{command}` doesn't leave just the clone's own commits on the PR head: {on_top}\n{message}",
+        )
         # the rebased commits are still the clone's own, so the next step is to push them
         with self.assertRaises(Refusal, msg=f"after `{command}`") as caught:
             check_synced(self.clone, "feature", pr_head)
@@ -466,8 +493,9 @@ class RemoteSyncTest(unittest.TestCase):
                 self.assertNamesNoneOf(message, self.replaced(pr_head))
 
     def test_own_commits_alongside_a_rewrite_are_kept_and_the_replaced_ones_are_not(self):
-        for shape, follow, (name, how) in [(shape, follow, rewrite) for shape in self.SHAPES
-                                           for follow in self.FOLLOWS for rewrite in self.REWRITES]:
+        for shape, follow, (name, how) in [
+            (shape, follow, rewrite) for shape in self.SHAPES for follow in self.FOLLOWS for rewrite in self.REWRITES
+        ]:
             with self.subTest(name, shape=shape, follow=follow):
                 self.start(shape, fast_forwarded=follow == "fast-forwarded, then committed")
                 own = self.own_local_commits()
@@ -481,8 +509,10 @@ class RemoteSyncTest(unittest.TestCase):
                 named = re.findall(r"\b[0-9a-f]{7,40}\b", message)
                 for local in own:
                     assert_keeps_local_work(self, message, local)
-                    self.assertTrue(any(local.startswith(sha) for sha in named),
-                                    f"doesn't name the clone's own commit {local[:12]}: {message}")
+                    self.assertTrue(
+                        any(local.startswith(sha) for sha in named),
+                        f"doesn't name the clone's own commit {local[:12]}: {message}",
+                    )
                 # pushing the branch would put the replaced commits back on the PR
                 self.assertFalse(advises(message, "push"), f"advises pushing: {message}")
                 self.assertNamesNoneOf(message, self.replaced(pr_head))

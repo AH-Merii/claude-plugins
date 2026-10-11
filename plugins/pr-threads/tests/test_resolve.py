@@ -5,6 +5,7 @@ contents:write), and the bot gets no write access to code. So the two acts are s
 `verify` is the bot's reply that the fix is in a commit of the PR, and `resolve` runs as the
 user, only on threads where that reply is still the last word.
 """
+
 import unittest
 
 from helpers import BOT_SLUG, INSTALL_URL, Repo, bot_reply, git, node
@@ -71,8 +72,12 @@ class VerifyTest(unittest.TestCase):
                         self.assertIn(note, reply["body"])
 
     def test_refuses_a_commit_outside_the_pr_heads_history(self):
-        for case in ("no such commit", "the head before a force-push",
-                     "a commit on the base branch only", "a local commit not pushed yet"):
+        for case in (
+            "no such commit",
+            "the head before a force-push",
+            "a commit on the base branch only",
+            "a local commit not pushed yet",
+        ):
             with self.subTest(case):
                 self.fresh()
                 if case == "no such commit":
@@ -127,15 +132,24 @@ class ResolveTest(unittest.TestCase):
     def test_verified_threads_resolve_in_one_request_as_the_user(self):
         verified = verification()
         cases = {
-            "one thread": [
-                node("T_a", (BOT_SLUG, "Rename this."), (USER, "Fixed in abc1234."), (BOT_SLUG, verified))],
+            "one thread": [node("T_a", (BOT_SLUG, "Rename this."), (USER, "Fixed in abc1234."), (BOT_SLUG, verified))],
             "several threads": [
                 node("T_a", (BOT_SLUG, "Rename this."), (BOT_SLUG, verified)),
-                node("T_b", (BOT_SLUG, "Why?"), (USER, "Fixed."),
-                     (BOT_SLUG, verification("Checked the else branch too."))),
+                node(
+                    "T_b",
+                    (BOT_SLUG, "Why?"),
+                    (USER, "Fixed."),
+                    (BOT_SLUG, verification("Checked the else branch too.")),
+                ),
                 # pushback, then the bot verified again: its verification is the last word
-                node("T_c", (BOT_SLUG, "Off by one."), (BOT_SLUG, verified),
-                     (USER, "Still off on an empty list."), (BOT_SLUG, verified))],
+                node(
+                    "T_c",
+                    (BOT_SLUG, "Off by one."),
+                    (BOT_SLUG, verified),
+                    (USER, "Still off on an empty list."),
+                    (BOT_SLUG, verified),
+                ),
+            ],
         }
         for token in ("BOT_TOKEN", None):
             for name, threads in cases.items():
@@ -154,17 +168,23 @@ class ResolveTest(unittest.TestCase):
         cases = {
             "only the bot's review comment": [(BOT_SLUG, "Rename this.")],
             "the author says it's fixed": [(BOT_SLUG, "Rename this."), (USER, f"Fixed in {sha}.")],
-            "a bot comment naming a commit, not a verification":
-                [(BOT_SLUG, "Rename this."), (BOT_SLUG, f"Not verified: {sha} still misses the else branch.")],
+            "a bot comment naming a commit, not a verification": [
+                (BOT_SLUG, "Rename this."),
+                (BOT_SLUG, f"Not verified: {sha} still misses the else branch."),
+            ],
             "the verification pasted by the author": [(BOT_SLUG, "Rename this."), (USER, verified)],
             "the verification posted by another bot": [(BOT_SLUG, "Rename this."), ("github-actions", verified)],
-            "the verification by a login that starts like the bot's":
-                [(BOT_SLUG, "Rename this."), (BOT_SLUG + "-fan", verified)],
+            "the verification by a login that starts like the bot's": [
+                (BOT_SLUG, "Rename this."),
+                (BOT_SLUG + "-fan", verified),
+            ],
             "the verification by a deleted account": [(BOT_SLUG, "Rename this."), (None, verified)],
             "the author pushed back after it": [(BOT_SLUG, verified), (USER, "That isn't the fix I meant.")],
             "another reviewer commented after it": [(BOT_SLUG, verified), (HUMAN, "The tests still fail.")],
-            "the bot commented after its own verification":
-                [(BOT_SLUG, verified), (BOT_SLUG, "One more thing: rename the test too.")],
+            "the bot commented after its own verification": [
+                (BOT_SLUG, verified),
+                (BOT_SLUG, "One more thing: rename the test too."),
+            ],
             "not a thread on this PR": None,
         }
         ok = node("T_ok", (BOT_SLUG, "Rename this."), (BOT_SLUG, verified))
@@ -193,11 +213,13 @@ class ResolveTest(unittest.TestCase):
             lines = [line for line in out.stderr.splitlines() if id in line]
             self.assertTrue(lines, f"the refusal doesn't name {id}: {out.stderr}")
             reasons[id] = " ".join(lines).replace(id, "").strip()
-        self.assertEqual(len(set(reasons.values())), 3,
-                         f"three different failures read as fewer reasons: {reasons}")
+        self.assertEqual(len(set(reasons.values())), 3, f"three different failures read as fewer reasons: {reasons}")
         self.assertRegex(reasons["T_pasted"], rf"(?i)\bbot\b|{USER}", "says who wrote the verification")
-        self.assertRegex(reasons["T_pushback"], r"(?i)\b(after|since|later|newer|follow\w*)\b",
-                         "says something came after the verification")
+        self.assertRegex(
+            reasons["T_pushback"],
+            r"(?i)\b(after|since|later|newer|follow\w*)\b",
+            "says something came after the verification",
+        )
 
 
 if __name__ == "__main__":

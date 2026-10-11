@@ -1,4 +1,5 @@
 """GitHub's ```suggestion blocks: write them, read them back, and apply one to the local file."""
+
 import os
 import re
 
@@ -37,7 +38,7 @@ def parse_suggestion(body):
         if j is None:
             return None
         if info == "suggestion":
-            return "".join(line + "\n" for line in lines[i + 1:j])
+            return "".join(line + "\n" for line in lines[i + 1 : j])
         i = j + 1
     return None
 
@@ -54,8 +55,7 @@ def follow(repo, commit, path, start, end):
     (a copy directly above a rewritten target lines up as the original), so guessing
     could edit a copy.
     """
-    out = git(repo, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames",
-              "-U0", commit, "--", path)
+    out = git(repo, "diff", "--no-color", "--no-ext-diff", "--no-textconv", "--no-renames", "-U0", commit, "--", path)
     shift = 0
     for old, old_n, new_n in LOCAL_HUNK.findall(out.stdout):
         old, old_n, new_n = int(old), int(old_n or 1), int(new_n or 1)
@@ -90,15 +90,17 @@ def accept(repo, commit, path, start, end, replacement):
     if len(shown.stdout.splitlines()) >= end:
         at = follow(repo, commit, path, start, end)
     if at is None:
-        raise StaleSuggestion(f"{path}:{start}-{end}, or a line next to it, changed since the review "
-                              f"at {commit[:12]}, so it's ambiguous which lines were reviewed: "
-                              "make the change by hand, or re-suggest on the current lines")
+        raise StaleSuggestion(
+            f"{path}:{start}-{end}, or a line next to it, changed since the review "
+            f"at {commit[:12]}, so it's ambiguous which lines were reviewed: "
+            "make the change by hand, or re-suggest on the current lines"
+        )
     lines = re.findall(rb"[^\n]*\n|[^\n]+\Z", data)
     new = replacement.encode()
     ends = [line for line in lines if line.endswith(b"\n")]
     if ends and all(line.endswith(b"\r\n") for line in ends):
         new = new.replace(b"\r\n", b"\n").replace(b"\n", b"\r\n")
-    out = b"".join(lines[:at - 1] + [new] + lines[at - 1 + end - start + 1:])
+    out = b"".join(lines[: at - 1] + [new] + lines[at - 1 + end - start + 1 :])
     if not data.endswith(b"\n") and out.endswith(b"\n"):
         out = out[:-2] if out.endswith(b"\r\n") else out[:-1]
     with open(file, "wb") as f:

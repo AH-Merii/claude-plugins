@@ -3,6 +3,7 @@
 In a GitButler workspace the checked-out branch is always `gitbutler/workspace`, which has
 no PR, and any other branch can have none either.
 """
+
 import json
 import os
 import re
@@ -39,20 +40,28 @@ class NoPrForBranchTest(unittest.TestCase):
                 with self.subTest(branch=branch, verb=args[0]):
                     gh = FakeGh(self.repo.path, pr_table(self.repo), token="BOT_TOKEN")
                     self.addCleanup(gh.cleanup)
-                    gh.set_answer("pr view", exit=1,
-                                  stderr=f'no pull requests found for branch "{branch}"\n')
+                    gh.set_answer("pr view", exit=1, stderr=f'no pull requests found for branch "{branch}"\n')
                     before = self.repo.read("app.py")
                     out = gh.run(*args, check=False, input_text="x = 1\n")
                     self.assertNotEqual(out.returncode, 0)
                     self.assertRegex(out.stderr, self.ADVICE, "the refusal says to pass --pr N")
-                    self.assertEqual([c["route"] for c in gh.calls() if c["method"] == "POST"], [],
-                                     "nothing was posted or queried")
+                    self.assertEqual(
+                        [c["route"] for c in gh.calls() if c["method"] == "POST"], [], "nothing was posted or queried"
+                    )
                     self.assertEqual(gh.upload_calls(), [], "nothing was uploaded")
                     self.assertEqual(self.repo.read("app.py"), before)
                     # and nothing was staged for a later submit to send
-                    gh.set_answer("pr view", stdout=json.dumps({
-                        "number": 5, "baseRefOid": self.repo.base, "headRefOid": self.repo.head,
-                        "headRefName": branch}))
+                    gh.set_answer(
+                        "pr view",
+                        stdout=json.dumps(
+                            {
+                                "number": 5,
+                                "baseRefOid": self.repo.base,
+                                "headRefOid": self.repo.head,
+                                "headRefName": branch,
+                            }
+                        ),
+                    )
                     gh.run("submit", "pass", "Nothing staged.", check=False)
                     self.assertEqual([r.get("comments", []) for r in gh.review_posts()], [[]])
 
@@ -61,8 +70,10 @@ class SkillTest(unittest.TestCase):
     def test_skill_says_to_pass_the_pr_number_in_a_gitbutler_workspace(self):
         with open(os.path.join(PLUGIN, "skills", "pr-threads", "SKILL.md")) as f:
             paragraphs = re.split(r"\n\s*\n", f.read())
-        self.assertTrue([p for p in paragraphs if "--pr" in p and "gitbutler" in p.lower()],
-                        "the skill tells the agent to pass --pr N where the branch has no PR")
+        self.assertTrue(
+            [p for p in paragraphs if "--pr" in p and "gitbutler" in p.lower()],
+            "the skill tells the agent to pass --pr N where the branch has no PR",
+        )
 
 
 if __name__ == "__main__":

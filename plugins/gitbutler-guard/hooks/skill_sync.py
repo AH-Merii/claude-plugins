@@ -5,6 +5,7 @@
 here. When the copy in this Claude config's skills folder is missing or its version differs
 from `but --version`, reinstall it from the CLI. Does nothing when `but` is not installed.
 """
+
 import os
 import re
 import shutil
@@ -41,7 +42,10 @@ def main():
             return 0
         result = subprocess.run(
             [but, "skill", "install", "--path", target],
-            stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30,
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     except (OSError, subprocess.SubprocessError):
         return 0

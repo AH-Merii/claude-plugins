@@ -3,6 +3,7 @@
 Reads, the author's writes and resolve go out as the user's own gh login. The bot's
 writes (submit, verify, withdraw, dispute, reopen) carry its token in GH_TOKEN.
 """
+
 import functools
 import json
 import os
@@ -45,17 +46,24 @@ def _command(env_name, default=None):
 
 def bot_token(repo):
     """A short-lived token for the reviewer bot on `repo`, or a Refusal saying how to set it up."""
-    out = subprocess.run([*_command("PR_THREADS_TOKEN_CMD", DEFAULT_TOKEN_CMD), repo],
-                         capture_output=True, text=True)
+    out = subprocess.run([*_command("PR_THREADS_TOKEN_CMD", DEFAULT_TOKEN_CMD), repo], capture_output=True, text=True)
     token = out.stdout.strip()
     if out.returncode or not token:
-        raise Refusal("the reviewer bot can't act on this repo, so nothing was sent.\n"
-                      + (out.stderr.strip() or "its token command printed no token"))
+        raise Refusal(
+            "the reviewer bot can't act on this repo, so nothing was sent.\n"
+            + (out.stderr.strip() or "its token command printed no token")
+        )
     return token
 
 
-IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-               ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml"}
+IMAGE_TYPES = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".svg": "image/svg+xml",
+}
 
 
 def check_uploadable(path):
@@ -86,11 +94,26 @@ def upload(path):
     check_uploadable(path)
     kind = IMAGE_TYPES[os.path.splitext(path)[1].lower()]
     try:
-        return gh("api", "-X", "POST", "https://uploads.github.com/user-attachments/assets",
-                  "--input", path, "-H", "Content-Type: application/octet-stream",
-                  "-H", "Accept: application/vnd.github+json", "-f", f"name={os.path.basename(path)}",
-                  "-f", f"content_type={kind}", "-f", f"repository_id={repo_id()}",
-                  "--jq", ".url").strip()
+        return gh(
+            "api",
+            "-X",
+            "POST",
+            "https://uploads.github.com/user-attachments/assets",
+            "--input",
+            path,
+            "-H",
+            "Content-Type: application/octet-stream",
+            "-H",
+            "Accept: application/vnd.github+json",
+            "-f",
+            f"name={os.path.basename(path)}",
+            "-f",
+            f"content_type={kind}",
+            "-f",
+            f"repository_id={repo_id()}",
+            "--jq",
+            ".url",
+        ).strip()
     except GhError as e:
         raise Refusal(f"uploading {path} failed (it needs write access to the repo): {e}") from None
 
@@ -109,8 +132,7 @@ def pull_request(number=None):
     """The PR's number, base and head commits and head branch (the current branch's PR by default)."""
     which = [str(number)] if number else []
     try:
-        return json.loads(gh("pr", "view", *which, "--json",
-                             "number,baseRefOid,headRefOid,headRefName"))
+        return json.loads(gh("pr", "view", *which, "--json", "number,baseRefOid,headRefOid,headRefName"))
     except GhError as e:
         if number:
             raise
@@ -119,8 +141,18 @@ def pull_request(number=None):
 
 
 def submit_review(repo, number, review, token):
-    return gh("api", "-X", "POST", f"repos/{repo}/pulls/{number}/reviews", "--input", "-",
-              "--jq", ".html_url", token=token, stdin=json.dumps(review)).strip()
+    return gh(
+        "api",
+        "-X",
+        "POST",
+        f"repos/{repo}/pulls/{number}/reviews",
+        "--input",
+        "-",
+        "--jq",
+        ".html_url",
+        token=token,
+        stdin=json.dumps(review),
+    ).strip()
 
 
 def reviews(repo, number):
@@ -162,8 +194,7 @@ REPLY = """mutation($thread: ID!, $body: String!) {
 
 
 def reply(thread, body, token=None):
-    return graphql(REPLY, token=token, thread=thread, body=body,
-                   jq=".data.addPullRequestReviewThreadReply.comment.url")
+    return graphql(REPLY, token=token, thread=thread, body=body, jq=".data.addPullRequestReviewThreadReply.comment.url")
 
 
 def resolve(threads):
@@ -172,10 +203,10 @@ def resolve(threads):
     Not as the bot: GitHub refuses resolveReviewThread from an app without contents:write.
     """
     params = ", ".join(f"$t{i}: ID!" for i in range(len(threads)))
-    fields = "\n".join(f"  t{i}: resolveReviewThread(input: {{threadId: $t{i}}}) {{ thread {{ id }} }}"
-                       for i in range(len(threads)))
-    graphql(f"mutation({params}) {{\n{fields}\n}}",
-            **{f"t{i}": t for i, t in enumerate(threads)})
+    fields = "\n".join(
+        f"  t{i}: resolveReviewThread(input: {{threadId: $t{i}}}) {{ thread {{ id }} }}" for i in range(len(threads))
+    )
+    graphql(f"mutation({params}) {{\n{fields}\n}}", **{f"t{i}": t for i, t in enumerate(threads)})
 
 
 def post(number, body):

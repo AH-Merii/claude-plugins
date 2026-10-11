@@ -1,4 +1,5 @@
 """Run with: python3 -m unittest discover -s plugins/gitbutler-guard/tests"""
+
 import json
 import os
 import subprocess
@@ -35,16 +36,36 @@ class GitGuardTest(unittest.TestCase):
         return hit[0] if hit else None
 
     def test_blocks_write_commands(self):
-        for sub in ["add .", "commit -m 'x'", "push", "pull", "checkout -b x", "switch main",
-                    "restore f", "reset --hard", "merge main", "rebase main", "stash",
-                    "cherry-pick abc"]:
+        for sub in [
+            "add .",
+            "commit -m 'x'",
+            "push",
+            "pull",
+            "checkout -b x",
+            "switch main",
+            "restore f",
+            "reset --hard",
+            "merge main",
+            "rebase main",
+            "stash",
+            "cherry-pick abc",
+        ]:
             with self.subTest(sub=sub):
                 self.assertEqual(self.blocked(f"git {sub}"), sub.split()[0])
 
     def test_allows_read_only(self):
-        for cmd in ["git status", "git log --oneline", "git diff", "git show HEAD",
-                    "git blame f", "git stash list", "git branch", "git rev-parse HEAD",
-                    'echo "git commit"', "but commit -b x -m y"]:
+        for cmd in [
+            "git status",
+            "git log --oneline",
+            "git diff",
+            "git show HEAD",
+            "git blame f",
+            "git stash list",
+            "git branch",
+            "git rev-parse HEAD",
+            'echo "git commit"',
+            "but commit -b x -m y",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
@@ -52,13 +73,26 @@ class GitGuardTest(unittest.TestCase):
         return git_guard.find_violation(command, self.workspace)[1]
 
     def test_blocks_branch_writes(self):
-        for cmd in ["git branch x", "git branch x HEAD~1", "git branch -d x", "git branch -D x",
-                    "git branch --delete x", "git branch -dr origin/x", "git branch -m x y",
-                    "git branch -M y", "git branch --move x y", "git branch -c x y",
-                    "git branch -f x HEAD~1", "git branch --force x", "git branch -u origin/x",
-                    "git branch --set-upstream-to=origin/x", "git branch --unset-upstream",
-                    "git branch --edit-description", "git branch -v --delete x",
-                    f"cd {self.plain} && env GIT_TRACE=0 git -C {self.workspace} branch -D x"]:
+        for cmd in [
+            "git branch x",
+            "git branch x HEAD~1",
+            "git branch -d x",
+            "git branch -D x",
+            "git branch --delete x",
+            "git branch -dr origin/x",
+            "git branch -m x y",
+            "git branch -M y",
+            "git branch --move x y",
+            "git branch -c x y",
+            "git branch -f x HEAD~1",
+            "git branch --force x",
+            "git branch -u origin/x",
+            "git branch --set-upstream-to=origin/x",
+            "git branch --unset-upstream",
+            "git branch --edit-description",
+            "git branch -v --delete x",
+            f"cd {self.plain} && env GIT_TRACE=0 git -C {self.workspace} branch -D x",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.blocked(cmd), "branch")
         self.assertIn("but branch new", self.advice("git branch x"))
@@ -66,33 +100,68 @@ class GitGuardTest(unittest.TestCase):
         self.assertIn("but reword", self.advice("git branch -m x y"))
 
     def test_allows_branch_listing(self):
-        for cmd in ["git branch", "git branch -a", "git branch -r", "git branch -vv",
-                    "git branch --show-current", "git branch --list x", "git branch -l 'feat/*'",
-                    "git branch --contains", "git branch --contains abc", "git branch --no-merged main",
-                    "git branch --points-at HEAD", "git branch --sort -committerdate",
-                    "git branch --format '%(refname)'", "git -c color.ui=never branch -a"]:
+        for cmd in [
+            "git branch",
+            "git branch -a",
+            "git branch -r",
+            "git branch -vv",
+            "git branch --show-current",
+            "git branch --list x",
+            "git branch -l 'feat/*'",
+            "git branch --contains",
+            "git branch --contains abc",
+            "git branch --no-merged main",
+            "git branch --points-at HEAD",
+            "git branch --sort -committerdate",
+            "git branch --format '%(refname)'",
+            "git -c color.ui=never branch -a",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
     def test_blocks_tag_writes(self):
-        for cmd in ["git tag v1", "git tag v1 HEAD~1", "git tag -a v1 -m msg", "git tag -s v1",
-                    "git tag -f v1", "git tag -d v1", "git tag --delete v1", "git tag -m msg v1",
-                    "git -c tag.gpgSign=false tag v1"]:
+        for cmd in [
+            "git tag v1",
+            "git tag v1 HEAD~1",
+            "git tag -a v1 -m msg",
+            "git tag -s v1",
+            "git tag -f v1",
+            "git tag -d v1",
+            "git tag --delete v1",
+            "git tag -m msg v1",
+            "git -c tag.gpgSign=false tag v1",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.blocked(cmd), "tag")
         self.assertIn("no tag command", self.advice("git tag v1"))
 
     def test_allows_tag_listing(self):
-        for cmd in ["git tag", "git tag -l", "git tag -l 'v1.*'", "git tag --list", "git tag -n",
-                    "git tag -n3", "git tag --contains HEAD", "git tag --points-at HEAD",
-                    "git tag --merged main", "git tag --sort=-v:refname",
-                    "git tag --sort -creatordate", "git tag -v v1"]:
+        for cmd in [
+            "git tag",
+            "git tag -l",
+            "git tag -l 'v1.*'",
+            "git tag --list",
+            "git tag -n",
+            "git tag -n3",
+            "git tag --contains HEAD",
+            "git tag --points-at HEAD",
+            "git tag --merged main",
+            "git tag --sort=-v:refname",
+            "git tag --sort -creatordate",
+            "git tag -v v1",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
     def test_blocks_rm(self):
-        for cmd in ["git rm f", "git rm -r dir", "git rm --cached f", "git rm -f f", "git rm -- -n",
-                    "sudo git --no-pager rm f"]:
+        for cmd in [
+            "git rm f",
+            "git rm -r dir",
+            "git rm --cached f",
+            "git rm -f f",
+            "git rm -- -n",
+            "sudo git --no-pager rm f",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.blocked(cmd), "rm")
         self.assertIn("plain `rm <path>`", self.advice("git rm f"))
@@ -103,8 +172,7 @@ class GitGuardTest(unittest.TestCase):
                 self.assertIsNone(self.blocked(cmd))
 
     def test_blocks_mv(self):
-        for cmd in ["git mv a b", "git mv -f a b", "git mv -k a b dir",
-                    "GIT_DIR=.git command git mv a b"]:
+        for cmd in ["git mv a b", "git mv -f a b", "git mv -k a b dir", "GIT_DIR=.git command git mv a b"]:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.blocked(cmd), "mv")
         self.assertIn("plain `mv <old> <new>`", self.advice("git mv a b"))
@@ -115,8 +183,15 @@ class GitGuardTest(unittest.TestCase):
                 self.assertIsNone(self.blocked(cmd))
 
     def test_blocks_clean(self):
-        for cmd in ["git clean -f", "git clean -fd", "git clean -fdx", "git clean --force -d",
-                    "git clean -i", "git clean -f -e n", "git --work-tree=. clean -fdx"]:
+        for cmd in [
+            "git clean -f",
+            "git clean -fd",
+            "git clean -fdx",
+            "git clean --force -d",
+            "git clean -i",
+            "git clean -f -e n",
+            "git --work-tree=. clean -fdx",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.blocked(cmd), "clean")
         self.assertIn("but discard", self.advice("git clean -fd"))
@@ -127,61 +202,105 @@ class GitGuardTest(unittest.TestCase):
                 self.assertIsNone(self.blocked(cmd))
 
     def test_blocks_update_ref(self):
-        for cmd in ["git update-ref refs/heads/x HEAD", "git update-ref -d refs/heads/x",
-                    "git update-ref --stdin", "git update-ref -m msg HEAD abc"]:
+        for cmd in [
+            "git update-ref refs/heads/x HEAD",
+            "git update-ref -d refs/heads/x",
+            "git update-ref --stdin",
+            "git update-ref -m msg HEAD abc",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.blocked(cmd), "update-ref")
-        self.assertEqual(self.blocked(f"exec git -C {self.workspace} update-ref HEAD abc",
-                                      cwd=self.plain), "update-ref")
+        self.assertEqual(
+            self.blocked(f"exec git -C {self.workspace} update-ref HEAD abc", cwd=self.plain), "update-ref"
+        )
         self.assertIn("no update-ref command", self.advice("git update-ref HEAD abc"))
 
     def test_blocks_notes_writes(self):
-        for cmd in ["git notes add -m x", "git notes append -m x HEAD", "git notes copy a b",
-                    "git notes edit", "git notes merge other", "git notes remove HEAD",
-                    "git notes prune", "git notes --ref review add -m x HEAD",
-                    "time git -c core.editor=true notes edit"]:
+        for cmd in [
+            "git notes add -m x",
+            "git notes append -m x HEAD",
+            "git notes copy a b",
+            "git notes edit",
+            "git notes merge other",
+            "git notes remove HEAD",
+            "git notes prune",
+            "git notes --ref review add -m x HEAD",
+            "time git -c core.editor=true notes edit",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.blocked(cmd), "notes")
         self.assertIn("no notes command", self.advice("git notes add -m x"))
 
     def test_allows_notes_reads(self):
-        for cmd in ["git notes", "git notes list", "git notes show HEAD", "git notes get-ref",
-                    "git notes --ref review show", "git notes --ref=review list"]:
+        for cmd in [
+            "git notes",
+            "git notes list",
+            "git notes show HEAD",
+            "git notes get-ref",
+            "git notes --ref review show",
+            "git notes --ref=review list",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
     def test_blocks_config_writes(self):
-        for cmd in ["git config user.name x", "git config --global user.email a@b",
-                    "git config set user.name x", "git config unset user.name", "git config edit",
-                    "git config rename-section a b", "git config remove-section a",
-                    "git config --unset user.name", "git config --unset-all x.y",
-                    "git config --add x.y z", "git config --replace-all x.y z",
-                    "git config --rename-section a b", "git config --remove-section a",
-                    "git config -e", "git config --global --edit",
-                    "git config --file .gitmodules submodule.x.url u",
-                    "git config --type bool core.x true",
-                    f"cd {self.plain} && nohup git -C {self.workspace} config core.hooksPath x"]:
+        for cmd in [
+            "git config user.name x",
+            "git config --global user.email a@b",
+            "git config set user.name x",
+            "git config unset user.name",
+            "git config edit",
+            "git config rename-section a b",
+            "git config remove-section a",
+            "git config --unset user.name",
+            "git config --unset-all x.y",
+            "git config --add x.y z",
+            "git config --replace-all x.y z",
+            "git config --rename-section a b",
+            "git config --remove-section a",
+            "git config -e",
+            "git config --global --edit",
+            "git config --file .gitmodules submodule.x.url u",
+            "git config --type bool core.x true",
+            f"cd {self.plain} && nohup git -C {self.workspace} config core.hooksPath x",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.blocked(cmd), "config")
         self.assertIn("but config user set", self.advice("git config user.name x"))
 
     def test_allows_config_reads(self):
-        for cmd in ["git config", "git config --get user.name", "git config --get-all x.y",
-                    "git config --get-regexp '^user'", "git config --list", "git config -l",
-                    "git config --global --list --show-origin", "git config get user.name",
-                    "git config get --all x.y", "git config list", "git config user.name",
-                    "git config --global user.name", "git config --file .gitmodules submodule.x.url",
-                    "git config --type bool core.bare", "git config --default x --get core.foo",
-                    "git -c core.x=y config --get core.x"]:
+        for cmd in [
+            "git config",
+            "git config --get user.name",
+            "git config --get-all x.y",
+            "git config --get-regexp '^user'",
+            "git config --list",
+            "git config -l",
+            "git config --global --list --show-origin",
+            "git config get user.name",
+            "git config get --all x.y",
+            "git config list",
+            "git config user.name",
+            "git config --global user.name",
+            "git config --file .gitmodules submodule.x.url",
+            "git config --type bool core.bare",
+            "git config --default x --get core.foo",
+            "git -c core.x=y config --get core.x",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
     def test_blocks_symbolic_ref_writes(self):
-        for cmd in ["git symbolic-ref HEAD refs/heads/x", "git symbolic-ref -m msg HEAD refs/heads/x",
-                    "git symbolic-ref --quiet -m msg HEAD refs/heads/x", "git symbolic-ref -d HEAD",
-                    "git symbolic-ref --delete HEAD", "git symbolic-ref -qd HEAD",
-                    "git symbolic-ref -- HEAD refs/heads/x",
-                    f"cd {self.plain} && GIT_TRACE=0 sudo git -C {self.workspace} symbolic-ref HEAD refs/heads/x"]:
+        for cmd in [
+            "git symbolic-ref HEAD refs/heads/x",
+            "git symbolic-ref -m msg HEAD refs/heads/x",
+            "git symbolic-ref --quiet -m msg HEAD refs/heads/x",
+            "git symbolic-ref -d HEAD",
+            "git symbolic-ref --delete HEAD",
+            "git symbolic-ref -qd HEAD",
+            "git symbolic-ref -- HEAD refs/heads/x",
+            f"cd {self.plain} && GIT_TRACE=0 sudo git -C {self.workspace} symbolic-ref HEAD refs/heads/x",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertEqual(self.blocked(cmd), "symbolic-ref")
         advice = self.advice("git symbolic-ref HEAD refs/heads/x")
@@ -190,9 +309,15 @@ class GitGuardTest(unittest.TestCase):
         self.assertIn("but apply", advice)
 
     def test_allows_symbolic_ref_reads(self):
-        for cmd in ["git symbolic-ref HEAD", "git symbolic-ref --short HEAD", "git symbolic-ref -q HEAD",
-                    "git symbolic-ref --quiet --short HEAD", "git symbolic-ref --short -q HEAD",
-                    "git symbolic-ref --no-recurse HEAD", f"git -C {self.workspace} symbolic-ref HEAD"]:
+        for cmd in [
+            "git symbolic-ref HEAD",
+            "git symbolic-ref --short HEAD",
+            "git symbolic-ref -q HEAD",
+            "git symbolic-ref --quiet --short HEAD",
+            "git symbolic-ref --short -q HEAD",
+            "git symbolic-ref --no-recurse HEAD",
+            f"git -C {self.workspace} symbolic-ref HEAD",
+        ]:
             with self.subTest(cmd=cmd):
                 self.assertIsNone(self.blocked(cmd))
 
@@ -222,17 +347,22 @@ class GitGuardTest(unittest.TestCase):
 
     def test_hook_emits_deny_json(self):
         payload = json.dumps({"tool_input": {"command": "git commit -m x"}, "cwd": self.workspace})
-        out = subprocess.run([sys.executable, os.path.join(HOOKS, "git_guard.py")],
-                             input=payload, capture_output=True, text=True, check=True)
+        out = subprocess.run(
+            [sys.executable, os.path.join(HOOKS, "git_guard.py")],
+            input=payload,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         decision = json.loads(out.stdout)["hookSpecificOutput"]
         self.assertEqual(decision["permissionDecision"], "deny")
         self.assertIn("but commit", decision["permissionDecisionReason"])
 
     def test_hook_is_silent_when_allowed_or_malformed(self):
-        for payload in [json.dumps({"tool_input": {"command": "git log"}, "cwd": self.workspace}),
-                        "not json"]:
-            out = subprocess.run([sys.executable, os.path.join(HOOKS, "git_guard.py")],
-                                 input=payload, capture_output=True, text=True)
+        for payload in [json.dumps({"tool_input": {"command": "git log"}, "cwd": self.workspace}), "not json"]:
+            out = subprocess.run(
+                [sys.executable, os.path.join(HOOKS, "git_guard.py")], input=payload, capture_output=True, text=True
+            )
             self.assertEqual((out.returncode, out.stdout), (0, ""))
 
 

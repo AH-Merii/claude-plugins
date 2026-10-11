@@ -1,4 +1,5 @@
 """The handoff between reviewer and author, read straight off the PR's reviews and threads."""
+
 from pr_threads.threads import nodes
 from pr_threads.verdicts import is_disputed
 
@@ -27,12 +28,18 @@ def handoff(response, reviews, bot=None):
         state = "approved" if open_count else "pass"
     else:
         state = "pending"
-    return {"state": state, "open": open_count,
-            "changes_requested_by": sorted(k for k, v in latest.items() if v == "CHANGES_REQUESTED"),
-            "approved_by": sorted(k for k, v in latest.items() if v == "APPROVED"),
-            "disputed": [t["id"] for t in nodes(response) if bot and is_disputed(t, bot)],
-            "round": sum(1 for r in reviews if bot and r.get("state") in VERDICTS
-                         and (r.get("user") or {}).get("login") == f"{bot}[bot]")}
+    return {
+        "state": state,
+        "open": open_count,
+        "changes_requested_by": sorted(k for k, v in latest.items() if v == "CHANGES_REQUESTED"),
+        "approved_by": sorted(k for k, v in latest.items() if v == "APPROVED"),
+        "disputed": [t["id"] for t in nodes(response) if bot and is_disputed(t, bot)],
+        "round": sum(
+            1
+            for r in reviews
+            if bot and r.get("state") in VERDICTS and (r.get("user") or {}).get("login") == f"{bot}[bot]"
+        ),
+    }
 
 
 def render(got):

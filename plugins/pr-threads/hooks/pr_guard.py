@@ -8,6 +8,7 @@ Heredoc bodies and quoted arguments are data, unless the heredoc is fed to a she
 A command shlex can't split is checked roughly, line by line: any `gh` in it counts.
 Known gap: a GraphQL query read from a file (`-F query=@file`) can't be classified.
 """
+
 import json
 import os
 import re
@@ -45,8 +46,10 @@ MUTATIONS = {
     "unminimizeComment": None,
 }
 # REST: repos/<o>/<r>/{pulls,issues}/[<n>/]{comments,reviews}[/<id>[/<action>]]
-ENDPOINT = re.compile(r"/?repos/[^/]+/[^/]+/(pulls|issues)/(?:\d+/)?(comments|reviews)"
-                      r"(?:/([^/?]+)(?:/(replies|events|dismissals))?)?/?(?:\?.*)?")
+ENDPOINT = re.compile(
+    r"/?repos/[^/]+/[^/]+/(pulls|issues)/(?:\d+/)?(comments|reviews)"
+    r"(?:/([^/?]+)(?:/(replies|events|dismissals))?)?/?(?:\?.*)?"
+)
 # (kind, collection, has id, action) -> pr-threads verb; other writes there have none
 ENDPOINT_VERBS = {
     ("pulls", "comments", False, None): "comment",
@@ -57,9 +60,25 @@ ENDPOINT_VERBS = {
 }
 READ_METHODS = {"GET", "HEAD"}
 
-API_OPTS_WITH_VALUE = {"-X", "--method", "-f", "--raw-field", "-F", "--field", "-H", "--header",
-                       "--input", "-q", "--jq", "-t", "--template", "--cache", "-p", "--preview",
-                       "--hostname"}
+API_OPTS_WITH_VALUE = {
+    "-X",
+    "--method",
+    "-f",
+    "--raw-field",
+    "-F",
+    "--field",
+    "-H",
+    "--header",
+    "--input",
+    "-q",
+    "--jq",
+    "-t",
+    "--template",
+    "--cache",
+    "-p",
+    "--preview",
+    "--hostname",
+}
 API_BODY_OPTS = {"-f", "--raw-field", "-F", "--field", "--input"}
 
 # shlex makes each run of these one token, and every such run separates commands
@@ -87,7 +106,7 @@ def strip_comments(command):
         if ch in "'\"" and quote in (None, ch):
             quote = None if quote else ch
         word_start = step == 1 and quote is None and ch in WORD_BREAKS
-        out.append(command[i:i + step])
+        out.append(command[i : i + step])
         i += step
     return "".join(out)
 
@@ -219,8 +238,9 @@ def split_heredocs(command):
         i += 1
         for m in HEREDOC.finditer(line):
             strip, end = m[1] == "-", m[3]
-            close = next((j for j in range(i, len(lines))
-                          if (lines[j].lstrip("\t") if strip else lines[j]) == end), None)
+            close = next(
+                (j for j in range(i, len(lines)) if (lines[j].lstrip("\t") if strip else lines[j]) == end), None
+            )
             if close is None:
                 break
             if heredoc_runner(line, m.start()) in SHELLS:
@@ -253,12 +273,16 @@ def find_violation(command):
         return None
     what, verb = hit
     if verb is None:
-        advice = ("pr-threads has no command for editing, dismissing, unresolving or deleting "
-                  "existing reviews and comments; ask the user to do it on GitHub.")
+        advice = (
+            "pr-threads has no command for editing, dismissing, unresolving or deleting "
+            "existing reviews and comments; ask the user to do it on GitHub."
+        )
     else:
         advice = f"Use `pr-threads {verb}` ({VERBS[verb]}) instead; see the pr-threads skill for syntax."
-    return (f"{what} is blocked: PR and issue review conversations go through pr-threads. {advice} "
-            "Reading is still allowed (`gh pr view --comments`, `gh api` GETs, `pr-threads threads`).")
+    return (
+        f"{what} is blocked: PR and issue review conversations go through pr-threads. {advice} "
+        "Reading is still allowed (`gh pr view --comments`, `gh api` GETs, `pr-threads threads`)."
+    )
 
 
 def main():

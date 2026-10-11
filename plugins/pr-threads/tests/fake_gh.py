@@ -16,25 +16,49 @@ Like real gh it expands {owner}/{repo} in api endpoints, builds nested payloads 
 (anything else fails loudly), and treats `gh issue comment N` as the POST to
 issues/N/comments it is, and prints the comment URL.
 """
+
 import json, os, re, sys
 
 OWNER, REPO = "o", "r"
 
-VALUE_OPTS = {"-X", "--method", "-H", "--header", "-f", "--raw-field", "-F", "--field",
-              "--input", "-q", "--jq", "-t", "--template", "--hostname", "-p", "--preview",
-              "--cache", "--json", "-R", "--repo"}
+VALUE_OPTS = {
+    "-X",
+    "--method",
+    "-H",
+    "--header",
+    "-f",
+    "--raw-field",
+    "-F",
+    "--field",
+    "--input",
+    "-q",
+    "--jq",
+    "-t",
+    "--template",
+    "--hostname",
+    "-p",
+    "--preview",
+    "--cache",
+    "--json",
+    "-R",
+    "--repo",
+}
+
 
 def read(path):
     with open(path) as f:
         return f.read()
 
+
 def token():
     """The token gh would send to github.com: GH_TOKEN, else GITHUB_TOKEN."""
     return os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
 
+
 def fail(message, code=1):
     sys.stderr.write("fake gh: " + message + "\n")
     sys.exit(code)
+
 
 def typed(value):
     """-F's magic conversion: @file (or @- for stdin), true/false/null, integers, {owner}/{repo}."""
@@ -45,6 +69,7 @@ def typed(value):
     if re.fullmatch(r"[+-]?\d+", value):
         return int(value)
     return value.replace("{owner}", OWNER).replace("{repo}", REPO)
+
 
 def nest(fields):
     """Build the payload from (text, magic) fields the way gh's parseFields does.
@@ -115,11 +140,13 @@ def nest(fields):
             dest[subkey] = value
     return params
 
+
 def option(args, *names):
     for i, arg in enumerate(args[:-1]):
         if arg in names:
             return args[i + 1]
     return None
+
 
 def jq(data, path):
     """The subset of jq the fake understands: `.` and `.a.b` field paths."""
@@ -129,6 +156,7 @@ def jq(data, path):
     for key in [p for p in path.split(".") if p]:
         data = data[key]
     return data if isinstance(data, str) else json.dumps(data)
+
 
 def parse(args):
     """Split gh args into (positionals, method, body).
@@ -164,9 +192,10 @@ def parse(args):
     body = json.loads(raw) if raw else (fields or None)
     return positionals, method or ("POST" if body is not None else "GET"), body
 
+
 def top_fields(query):
     """(alias, field, args text) for each top-level selection of the operation."""
-    text = query[query.index("{") + 1:]
+    text = query[query.index("{") + 1 :]
     found, depth, i = [], 0, 0
     name = re.compile(r"\s*(?:(\w+)\s*:\s*)?(\w+)")
     while i < len(text):
@@ -186,7 +215,7 @@ def top_fields(query):
                         if level == 0:
                             break
                         end += 1
-                    args, j = text[k:end + 1], end + 1
+                    args, j = text[k : end + 1], end + 1
                 found.append((m.group(1) or m.group(2), m.group(2), args))
                 i = j
                 continue
@@ -199,9 +228,14 @@ def top_fields(query):
         i += 1
     return found
 
+
 # the input key GitHub's schema gives each review-thread mutation for the thread
-THREAD_INPUT = {"resolveReviewThread": "threadId", "unresolveReviewThread": "threadId",
-                "addPullRequestReviewThreadReply": "pullRequestReviewThreadId"}
+THREAD_INPUT = {
+    "resolveReviewThread": "threadId",
+    "unresolveReviewThread": "threadId",
+    "addPullRequestReviewThreadReply": "pullRequestReviewThreadId",
+}
+
 
 def selections(query, variables):
     """Top-level selections, merged and checked the way GitHub validates them.
@@ -223,6 +257,7 @@ def selections(query, variables):
         found.append((alias, field, tid, field_args))
     return found
 
+
 def input_value(field_args, variables, key):
     """input.<key> of a mutation, given as a literal, a $variable or inside an $input object."""
     whole = re.search(r"\binput\s*:\s*\$(\w+)", field_args)
@@ -234,12 +269,14 @@ def input_value(field_args, variables, key):
         return None
     return json.loads(f'"{m.group(1)}"') if m.group(1) is not None else variables.get(m.group(2))
 
+
 def thread_input(field, field_args, variables):
     key = THREAD_INPUT[field]
     value = input_value(field_args, variables, key)
     if not isinstance(value, str) or not value:
         fail(f"{field} needs its thread as input.{key}")
     return value
+
 
 MAX_PAGE = 100
 
@@ -278,16 +315,18 @@ def page_threads(answer, query, variables):
         elif isinstance(node, list):
             for v in node:
                 walk(v)
+
     walk(answer.get("data"))
     for conn in found:
         first, after = connection_args(query, "reviewThreads", variables)
         if first is None:
-            fail("You must provide a `first` or `last` value to properly paginate "
-                 "the `reviewThreads` connection.")
+            fail("You must provide a `first` or `last` value to properly paginate the `reviewThreads` connection.")
         first = int(first)
         if not 0 <= first <= MAX_PAGE:
-            fail(f"Requesting {first} records on the `reviewThreads` connection exceeds "
-                 f"the `first` limit of {MAX_PAGE} records.")
+            fail(
+                f"Requesting {first} records on the `reviewThreads` connection exceeds "
+                f"the `first` limit of {MAX_PAGE} records."
+            )
         start = 0
         if after is not None:
             if not re.fullmatch(r"cursor:\d+", str(after)):
@@ -296,8 +335,7 @@ def page_threads(answer, query, variables):
         nodes = conn["nodes"]
         end = min(start + first, len(nodes))
         conn["nodes"] = nodes[start:end]
-        conn["pageInfo"] = {"hasNextPage": end < len(nodes),
-                            "endCursor": f"cursor:{end}" if end > start else None}
+        conn["pageInfo"] = {"hasNextPage": end < len(nodes), "endCursor": f"cursor:{end}" if end > start else None}
 
 
 def mutation_answer(field, tid):
@@ -341,8 +379,16 @@ def main(args):
         positionals, method, body = parse(args[1:] if args[:1] == ["api"] else args)
     if args[:1] == ["api"] and positionals:
         positionals[0] = positionals[0].replace("{owner}", OWNER).replace("{repo}", REPO)
-    record = {"argv": args, "method": None, "endpoint": None, "body": body, "fields": [],
-              "threads": [], "replies": [], "gh_token": token()}
+    record = {
+        "argv": args,
+        "method": None,
+        "endpoint": None,
+        "body": body,
+        "fields": [],
+        "threads": [],
+        "replies": [],
+        "gh_token": token(),
+    }
     if args[:2] == ["issue", "comment"]:
         endpoint = f"repos/{OWNER}/{REPO}/issues/{positionals[0]}/comments"
         record.update(method="POST", endpoint=endpoint)
@@ -382,9 +428,11 @@ def main(args):
         # which thread each review-thread mutation named, under the schema's own key
         record["threads"] = [tid for _, field, tid, _ in picked if field in THREAD_INPUT]
         # what each thread reply says, as GitHub would post it
-        record["replies"] = [{"thread": tid, "body": input_value(args_, variables, "body")}
-                             for _, field, tid, args_ in picked
-                             if field == "addPullRequestReviewThreadReply"]
+        record["replies"] = [
+            {"thread": tid, "body": input_value(args_, variables, "body")}
+            for _, field, tid, args_ in picked
+            if field == "addPullRequestReviewThreadReply"
+        ]
     log()
 
     def rest_match(key):
@@ -402,6 +450,7 @@ def main(args):
         key (isOutdated, originalStartLine, oid, pageInfo, ...) the query names.
         """
         missing = set()
+
         def walk(node):
             if isinstance(node, dict):
                 for k, v in node.items():
@@ -411,6 +460,7 @@ def main(args):
             elif isinstance(node, list):
                 for v in node:
                     walk(v)
+
         walk(answer.get("data"))
         return sorted(missing)
 
@@ -441,10 +491,15 @@ def main(args):
     with open(os.environ["FAKE_GH_TABLE"]) as f:
         table = json.load(f)
     for key, answer in table.items():
-        if key == route or (key.startswith(("GET ", "POST ", "PATCH ", "PUT ", "DELETE "))
-                            and rest_match(key)) \
-                or (key.startswith("graphql ") and record["endpoint"] == "graphql"
-                    and re.search(r"\b" + re.escape(key[8:]) + r"\b", (body or {}).get("query", ""))):
+        if (
+            key == route
+            or (key.startswith(("GET ", "POST ", "PATCH ", "PUT ", "DELETE ")) and rest_match(key))
+            or (
+                key.startswith("graphql ")
+                and record["endpoint"] == "graphql"
+                and re.search(r"\b" + re.escape(key[8:]) + r"\b", (body or {}).get("query", ""))
+            )
+        ):
             if "pages" in answer:
                 answer_pages(answer["pages"])
             stdout, code = answer.get("stdout", ""), answer.get("exit", 0)
