@@ -132,7 +132,7 @@ class LiveRoundTest(unittest.TestCase):
         self.assertIn("<img", comment["body_html"], "GitHub rendered it as an image, not a link")
 
     def test_post_comments_on_the_conversation_as_the_user(self):
-        # post goes through gh issue comment, whose --attach uploads the image itself
+        # post uploads the image itself, as the user, like every verb that posts text
         with open(os.path.join(self.dir, "proof.png"), "wb") as f:
             f.write(tiny_png())
         sh(sys.executable, "-m", "pr_threads", "post", self.pr, "Plain note.", cwd=self.dir,
