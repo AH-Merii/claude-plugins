@@ -21,8 +21,8 @@ class NotPulled(Refusal):
     pass
 
 
-def git(repo, *args, check=True):
-    out = subprocess.run(["git", "-C", repo, *args], capture_output=True, text=True)
+def git(repo, *args, check=True, input=None):
+    out = subprocess.run(["git", "-C", repo, *args], input=input, capture_output=True, text=True)
     if check and out.returncode:
         raise Refusal(f"git {args[0]}: {out.stderr.strip()}")
     return out
@@ -44,32 +44,65 @@ def check_synced(repo, branch, pr_head):
     local = local.stdout.strip() or git(repo, "rev-parse", "HEAD").stdout.strip()
     if local == pr_head:
         return
-    if is_ancestor(repo, pr_head, local):
-        raise NotPushed(f"{branch} has commits the PR doesn't: push them first, "
-                        "so line numbers match what GitHub shows")
     if is_ancestor(repo, local, pr_head):
         raise NotPulled(f"{branch} is behind the PR head {pr_head[:12]}: pull first")
-    # pulling would merge a rewritten PR's old commits back in, and pushing would undo it
     own = own_commits(repo, local, pr_head)
+    ahead = git(repo, "rev-list", "--no-merges", f"{pr_head}..{local}").stdout.split()
+    if is_ancestor(repo, pr_head, local) and set(own) == set(ahead):
+        raise NotPushed(f"{branch} has commits the PR doesn't: push them first, "
+                        "so line numbers match what GitHub shows")
+    # the PR was rewritten: pulling would merge the commits it replaced back in, pushing
+    # would undo it, and a plain rebase would replay them onto their replacements
     if own:
         raise NotPulled(f"{branch} and the PR head {pr_head[:12]} have diverged, and {branch} has "
-                        f"commits the PR doesn't ({', '.join(c[:12] for c in own)}): rebase them "
-                        f"onto the PR head (git rebase {pr_head[:12]}), or keep them on another "
-                        "branch and check out the PR head")
+                        f"commits the PR doesn't ({', '.join(c[:12] for c in own)}): rebase just "
+                        f"those onto the PR head (git rebase --onto {pr_head[:12]} {own[-1][:12]}^), "
+                        "or keep them on another branch and check out the PR head")
     raise NotPulled(f"the PR was rewritten (amended, rebased or force-pushed) since {branch} "
                     f"checked it out. Don't pull or push; reset {branch} to the PR head "
                     f"(git reset --keep {pr_head[:12]}), or check it out with gh pr checkout")
 
 
 def own_commits(repo, local, pr_head):
-    """Local commits the PR never had: no copy in the PR head, and not on any remote.
+    """Local commits the PR never had, newest first: no copy (same patch) in the PR head, and
+    not got from a remote.
 
-    The commits a rewrite replaced have a copy (same patch) in the PR or were pushed, so
-    they aren't the clone's own work.
+    Commits a rewrite replaced came from a fetch, a pull or a push, so they aren't the
+    clone's own work. Its own commits stay its own however they were moved since, by a
+    rebase or a pull --rebase, or made without a reflog entry of their own (GitButler).
     """
-    out = git(repo, "rev-list", "--cherry-pick", "--right-only", "--no-merges",
-              f"{pr_head}...{local}", "--not", "--remotes")
-    return out.stdout.split()
+    candidates = git(repo, "rev-list", "--cherry-pick", "--right-only", "--no-merges",
+                     f"{pr_head}...{local}").stdout.split()
+    revs = [local, f"^{pr_head}", *(f"^{tip}" for tip in received(repo))]
+    unreceived = git(repo, "rev-list", "--ignore-missing", "--stdin", input="\n".join(revs))
+    unreceived = set(unreceived.stdout.split())
+    return [c for c in candidates if c in unreceived]
+
+
+# reflog subjects of a local ref update that brought commits in from a remote: a fetch or clone
+# into the ref, a pull's fast-forward, a fast-forward to FETCH_HEAD (which the reflog records
+# as a bare commit id, as rerunning gh pr checkout makes), and the upstream a pull rebases onto
+FETCHED = re.compile(r"(?:fetch|clone)\b|(?:pull\b.*|merge [0-9a-f]{40,64}): Fast-forward$"
+                     r"|pull\b.*\(start\): checkout ")
+# a branch started from a remote-tracking branch, as checking out a PR branch does
+CREATED = re.compile(r"branch: Created from (?:refs/remotes/|([^/\s]+)/)")
+
+
+def received(repo):
+    """Every commit this clone got from a remote or pushed to one, as tips read off its reflogs.
+
+    A reflog entry lasts 90 days by default; without reflogs only the remote-tracking
+    branches count.
+    """
+    remotes = set(git(repo, "remote").stdout.split())
+    tips = git(repo, "for-each-ref", "--format=%(objectname)", "refs/remotes").stdout.split()
+    log = git(repo, "log", "-g", "--all", "--format=%H %gD %gs", check=False).stdout
+    for sha, ref, subject in (line.split(" ", 2) for line in log.splitlines()):
+        created = CREATED.match(subject)
+        if (ref.startswith("refs/remotes/") or FETCHED.match(subject)
+                or (created and (created[1] is None or created[1] in remotes))):
+            tips.append(sha)
+    return tips
 
 
 HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", re.M)
