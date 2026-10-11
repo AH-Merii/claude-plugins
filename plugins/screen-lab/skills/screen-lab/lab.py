@@ -417,6 +417,33 @@ def cmd_preflight(a):
     return 0 if ok else 1
 
 
+def wait_for_window(pid):
+    """The lab's niri window once it appears, or None after about 7s."""
+    w = None
+    for _ in range(40):
+        w = find_window(pid)
+        if w:
+            break
+        time.sleep(0.1 if _ < 20 else 0.25)
+    return w
+
+
+def settle_grid(st):
+    """Wait for the relay to report its size, then measure the grid; None if it can't be measured."""
+    for _ in range(20):
+        if (STATE / "size").exists():
+            break
+        time.sleep(0.25)
+    time.sleep(0.5)
+    grid = None
+    for _ in range(4):
+        grid = measure_grid(st)
+        if grid:
+            break
+        time.sleep(0.5)
+    return grid
+
+
 def cmd_start(a):
     if not a.cmd:
         raise Refuse("usage: lab.py start [--cwd DIR] -- CMD [ARGS...]")
@@ -468,12 +495,7 @@ def cmd_start(a):
     )
     st = {"pid": proc.pid, "output": output, "app_id": APP_ID, "cmd": a.cmd}
     save_state(st)
-    w = None
-    for _ in range(40):
-        w = find_window(proc.pid)
-        if w:
-            break
-        time.sleep(0.1 if _ < 20 else 0.25)
+    w = wait_for_window(proc.pid)
     if not w or w["output"] != output or w["app_id"] != APP_ID or w["is_focused"]:
         kill(st)
         where = f"app-id {w['app_id']} on {w['output']}, focused={w['is_focused']}" if w else "no window appeared"
@@ -481,16 +503,7 @@ def cmd_start(a):
             f"aborted and closed: the lab window must be {APP_ID} on {output}, unfocused ({where}). "
             "If it showed on the user's screen, tell them."
         )
-    for _ in range(20):
-        if (STATE / "size").exists():
-            break
-        time.sleep(0.25)
-    time.sleep(0.5)
-    for _ in range(4):
-        st["grid"] = measure_grid(st)
-        if st["grid"]:
-            break
-        time.sleep(0.5)
+    st["grid"] = settle_grid(st)
     st["window_size"] = w["layout"]["window_size"]
     save_state(st)
     (STATE / "go").touch()
