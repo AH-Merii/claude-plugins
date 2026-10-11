@@ -1,0 +1,6 @@
+# Shared by every plugin; a plugin can add its own ruff.toml with `extend = "../../ruff.toml"`.
+# Rules: ruff's default set for the pinned version (mise-tasks/check/lint).
+line-length = 120
+
+[lint.mccabe]
+max-complexity = 10

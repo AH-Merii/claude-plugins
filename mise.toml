@@ -1,0 +1,4 @@
+# Quality checks are file tasks in mise-tasks/check/; each declares its own tools in
+# its #MISE header, so adding a check never edits this file. Run one with
+# `mise run check:<name> [plugin dir...]`; with no dirs it checks every plugin.
+min_version = "2026.10.6"
