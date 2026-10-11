@@ -83,7 +83,7 @@ def check_runtime():
 
 def check_app_id():
     try:
-        from gi.repository import Gio
+        from gi.repository import Gio  # ty: ignore[unresolved-import]  # system PyGObject, absent in CI
     except ImportError:
         raise Refuse(f"python3 cannot import gi (PyGObject), needed to validate the app-id; {install_hint('gi')}")
     if not Gio.Application.id_is_valid(APP_ID):
@@ -329,6 +329,8 @@ def grid(st):
 def read_ppm(path):
     data = Path(path).read_bytes()
     m = re.match(rb"P6\s+(\d+)\s+(\d+)\s+(\d+)\s", data)
+    if m is None:
+        raise ValueError(f"{path} is not a binary PPM")
     w, h = int(m.group(1)), int(m.group(2))
     return w, h, data[m.end() :]
 

@@ -167,7 +167,8 @@ class EveryVerbAttachTest(unittest.TestCase):
             check=False,
         )
         listed = re.search(r"\{([\w,-]+)\}", out.stdout)
-        self.assertTrue(listed, f"no verb list in --help: {out.stdout}")
+        if listed is None:
+            self.fail(f"no verb list in --help: {out.stdout}")
         verbs = set(listed[1].split(","))
         self.assertEqual(verbs - TEXT_VERBS.keys() - OTHER_VERBS, set(), "verbs nobody classified")
         self.assertEqual(TEXT_VERBS.keys() - verbs, set(), "text verbs pr-threads doesn't have")

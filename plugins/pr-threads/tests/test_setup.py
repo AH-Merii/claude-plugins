@@ -84,7 +84,8 @@ class ReviewerSetupTest(unittest.TestCase):
             if (got := check()) is not None:
                 return got
             if self.proc.poll() is not None:
-                self.fail(f"the script exited before {what}: {self.proc.stderr.read()}")
+                stderr = self.proc.stderr.read() if self.proc.stderr else ""
+                self.fail(f"the script exited before {what}: {stderr}")
             time.sleep(0.05)
         self.fail(f"timed out waiting for {what}")
 
@@ -106,7 +107,8 @@ class ReviewerSetupTest(unittest.TestCase):
 
         page = self.wait_for(fetch, "the setup page")
         m = re.search(r'name="manifest" value="([^"]*)"', page)
-        self.assertIsNotNone(m, "the page carries the app manifest")
+        if m is None:
+            self.fail("the page carries no app manifest")
         return json.loads(html.unescape(m.group(1)))
 
     def test_works_where_xdg_open_does_not_exist(self):

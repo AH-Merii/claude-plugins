@@ -125,9 +125,12 @@ def renamed_from(repo, base, head, path):
     out = git(repo, "diff", "--name-status", "-M", "-z", f"{base}...{head}", check=False)
     fields = iter(out.stdout.split("\0"))
     for status in fields:  # each entry is a status, then one path, or two for a rename or copy
-        paths = (next(fields, ""), next(fields, "")) if status[:1] in ("R", "C") else (next(fields, ""),)
-        if status[:1] == "R" and paths[1] == path:
-            return paths[0]
+        if status[:1] not in ("R", "C"):
+            next(fields, "")
+            continue
+        old, new = next(fields, ""), next(fields, "")
+        if status[:1] == "R" and new == path:
+            return old
     return None
 
 

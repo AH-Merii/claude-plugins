@@ -3,6 +3,8 @@
 import json
 import re
 import unittest
+from collections.abc import Callable
+from typing import Any
 
 from helpers import INSTALL_URL, FakeGh, Repo, assert_keeps_local_work, assert_moves_to_pr_head, git, pr_table
 from pr_threads.suggestions import parse_suggestion
@@ -286,7 +288,9 @@ class StagedQueueTest(MovedHeadCase):
         self.assertEqual([c["body"] for c in gh.review_posts()[-1]["comments"]], ["On PR 6."])
 
     def test_after_discard_staging_and_submitting_work_again(self):
-        cases = [(move, lambda move=move: self.staged_then_moved(move)) for move in self.MOVES]
+        cases: list[tuple[str, Callable[[], Any]]] = [
+            (move, lambda move=move: self.staged_then_moved(move)) for move in self.MOVES
+        ]
         cases.append(("submit rejected by GitHub", self.rejected))
         for name, stuck in cases:
             with self.subTest(name):

@@ -91,7 +91,7 @@ def save(app, out):
 
 def handler(args):
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *a):
+        def log_message(self, format, *args):
             pass
 
         def reply(self, body):

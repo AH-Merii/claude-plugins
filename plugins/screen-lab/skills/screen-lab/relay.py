@@ -59,6 +59,7 @@ def resize(*_):
             paint()
         return
     fcntl.ioctl(child, termios.TIOCSWINSZ, size)
+    assert pid, "pty.fork sets child and pid together"
     os.kill(pid, signal.SIGWINCH)
 
 
