@@ -15,6 +15,12 @@
       "source": "./plugins/gitbutler-guard",
       "category": "development",
       "tags": ["hooks", "gitbutler", "git", "version-control"]
+    },
+    {
+      "name": "pr-threads",
+      "source": "./plugins/pr-threads",
+      "category": "development",
+      "tags": ["skill", "hooks", "bin", "github", "code-review", "pull-request"]
     }
   ]
 }

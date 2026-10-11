@@ -1,0 +1,11 @@
+{
+  "name": "pr-threads",
+  "displayName": "PR Threads",
+  "version": "0.1.0",
+  "description": "Review GitHub PRs as threads pinned to local path:line: one review per round from a reviewer bot, open threads only for the author, and suggestions applied locally",
+  "author": { "name": "AH-Merii (AbdulHamid Merii)", "url": "https://github.com/AH-Merii" },
+  "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/pr-threads",
+  "repository": "https://github.com/AH-Merii/claude-plugins",
+  "license": "MIT",
+  "keywords": ["skill", "hooks", "github", "code-review", "pull-request", "gh"]
+}
