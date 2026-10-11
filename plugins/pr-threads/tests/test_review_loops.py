@@ -1,8 +1,9 @@
-"""#18: bounded review loops. Pushback is accepted or disputed on its thread, and status
-reports the disputes and the round, so the method knows when to call the judge and when to stop.
+"""Pushback on review threads. The bot accepts or disputes the author's pushback on its
+thread, and status reports the disputed threads and the round, so a review can tell what's
+still contested and how many verdicts it has taken.
 
-`withdraw` is the bot's reply accepting the author's pushback (or the judge ruling for the
-author); `dispute` is its reply rejecting it. Threads here are built from what those verbs
+`withdraw` is the bot's reply accepting the author's pushback; `dispute` is its reply
+rejecting it. Threads here are built from what those verbs
 and `verify` actually post, so no test depends on how a marker is spelled.
 """
 
@@ -110,7 +111,7 @@ class PushbackResolveTest(unittest.TestCase):
     def test_withdrawn_threads_resolve_like_verified_ones(self):
         cases = {
             "withdrawn": [node("T_a", (BOT_SLUG, "Cache this."), (USER, REASON), (BOT_SLUG, withdrawn()))],
-            "disputed, then the judge ruled for the author": [
+            "disputed, then withdrawn": [
                 node(
                     "T_a",
                     (BOT_SLUG, "Cache this."),
