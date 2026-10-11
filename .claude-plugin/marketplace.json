@@ -21,6 +21,12 @@
       "source": "./plugins/pr-threads",
       "category": "development",
       "tags": ["skill", "hooks", "bin", "github", "code-review", "pull-request"]
+    },
+    {
+      "name": "shoop",
+      "source": "./plugins/shoop",
+      "category": "development",
+      "tags": ["skill", "testing", "github", "issues", "conventional-commits", "pull-request"]
     }
   ]
 }
