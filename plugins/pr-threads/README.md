@@ -29,8 +29,8 @@ pr-threads [--pr N] suggest path:line[-end] BODY [--attach ...]   < replacement
 pr-threads [--pr N] suggest path:line[-end] BODY --replacement TEXT | --delete
 pr-threads [--pr N] submit pass|changes SUMMARY [--attach ...]    # as the bot
 pr-threads [--pr N] discard                                       # drop staged comments
-pr-threads [--pr N] verify THREAD SHA [NOTE]                      # as the bot
-pr-threads [--pr N] withdraw|dispute|reopen THREAD REASON         # as the bot
+pr-threads [--pr N] verify THREAD SHA [NOTE] [--attach ...]       # as the bot
+pr-threads [--pr N] withdraw|dispute|reopen THREAD REASON [--attach ...]  # as the bot
 pr-threads [--pr N] resolve THREAD...                             # as you, one request
 pr-threads [--pr N] threads [--json]
 pr-threads [--pr N] reply THREAD BODY [--attach ...]
@@ -38,6 +38,10 @@ pr-threads [--pr N] accept THREAD
 pr-threads [--pr N] status [--json]
 pr-threads post NUMBER BODY [--attach ...]                        # issue or PR conversation
 ```
+
+Every verb that posts text (`comment`, `suggest`, `submit`, `verify`, `withdraw`, `dispute`,
+`reopen`, `reply` and `post`) takes `--attach`, and refuses in the same order: a missing
+file first, then the verb's own refusals, all before any upload.
 
 Without `--pr`, the current branch's PR is used; where the branch has none (a GitButler
 workspace is always on `gitbutler/workspace`), pass `--pr N`. Staged comments live in
@@ -84,11 +88,11 @@ is the default token command; set `PR_THREADS_TOKEN_CMD` to use another.
 
 ## Attachments
 
-`--attach FILE#alt text` embeds a screenshot or GIF. It's uploaded with your own `gh`
-login, since the bot's token can't upload, even when the bot posts the comment. `post`
-hands the file to `gh issue comment --attach`. The other verbs upload it the way gh's own
-`--attach` does: one POST to `uploads.github.com/user-attachments/assets`. GitHub doesn't
-document that endpoint, so it could change. It needs write access to the repo, and an
+`--attach FILE#alt text` embeds a screenshot or GIF after the text, in the order given.
+It's uploaded with your own `gh` login, since the bot's token can't upload, even when the
+bot posts the comment. Every verb uploads it the way gh's own `--attach` does: one POST to
+`uploads.github.com/user-attachments/assets`. GitHub doesn't document that endpoint, so it
+could change. It needs write access to the repo, and an
 uploaded image can't be deleted. Set `PR_THREADS_UPLOAD_CMD` to a command that takes a
 file path, uploads it with your login and prints the asset URL to use something else.
 

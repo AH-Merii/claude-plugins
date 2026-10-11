@@ -4,6 +4,7 @@ import json
 import os
 import re
 import sys
+from typing import Callable, NamedTuple
 
 from pr_threads import Refusal, gh, verdicts
 from pr_threads.anchor import anchor, check_synced, git, has_commit, is_ancestor
@@ -43,25 +44,44 @@ def save_staged(repo, number, staged):
     os.replace(path + ".tmp", path)
 
 
-# --- shared steps ---
+# --- the one path for every verb that posts text ---
+
+class Message(NamedTuple):
+    """What a text verb posts, returned once every refusal of its own has passed."""
+    text: str
+    post: Callable[[str], None]  # posts, or stages, the finished body
+    marker: str | None = None  # the kind of the bot's verdict, hidden at the end of the body
+
 
 def check_files(items):
-    """Refuse before anything is uploaded or sent if any `path[#alt]` isn't a file."""
+    """Refuse before anything is uploaded or sent if any `path[#alt]` isn't a file to upload."""
     for item in items:
         path = item.partition("#")[0]
         if not os.path.isfile(path):
             raise Refusal(f"--attach {path}: no such file")
+        gh.check_uploadable(path)
 
 
 def attachments(items):
     """Upload each `path[#alt]` as the user, in order; markdown images for the body."""
-    check_files(items)
     pairs = [(path, alt or os.path.basename(path)) for path, _, alt in (i.partition("#") for i in items)]
     return [f"![{alt}]({gh.upload(path)})" for path, alt in pairs]
 
 
-def with_images(text, images):
-    return "\n\n".join([text, "\n".join(images)]) if images else text
+def send(args):
+    """Run a text verb: every verb that posts a body, reason or note goes through here.
+
+    The steps come in one order for all of them. A missing --attach file refuses first, then
+    the verb's own refusals (`args.prepare`), then the uploads, with the user's login since
+    the bot's token can't upload. Only then is the text posted, with its images after it and,
+    for the bot's verdicts, the marker last. An uploaded image can't be deleted, so nothing
+    may refuse once the first upload starts.
+    """
+    check_files(args.attach)
+    message = args.prepare(args)
+    images = attachments(args.attach)
+    body = "\n\n".join([message.text, "\n".join(images)]) if images else message.text
+    message.post(verdicts.body(message.marker, body) if message.marker else body)
 
 
 def parse_location(text):
@@ -82,7 +102,6 @@ def toplevel():
 
 def stage(args, replacement=None):
     path, start, end = parse_location(args.location)
-    check_files(args.attach)
     repo = gh.repo()
     pr = gh.pull_request(args.pr)
     staged = load_staged(repo, pr["number"])
@@ -94,17 +113,17 @@ def stage(args, replacement=None):
     check_synced(root, pr["headRefName"], pr["headRefOid"])
     rel = os.path.relpath(os.path.abspath(path), root)
     pinned = anchor(root, pr["baseRefOid"], pr["headRefOid"], rel, start, end)
-    # upload last: nothing may refuse after it, since an uploaded image can't be deleted
-    text = with_images(args.body, attachments(args.attach))
-    pinned["body"] = text if replacement is None else suggestion_body(text, replacement)
-    staged = {"head": pr["headRefOid"], "comments": staged["comments"] + [pinned]}
-    save_staged(repo, pr["number"], staged)
-    print(f"staged {args.location} ({len(staged['comments'])} pending); "
-          "nothing is posted until submit")
+
+    def save(body):
+        pinned["body"] = body if replacement is None else suggestion_body(body, replacement)
+        comments = staged["comments"] + [pinned]
+        save_staged(repo, pr["number"], {"head": pr["headRefOid"], "comments": comments})
+        print(f"staged {args.location} ({len(comments)} pending); nothing is posted until submit")
+    return Message(args.body, save)
 
 
 def cmd_comment(args):
-    stage(args)
+    return stage(args)
 
 
 def replacement(args):
@@ -121,7 +140,7 @@ def replacement(args):
 
 
 def cmd_suggest(args):
-    stage(args, replacement=replacement(args))
+    return stage(args, replacement=replacement(args))
 
 
 def cmd_submit(args):
@@ -135,21 +154,23 @@ def cmd_submit(args):
                       f"pinned on {staged['head'][:12]}, so a pass would approve commits nobody "
                       "reviewed: submit `changes` on the staged head, or drop the comments with "
                       "`pr-threads discard` and review the new head")
-    review = {"commit_id": staged["head"] if staged["comments"] else pr["headRefOid"],
-              "event": EVENTS[args.verdict],
-              "body": with_images(args.body, attachments(args.attach))}
-    if staged["comments"]:
-        review["comments"] = staged["comments"]
-    try:
-        url = gh.submit_review(repo, pr["number"], review, token)
-    except gh.GhError as e:
-        if not staged["comments"]:
-            raise
-        raise Refusal(f"{e}\nthe staged comments are kept: fix the cause and submit again, or "
-                      "if GitHub rejects them, drop them with `pr-threads discard`") from None
-    if staged["comments"]:
-        os.remove(staged_path(repo, pr["number"]))
-    print(f"submitted {args.verdict} with {len(staged['comments'])} comments: {url}")
+    commit = staged["head"] if staged["comments"] else pr["headRefOid"]
+
+    def submit(body):
+        review = {"commit_id": commit, "event": EVENTS[args.verdict], "body": body}
+        if staged["comments"]:
+            review["comments"] = staged["comments"]
+        try:
+            url = gh.submit_review(repo, pr["number"], review, token)
+        except gh.GhError as e:
+            if not staged["comments"]:
+                raise
+            raise Refusal(f"{e}\nthe staged comments are kept: fix the cause and submit again, or "
+                          "if GitHub rejects them, drop them with `pr-threads discard`") from None
+        if staged["comments"]:
+            os.remove(staged_path(repo, pr["number"]))
+        print(f"submitted {args.verdict} with {len(staged['comments'])} comments: {url}")
+    return Message(args.body, submit)
 
 
 def cmd_discard(args):
@@ -160,10 +181,10 @@ def cmd_discard(args):
     print(f"discarded {count} staged comment{'' if count == 1 else 's'} on PR {number}")
 
 
-def bot_reply(thread, kind, text):
-    """Post a verdict in `thread` as the bot, or refuse with the install link."""
+def bot_verdict(thread, kind, text):
+    """The bot's `kind` verdict in `thread`; refuses now, with the install link, if it can't post."""
     token = gh.bot_token(gh.repo())
-    print(gh.reply(thread, verdicts.body(kind, text), token))
+    return Message(text, lambda body: print(gh.reply(thread, body, token)), marker=kind)
 
 
 def cmd_verify(args):
@@ -176,14 +197,15 @@ def cmd_verify(args):
     if not sha or not is_ancestor(root, sha, head):
         raise Refusal(f"{args.sha} isn't in the history of the PR head {head[:12]} on GitHub, so "
                       "it can't hold the fix: push it first, or name a commit of the PR")
-    bot_reply(args.thread, "verify", f"Verified in {sha}." + (f" {args.note}" if args.note else ""))
+    note = f" {args.note}" if args.note else ""
+    return bot_verdict(args.thread, "verify", f"Verified in {sha}.{note}")
 
 
 def cmd_reasoned(args):
     opening, records, _ = REASONED[args.verb]
     if not args.reason.strip():
         raise Refusal(f"{args.verb} needs a reason: it's the record of {records}")
-    bot_reply(args.thread, args.verb, f"{opening}: {args.reason}")
+    return bot_verdict(args.thread, args.verb, f"{opening}: {args.reason}")
 
 
 def cmd_resolve(args):
@@ -205,8 +227,7 @@ def cmd_threads(args):
 
 
 def cmd_reply(args):
-    body = with_images(args.body, attachments(args.attach))
-    print(gh.reply(args.thread, body))
+    return Message(args.body, lambda body: print(gh.reply(args.thread, body)))
 
 
 def cmd_accept(args):
@@ -230,8 +251,7 @@ def cmd_accept(args):
 
 
 def cmd_post(args):
-    check_files(args.attach)
-    print(gh.post(args.number, args.body, args.attach))
+    return Message(args.body, lambda body: print(gh.post(args.number, body)))
 
 
 # --- either side ---
@@ -248,45 +268,50 @@ def parser():
     p.add_argument("--pr", type=int, help="PR number (default: the current branch's PR)")
     verbs = p.add_subparsers(dest="verb", required=True)
 
-    def verb(name, func, help, attach=False):
+    def verb(name, func, help):
         v = verbs.add_parser(name, help=help)
         v.set_defaults(func=func)
-        if attach:
-            v.add_argument("--attach", action="append", default=[], metavar="FILE[#ALT]",
-                           help="image or GIF to embed, uploaded with your login (repeatable)")
         return v
 
-    v = verb("comment", cmd_comment, "stage a comment on path:line[-end]", attach=True)
+    def text_verb(name, prepare, help):
+        """A verb that posts text: it runs through send(), so it takes --attach like the rest."""
+        v = verb(name, send, help)
+        v.set_defaults(prepare=prepare)
+        v.add_argument("--attach", action="append", default=[], metavar="FILE[#ALT]",
+                       help="image or GIF to embed, uploaded with your login (repeatable)")
+        return v
+
+    v = text_verb("comment", cmd_comment, "stage a comment on path:line[-end]")
     v.add_argument("location")
     v.add_argument("body")
-    v = verb("suggest", cmd_suggest, "stage a suggested change; replacement on stdin", attach=True)
+    v = text_verb("suggest", cmd_suggest, "stage a suggested change; replacement on stdin")
     v.add_argument("location")
     v.add_argument("body")
     lines = v.add_mutually_exclusive_group()
     lines.add_argument("--replacement", metavar="TEXT", help="the replacement, instead of stdin")
     lines.add_argument("--delete", action="store_true", help="suggest deleting the lines")
-    v = verb("submit", cmd_submit, "post the staged comments as one review, as the bot", attach=True)
+    v = text_verb("submit", cmd_submit, "post the staged comments as one review, as the bot")
     v.add_argument("verdict", choices=EVENTS)
     v.add_argument("body")
     verb("discard", cmd_discard, "drop this PR's staged comments")
-    v = verb("verify", cmd_verify, "say as the bot that a thread's fix is in a commit of the PR")
+    v = text_verb("verify", cmd_verify, "say as the bot that a thread's fix is in a commit of the PR")
     v.add_argument("thread")
     v.add_argument("sha")
     v.add_argument("note", nargs="?")
     for name, (_, records, help) in REASONED.items():
-        v = verb(name, cmd_reasoned, f"{help}, as the bot, with {records}")
+        v = text_verb(name, cmd_reasoned, f"{help}, as the bot, with {records}")
         v.add_argument("thread")
         v.add_argument("reason")
     v = verb("resolve", cmd_resolve, "resolve threads the bot verified or withdrew, as you, in one request")
     v.add_argument("threads", nargs="+")
     v = verb("threads", cmd_threads, "list open threads at local path:line")
     v.add_argument("--json", action="store_true")
-    v = verb("reply", cmd_reply, "reply to a thread as you", attach=True)
+    v = text_verb("reply", cmd_reply, "reply to a thread as you")
     v.add_argument("thread")
     v.add_argument("body")
     v = verb("accept", cmd_accept, "apply a thread's suggestion to the local file")
     v.add_argument("thread")
-    v = verb("post", cmd_post, "general comment on an issue or PR conversation, as you", attach=True)
+    v = text_verb("post", cmd_post, "general comment on an issue or PR conversation, as you")
     v.add_argument("number", type=int)
     v.add_argument("body")
     v = verb("status", cmd_status, "handoff state (pending, changes, approved or pass), disputes and round")

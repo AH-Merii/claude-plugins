@@ -58,6 +58,15 @@ IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                ".gif": "image/gif", ".webp": "image/webp", ".svg": "image/svg+xml"}
 
 
+def check_uploadable(path):
+    """Refuse a file the upload can't take, so it refuses before any other file is uploaded.
+
+    The default upload takes only images; PR_THREADS_UPLOAD_CMD decides for itself.
+    """
+    if not _command("PR_THREADS_UPLOAD_CMD") and os.path.splitext(path)[1].lower() not in IMAGE_TYPES:
+        raise Refusal(f"--attach {path}: only {', '.join(IMAGE_TYPES)} images can be attached")
+
+
 def upload(path):
     """Upload an image with the user's gh login and return its asset URL.
 
@@ -74,9 +83,8 @@ def upload(path):
         if out.returncode or not url:
             raise Refusal(f"uploading {path} failed: {out.stderr.strip()}")
         return url
-    kind = IMAGE_TYPES.get(os.path.splitext(path)[1].lower())
-    if kind is None:
-        raise Refusal(f"--attach {path}: only {', '.join(IMAGE_TYPES)} images can be attached")
+    check_uploadable(path)
+    kind = IMAGE_TYPES[os.path.splitext(path)[1].lower()]
     try:
         return gh("api", "-X", "POST", "https://uploads.github.com/user-attachments/assets",
                   "--input", path, "-H", "Content-Type: application/octet-stream",
@@ -170,9 +178,6 @@ def resolve(threads):
             **{f"t{i}": t for i, t in enumerate(threads)})
 
 
-def post(number, body, attach=()):
-    """A general comment on issue or PR `number` as the user; gh uploads each --attach itself."""
-    args = ["issue", "comment", str(number), "--body-file", "-"]
-    for item in attach:
-        args += ["--attach", item]
-    return gh(*args, stdin=body).strip()
+def post(number, body):
+    """A general comment on issue or PR `number`, as the user."""
+    return gh("issue", "comment", str(number), "--body-file", "-", stdin=body).strip()

@@ -66,6 +66,7 @@ the round: how many verdicts the bot has submitted.
 
 ## Images
 
-`--attach FILE[#ALT]` on `comment`, `suggest`, `submit`, `reply` and `post` embeds a
-screenshot or GIF, uploaded with the user's login. Always give alt text that states what
+`--attach FILE[#ALT]` (repeatable) on every verb that posts text (`comment`, `suggest`,
+`submit`, `verify`, `withdraw`, `dispute`, `reopen`, `reply` and `post`) embeds a screenshot
+or GIF, uploaded with the user's login. Always give alt text that states what
 the image shows; readers see the alt text and open the image only when a claim depends on it.
