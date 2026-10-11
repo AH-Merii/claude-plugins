@@ -3,7 +3,8 @@
 
 Covers `gh pr comment`, `gh pr review`, `gh issue comment`, `gh api` writes to the review and
 comment REST endpoints, and the review and comment GraphQL mutations. Reads are never blocked.
-Heredoc bodies and quoted arguments are data, unless the heredoc is fed to a shell.
+Heredoc bodies and quoted arguments are data, unless the heredoc is fed to a shell, and a
+`#` comment is dropped up to its newline.
 A command shlex can't split is checked roughly, line by line: any `gh` in it counts.
 Known gap: a GraphQL query read from a file (`-F query=@file`) can't be classified.
 """
@@ -61,13 +62,40 @@ API_OPTS_WITH_VALUE = {"-X", "--method", "-f", "--raw-field", "-F", "--field", "
                        "--hostname"}
 API_BODY_OPTS = {"-f", "--raw-field", "-F", "--field", "--input"}
 
-SEPARATORS = {";", "&", "&&", "|", "||", "|&", "(", ")", "`", "\n"}
+# shlex makes each run of these one token, and every such run separates commands
+PUNCTUATION = ";&|()`\n"
+# a `#` starts a comment only at the start of a word: first, or after one of these unquoted
+WORD_BREAKS = " \t\r<>" + PUNCTUATION
 WRAPPERS = {"sudo", "env", "command", "builtin", "exec", "nohup", "time", "nice", "xargs"}
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh", "fish"}
 
 
+def strip_comments(command):
+    """`command` without its `#` comments, each dropped up to (not including) its newline.
+
+    As in the shell, a `#` inside a word (`fix#12`, `${#files[@]}`), escaped or quoted isn't
+    a comment, and one right after an operator (`cd x;# go`) is.
+    """
+    out, quote, word_start, i = [], None, True, 0
+    while i < len(command):
+        ch = command[i]
+        if ch == "#" and quote is None and word_start:
+            end = command.find("\n", i)
+            i = len(command) if end < 0 else end
+            continue
+        step = 2 if ch == "\\" and quote != "'" else 1
+        if ch in "'\"" and quote in (None, ch):
+            quote = None if quote else ch
+        word_start = step == 1 and quote is None and ch in WORD_BREAKS
+        out.append(command[i:i + step])
+        i += step
+    return "".join(out)
+
+
 def tokenize(command):
-    lex = shlex.shlex(command, posix=True, punctuation_chars=";&|()`\n")
+    """Words and separator runs of a command whose comments are already stripped."""
+    lex = shlex.shlex(command, posix=True, punctuation_chars=PUNCTUATION)
+    lex.commenters = ""  # shlex would also start one inside a word, and drop its newline
     lex.whitespace = " \t\r"
     lex.whitespace_split = True
     return list(lex)
@@ -76,7 +104,7 @@ def tokenize(command):
 def segments(tokens):
     seg = []
     for tok in tokens:
-        if tok in SEPARATORS:
+        if tok and not tok.strip(PUNCTUATION):  # a run like `;\n` or `&&\n\n`
             if seg:
                 yield seg
             seg = []
@@ -206,6 +234,8 @@ def check(command):
     for script in scripts:
         if hit := check(script):
             return hit
+    # after the heredoc split, so a quote in heredoc data can't hide or expose a comment
+    command = strip_comments(command)
     try:
         tokens = tokenize(command)
     except ValueError:
