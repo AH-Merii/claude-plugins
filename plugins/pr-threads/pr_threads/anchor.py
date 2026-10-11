@@ -23,7 +23,7 @@ class NotPulled(Refusal):
 
 
 def git(repo, *args, check=True, input=None):
-    out = subprocess.run(["git", "-C", repo, *args], input=input, capture_output=True, text=True)
+    out = subprocess.run(["git", "-C", repo, *args], input=input, capture_output=True, text=True, check=False)
     if check and out.returncode:
         raise Refusal(f"git {args[0]}: {out.stderr.strip()}")
     return out
@@ -117,7 +117,7 @@ def received(repo):
     return tips
 
 
-HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", re.M)
+HUNK = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@", re.MULTILINE)
 
 
 def renamed_from(repo, base, head, path):

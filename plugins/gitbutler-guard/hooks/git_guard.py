@@ -285,6 +285,7 @@ def in_workspace(path, cache):
                 capture_output=True,
                 text=True,
                 timeout=5,
+                check=False,
             )
             cache[path] = out.stdout.strip() == WORKSPACE_BRANCH
         except (OSError, subprocess.SubprocessError):
@@ -321,7 +322,7 @@ def main():
         command = data.get("tool_input", {}).get("command") or ""
         cwd = data.get("cwd") or os.getcwd()
         hit = find_violation(command, cwd)
-    except Exception:
+    except Exception:  # noqa: BLE001 -- fail open: a guard bug must never block the command
         return 0
     if hit:
         sub, advice = hit

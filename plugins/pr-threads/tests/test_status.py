@@ -2,12 +2,11 @@
 
 import json
 import unittest
+from typing import ClassVar
 
 from helpers import BOT, FakeGh, Repo, pages, pr_table, resolved_response, thread
 from helpers import threads_response as response
-
 from pr_threads.status import handoff
-
 
 HUMAN = "octocat"
 
@@ -136,7 +135,7 @@ class PerReviewerTest(HandoffCase):
 class VerdictRoundTripTest(unittest.TestCase):
     """What the bot's submit writes is what handoff reads."""
 
-    STATES = {"APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED", "COMMENT": "COMMENTED"}
+    STATES: ClassVar = {"APPROVE": "APPROVED", "REQUEST_CHANGES": "CHANGES_REQUESTED", "COMMENT": "COMMENTED"}
 
     def setUp(self):
         self.repo = Repo()

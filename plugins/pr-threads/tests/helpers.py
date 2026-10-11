@@ -3,9 +3,9 @@
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
-import shlex
 import tempfile
 from unittest import mock
 
@@ -201,6 +201,7 @@ class FakeGh:
             text=True,
             env=env,
             input=input_text,
+            check=False,
         )
         if check and out.returncode != 0:
             raise AssertionError(f"pr-threads {args} failed: {out.stderr}")
@@ -329,7 +330,9 @@ def advises(message, verb):
     command = r"(?:git\s+|gh\s+pr\s+)"
     return (
         re.search(
-            rf"{starts}{command}?{verb}\b(?!\s+request)|(?<!n't )(?<!not )\b{command}{verb}\b", message, re.I | re.M
+            rf"{starts}{command}?{verb}\b(?!\s+request)|(?<!n't )(?<!not )\b{command}{verb}\b",
+            message,
+            re.IGNORECASE | re.MULTILINE,
         )
         is not None
     )

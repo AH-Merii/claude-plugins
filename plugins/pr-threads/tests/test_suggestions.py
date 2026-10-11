@@ -3,10 +3,10 @@
 import json
 import os
 import unittest
+from typing import ClassVar
 
 from helpers import FakeGh, Repo, git, isolate_git, pr_table, thread
 from helpers import threads_response as response
-
 from pr_threads.suggestions import StaleSuggestion, accept, parse_suggestion, suggestion_body
 
 
@@ -76,7 +76,7 @@ class AcceptByContentTest(unittest.TestCase):
     """
 
     # (name, edit to the reviewed file) applied before accepting
-    SHIFTS = [
+    SHIFTS: ClassVar = [
         ("one line added above", lambda t: "inserted\n" + t),
         ("three lines added above", lambda t: "a\nb\nc\n" + t),
         ("two lines removed above", lambda t: t.replace("line 1\nline 2\n", "")),
@@ -86,7 +86,7 @@ class AcceptByContentTest(unittest.TestCase):
         ("added above and removed below", lambda t: ("top\n" + t).replace("line 30\n", "")),
     ]
     # (start, end, what the reviewer saw there, replacement)
-    TARGETS = [(10, 10, ["changed 10"], "fixed 10\n"), (21, 22, ["new a", "new b"], "x = 1\n")]
+    TARGETS: ClassVar = [(10, 10, ["changed 10"], "fixed 10\n"), (21, 22, ["new a", "new b"], "x = 1\n")]
 
     def setUp(self):
         isolate_git(self)
@@ -196,12 +196,12 @@ class AcceptByContentTest(unittest.TestCase):
             block = self.block(start, end)
             rewritten = [f"rewritten {line}" for line in block]
 
-            def rewrite(index):
+            def rewrite(index, at=at, n=n, rewritten=rewritten, block=block):
                 lines = self.pushed.splitlines(keepends=True)
                 lines[at : at + n] = rewritten
                 return self.with_inserts(lines, [(index, block)])
 
-            def delete(index):
+            def delete(index, at=at, n=n, block=block):
                 lines = self.pushed.splitlines(keepends=True)
                 del lines[at : at + n]
                 return self.with_inserts(lines, [(index, block)])

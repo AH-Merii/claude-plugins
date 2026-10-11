@@ -289,7 +289,7 @@ def main():
     try:
         data = json.load(sys.stdin)
         reason = find_violation(data.get("tool_input", {}).get("command") or "")
-    except Exception:
+    except Exception:  # noqa: BLE001 -- fail open: a guard bug must never block the command
         return 0
     if reason:
         json.dump(

@@ -43,7 +43,7 @@ def parse_suggestion(body):
     return None
 
 
-LOCAL_HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@", re.M)
+LOCAL_HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,(\d+))? @@", re.MULTILINE)
 
 
 def follow(repo, commit, path, start, end):

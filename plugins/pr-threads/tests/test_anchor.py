@@ -6,6 +6,7 @@ import shlex
 import subprocess
 import tempfile
 import unittest
+from typing import ClassVar
 
 from helpers import (
     Repo,
@@ -17,7 +18,6 @@ from helpers import (
     isolate_git,
     numbered,
 )
-
 from pr_threads import Refusal
 from pr_threads.anchor import LocalDiffers, NotInDiff, NotPulled, NotPushed, anchor, check_synced
 
@@ -91,7 +91,7 @@ class RenameTest(unittest.TestCase):
     """
 
     # new path: (what the PR does to it, lines GitHub shows, lines outside every hunk)
-    RENAMES = {
+    RENAMES: ClassVar = {
         "pure2.txt": ("renamed, unchanged", [], [1, 20, 40]),
         "tail2.txt": ("renamed, a line appended", [38, 41], [1, 2, 37]),
         "mid2.txt": ("renamed, line 20 changed", [17, 20, 23], [1, 16, 24, 40]),
@@ -238,7 +238,7 @@ class SyncTest(unittest.TestCase):
     def test_divergence_checks_tell_safe_advice_from_harmful(self):
         local = "abcdef1" + "0" * 33
         moves = assert_moves_to_pr_head
-        keeps = lambda test, message: assert_keeps_local_work(test, message, local)  # noqa: E731
+        keeps = lambda test, message: assert_keeps_local_work(test, message, local)
         for check, message, ok in [
             (moves, "the PR head was rewritten; don't pull or push: reset to it", True),
             (moves, "the PR head was rewritten: move to it with gh pr checkout 5 --force", True),
@@ -376,7 +376,7 @@ class RemoteSyncTest(unittest.TestCase):
     def drop_top(self):
         git(self.author, "reset", "-q", "--hard", self.one)
 
-    REWRITES = [
+    REWRITES: ClassVar = [
         ("message-only amend", amend_message),
         ("content amend", amend_content),
         ("content amend of an earlier commit", amend_earlier),
@@ -441,7 +441,7 @@ class RemoteSyncTest(unittest.TestCase):
                 f"names {sha}, which the clone got from the PR, as its own: {message}",
             )
 
-    OWN = ["local only", "local only 2"]  # the clone's own commits, oldest first
+    OWN: ClassVar = ["local only", "local only 2"]  # the clone's own commits, oldest first
 
     def own_local_commits(self):
         """The clone's own two commits, oldest first, in files no rewrite touches, so replaying
@@ -466,7 +466,11 @@ class RemoteSyncTest(unittest.TestCase):
         self.assertTrue(commands, f"advises rebasing without the command to run: {message}")
         command = commands[0].rstrip(". ")
         out = subprocess.run(
-            ["git", "-C", self.clone, *shlex.split(command)[1:]], capture_output=True, text=True, env=clean_env()
+            ["git", "-C", self.clone, *shlex.split(command)[1:]],
+            capture_output=True,
+            text=True,
+            env=clean_env(),
+            check=False,
         )
         self.assertEqual(out.returncode, 0, f"`{command}` fails: {out.stdout}{out.stderr}\n{message}")
         on_top = git(self.clone, "log", "--reverse", "--format=%s", f"{pr_head}..HEAD").splitlines()

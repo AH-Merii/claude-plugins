@@ -6,6 +6,7 @@ import re
 import subprocess
 import sys
 import unittest
+from typing import ClassVar
 
 from helpers import (
     BOT_SLUG,
@@ -21,7 +22,6 @@ from helpers import (
     pr_table,
     write_png,
 )
-
 from pr_threads.suggestions import parse_suggestion
 
 TEXT = "Footer overlaps the status bar."
@@ -164,6 +164,7 @@ class EveryVerbAttachTest(unittest.TestCase):
             capture_output=True,
             text=True,
             env=clean_env(PYTHONPATH=PLUGIN),
+            check=False,
         )
         listed = re.search(r"\{([\w,-]+)\}", out.stdout)
         self.assertTrue(listed, f"no verb list in --help: {out.stdout}")
@@ -228,7 +229,7 @@ class BotVerdictAttachTest(unittest.TestCase):
     """
 
     # verb -> (the bot's earlier verdict, disputed, resolves)
-    VERDICTS = {
+    VERDICTS: ClassVar = {
         "verify": ("dispute", False, True),
         "withdraw": ("dispute", False, True),
         "dispute": ("withdraw", True, False),
@@ -309,7 +310,7 @@ class UploadLastTest(unittest.TestCase):
     def test_every_refusal_comes_before_any_upload(self):
         comment = ("comment", "app.py:10", "Look.")
         suggest = ("suggest", "app.py:10", "Look.")
-        nothing = lambda: None  # noqa: E731
+        nothing = lambda: None
         for name, prepare, args, stdin in [
             ("comment after the PR head moved", self.move_pr_head, comment, ""),
             ("suggest after the PR head moved", self.move_pr_head, suggest, "x = 1\n"),

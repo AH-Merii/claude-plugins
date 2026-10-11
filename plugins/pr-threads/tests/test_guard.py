@@ -14,7 +14,9 @@ from helpers import PLUGIN
 HOOKS = os.path.join(PLUGIN, "hooks")
 sys.path.insert(0, HOOKS)
 
-from pr_guard import find_violation  # noqa: E402
+from typing import ClassVar
+
+from pr_guard import find_violation
 
 DENIED = [
     "gh pr comment 5 --body 'looks wrong'",
@@ -143,19 +145,21 @@ class DataIsNotCommandsTest(unittest.TestCase):
     command a heredoc belongs to, and every command after its closing line, is still checked.
     """
 
-    HEREDOCS = [
+    HEREDOCS: ClassVar = [
         "cat > notes.md <<EOF\ngh pr comment 5 --body hi\nEOF",
         "cat > notes.md <<'EOF'\ngh api -X POST repos/o/r/pulls/1/comments -f body=x\nEOF",
         'cat > notes.md <<"END"\ngh issue comment 7 --body x\nEND',
         "cat <<-EOF > notes.md\n\tgh pr review 5 --approve\n\tEOF",
         "pr-threads --pr 5 suggest x.py:3 'Use this.' <<'EOF'\ngh api -X POST repos/o/r/pulls/1/comments\nEOF",
-        "pr-threads --pr 5 suggest tests/test_guard.py:20 'Add a case.' <<'EOF'\n"
-        '    "gh pr review 5 --approve",\n    "gh api graphql -f query=\'mutation { addComment }\'",\nEOF',
+        (
+            "pr-threads --pr 5 suggest tests/test_guard.py:20 'Add a case.' <<'EOF'\n"
+            '    "gh pr review 5 --approve",\n    "gh api graphql -f query=\'mutation { addComment }\'",\nEOF'
+        ),
         # an odd quote in the body, which shlex can't split
         "cat > notes.md <<'EOF'\nit's gh pr comment 5 -b hi\nEOF",
         "cat > a.md <<A\ngh pr comment 1 -b x\nA\ncat > b.md <<B\ngh pr review 1 --approve\nB",
     ]
-    QUOTED = [
+    QUOTED: ClassVar = [
         "pr-threads --pr 5 comment a.py:3 'Run this instead:\ngh pr comment 5 --body hi'",
         'pr-threads --pr 5 comment a.py:3 "Don\'t use\ngh api -X POST repos/o/r/pulls/1/reviews"',
         "gh pr create --title t --body 'Use gh pr comment 5 --body x, not gh api -X POST repos/o/r/pulls/5/reviews'",
@@ -194,7 +198,7 @@ class CommentsTest(unittest.TestCase):
     """
 
     # one write of each kind the guard denies; comments are handled once, in tokenize
-    WRITES = [
+    WRITES: ClassVar = [
         "gh pr comment 5 --body 'looks wrong'",
         "gh api -X POST repos/o/r/pulls/5/reviews --input review.json",
         "gh api graphql -f query='mutation { resolveReviewThread(input: {threadId: \"T1\"}) { thread { id } } }'",
@@ -203,7 +207,7 @@ class CommentsTest(unittest.TestCase):
     ]
 
     # a line ending in a comment, before the write on the next line
-    COMMENTED = [
+    COMMENTED: ClassVar = [
         "git push  # publish first",
         "cd repo # go there",
         "git fetch origin #sync",
@@ -260,8 +264,10 @@ class CommentsTest(unittest.TestCase):
             "git commit -m 'refs #5' && gh pr comment 5 --body 'Fixed.\nThanks'",
             'git commit -m "refs #5" && gh pr comment 5 --body "Fixed.\nThanks"',
             # a quote in heredoc data opens nothing for the command lines after it
-            "cat > body.md <<'EOF'\nIt's fixed: the cache is warmed first.\nEOF\n"
-            "git commit -qam 'Fix #12' && gh pr comment 5 --body-file body.md",
+            (
+                "cat > body.md <<'EOF'\nIt's fixed: the cache is warmed first.\nEOF\n"
+                "git commit -qam 'Fix #12' && gh pr comment 5 --body-file body.md"
+            ),
             'cat > notes.md <<EOF\nUse a 6" pipe\nEOF\ngit commit -m "refs #5" && gh pr review 5 --approve',
         ]:
             with self.subTest(command=command):
@@ -289,7 +295,11 @@ class CommentsTest(unittest.TestCase):
 class HookProcessTest(unittest.TestCase):
     def run_hook(self, stdin):
         return subprocess.run(
-            [sys.executable, os.path.join(HOOKS, "pr_guard.py")], input=stdin, capture_output=True, text=True
+            [sys.executable, os.path.join(HOOKS, "pr_guard.py")],
+            input=stdin,
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
     def test_denied_command_gets_a_deny_decision(self):

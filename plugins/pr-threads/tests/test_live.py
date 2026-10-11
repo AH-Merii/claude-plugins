@@ -25,6 +25,7 @@ def sh(*args, cwd=None, input_text=None, env=None):
         text=True,
         input=input_text,
         env={**{k: v for k, v in os.environ.items() if k not in GIT_REPO_VARS}, **(env or {})},
+        check=False,
     )
     if out.returncode:
         raise AssertionError(f"{args} failed: {out.stderr}")

@@ -17,7 +17,10 @@ Like real gh it expands {owner}/{repo} in api endpoints, builds nested payloads 
 issues/N/comments it is, and prints the comment URL.
 """
 
-import json, os, re, sys
+import json
+import os
+import re
+import sys
 
 OWNER, REPO = "o", "r"
 

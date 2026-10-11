@@ -22,7 +22,7 @@ class GhError(Refusal):
 
 def gh(*args, token=None, stdin=None):
     env = dict(os.environ, GH_TOKEN=token) if token else None
-    out = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, env=env)
+    out = subprocess.run(["gh", *args], input=stdin, capture_output=True, text=True, env=env, check=False)
     if out.returncode:
         raise GhError(out.stderr.strip() or f"gh {' '.join(args[:2])} failed")
     return out.stdout
@@ -46,7 +46,9 @@ def _command(env_name, default=None):
 
 def bot_token(repo):
     """A short-lived token for the reviewer bot on `repo`, or a Refusal saying how to set it up."""
-    out = subprocess.run([*_command("PR_THREADS_TOKEN_CMD", DEFAULT_TOKEN_CMD), repo], capture_output=True, text=True)
+    out = subprocess.run(
+        [*_command("PR_THREADS_TOKEN_CMD", DEFAULT_TOKEN_CMD), repo], capture_output=True, text=True, check=False
+    )
     token = out.stdout.strip()
     if out.returncode or not token:
         raise Refusal(
@@ -86,7 +88,7 @@ def upload(path):
     """
     cmd = _command("PR_THREADS_UPLOAD_CMD")
     if cmd:
-        out = subprocess.run([*cmd, path], capture_output=True, text=True)
+        out = subprocess.run([*cmd, path], capture_output=True, text=True, check=False)
         url = out.stdout.strip()
         if out.returncode or not url:
             raise Refusal(f"uploading {path} failed: {out.stderr.strip()}")

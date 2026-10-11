@@ -48,7 +48,7 @@ def options():
 
 
 def gh_login():
-    out = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True)
+    out = subprocess.run(["gh", "api", "user", "--jq", ".login"], capture_output=True, text=True, check=False)
     if out.returncode or not out.stdout.strip():
         sys.exit(f"can't read your gh login ({out.stderr.strip()}): log in with gh, or pass --owner")
     return out.stdout.strip()

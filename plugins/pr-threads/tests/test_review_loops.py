@@ -451,7 +451,7 @@ class StatusLoopTest(unittest.TestCase):
     def test_the_bots_comment_reviews_are_not_rounds(self):
         # what the live run on AH-Merii/test#7 listed: a verdict, a COMMENTED review around each
         # verify reply, then the next verdict; status said round 4
-        replies = lambda hour, n: [bot("COMMENTED", hour + i) for i in range(n)]  # noqa: E731
+        replies = lambda hour, n: [bot("COMMENTED", hour + i) for i in range(n)]
         cases = {
             "a comment review per reply between two verdicts": (
                 [bot("CHANGES_REQUESTED", 1)] + replies(2, 2) + [bot("APPROVED", 5)],

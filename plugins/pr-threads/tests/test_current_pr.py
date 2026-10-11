@@ -8,6 +8,7 @@ import json
 import os
 import re
 import unittest
+from typing import ClassVar
 
 from helpers import PLUGIN, FakeGh, Repo, git, pr_table, write_png
 
@@ -15,8 +16,8 @@ from helpers import PLUGIN, FakeGh, Repo, git, pr_table, write_png
 class NoPrForBranchTest(unittest.TestCase):
     """Every verb that works on "the current PR" stops before doing anything, naming --pr N."""
 
-    BRANCHES = ["gitbutler/workspace", "no-pr-yet"]
-    VERBS = [
+    BRANCHES: ClassVar = ["gitbutler/workspace", "no-pr-yet"]
+    VERBS: ClassVar = [
         ("comment", "app.py:10", "Hmm.", "--attach", "shot.png"),
         ("suggest", "app.py:10", "Hmm.", "--attach", "shot.png"),
         ("submit", "changes", "Summary.", "--attach", "shot.png"),

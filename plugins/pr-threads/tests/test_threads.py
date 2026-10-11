@@ -5,7 +5,6 @@ import unittest
 
 from helpers import FakeGh, Repo, pr_table, thread
 from helpers import threads_response as response
-
 from pr_threads.threads import open_threads
 
 

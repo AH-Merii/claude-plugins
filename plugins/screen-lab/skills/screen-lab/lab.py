@@ -176,7 +176,7 @@ def config_files(path, seen=None):
     seen.add(path)
     code, _ = strip_comments(path.read_text())
     yield path, code
-    for m in re.finditer(r"^\s*include\s+(" + STRING + ")", code, re.M):
+    for m in re.finditer(r"^\s*include\s+(" + STRING + ")", code, re.MULTILINE):
         yield from config_files(path.parent / os.path.expanduser(kdl_string(m.group(1))), seen)
 
 
@@ -335,7 +335,7 @@ def read_ppm(path):
 
 def measure_grid(st):
     """Find the two magenta marker cells the relay paints before the command starts."""
-    cols, rows, xpx, ypx = map(int, (STATE / "size").read_text().split())
+    cols, rows, xpx, _ypx = map(int, (STATE / "size").read_text().split())
     with tempfile.TemporaryDirectory(dir=STATE) as tmp:
         shot = Path(tmp) / "grid.ppm"
         subprocess.run(["grim", "-t", "ppm", "-o", st["output"], str(shot)], check=True)
@@ -444,7 +444,7 @@ def cmd_start(a):
         for k, v in os.environ.items()
         if not (k.startswith("CLAUDE") and k != "CLAUDE_CONFIG_DIR") and k not in ("TMUX", "TMUX_PANE")
     }
-    log = open(STATE / "ghostty.log", "w")
+    log = open(STATE / "ghostty.log", "w")  # noqa: SIM115 -- the detached child keeps writing to it
     proc = subprocess.Popen(
         [
             "ghostty",
@@ -655,7 +655,7 @@ def rec_start(st, crop):
     alone(st)
     video = str(STATE / "rec.mp4")
     args = ["-g", grid_rect(st)] if crop else ["-o", st["output"]]
-    log = open(STATE / "rec.log", "w")
+    log = open(STATE / "rec.log", "w")  # noqa: SIM115 -- the detached recorder keeps writing to it
     p = subprocess.Popen(
         ["wf-recorder", "-y", *args, "-f", video],
         stdin=subprocess.DEVNULL,

@@ -5,7 +5,6 @@ import re
 import unittest
 
 from helpers import INSTALL_URL, FakeGh, Repo, assert_keeps_local_work, assert_moves_to_pr_head, git, pr_table
-
 from pr_threads.suggestions import parse_suggestion
 
 
@@ -201,7 +200,7 @@ class SubmitMovedHeadTest(MovedHeadCase):
         shas = re.findall(r"\b[0-9a-f]{7,40}\b", message)
         names_a_head = any(h.startswith(sha) for sha in shas for h in (reviewed, self.repo.head))
         self.assertTrue(
-            names_a_head or re.search(r"\b(moved|new commits?|since)\b", message, re.I),
+            names_a_head or re.search(r"\b(moved|new commits?|since)\b", message, re.IGNORECASE),
             f"the refusal doesn't say the PR has new commits: {message}",
         )
 

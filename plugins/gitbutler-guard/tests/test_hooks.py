@@ -10,8 +10,8 @@ import unittest
 HOOKS = os.path.join(os.path.dirname(__file__), "..", "hooks")
 sys.path.insert(0, HOOKS)
 
-import git_guard  # noqa: E402
-import skill_sync  # noqa: E402
+import git_guard
+import skill_sync
 
 
 def make_repo(root, branch):
@@ -361,7 +361,11 @@ class GitGuardTest(unittest.TestCase):
     def test_hook_is_silent_when_allowed_or_malformed(self):
         for payload in [json.dumps({"tool_input": {"command": "git log"}, "cwd": self.workspace}), "not json"]:
             out = subprocess.run(
-                [sys.executable, os.path.join(HOOKS, "git_guard.py")], input=payload, capture_output=True, text=True
+                [sys.executable, os.path.join(HOOKS, "git_guard.py")],
+                input=payload,
+                capture_output=True,
+                text=True,
+                check=False,
             )
             self.assertEqual((out.returncode, out.stdout), (0, ""))
 

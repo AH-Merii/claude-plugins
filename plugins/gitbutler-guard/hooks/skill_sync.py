@@ -14,7 +14,7 @@ import sys
 
 
 def cli_version(but):
-    out = subprocess.run([but, "--version"], capture_output=True, text=True, timeout=10)
+    out = subprocess.run([but, "--version"], capture_output=True, text=True, timeout=10, check=False)
     match = re.search(r"\d+\.\d+\.\d+\S*", out.stdout)
     return match.group(0) if match else None
 
@@ -46,6 +46,7 @@ def main():
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
     except (OSError, subprocess.SubprocessError):
         return 0

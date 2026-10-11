@@ -22,7 +22,7 @@ import time
 import tty
 
 state, argv = sys.argv[1], sys.argv[2:]
-sys.stderr = open(os.path.join(state, "relay.log"), "a", buffering=1)
+sys.stderr = open(os.path.join(state, "relay.log"), "a", buffering=1)  # noqa: SIM115 -- stderr for the whole run
 MARK = b"\x1b[48;2;255;0;255m \x1b[0m"
 go = os.path.join(state, "go")
 child = None

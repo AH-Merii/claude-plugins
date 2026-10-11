@@ -5,13 +5,16 @@ import json
 import os
 import re
 import sys
-from typing import Callable, NamedTuple
+from collections.abc import Callable
+from typing import NamedTuple
 
 from pr_threads import Refusal, gh, verdicts
 from pr_threads.anchor import anchor, check_synced, git, has_commit, is_ancestor
-from pr_threads.status import handoff, render as render_status
+from pr_threads.status import handoff
+from pr_threads.status import render as render_status
 from pr_threads.suggestions import accept, parse_suggestion, suggestion_body
-from pr_threads.threads import FIELDS, nodes, open_threads, render as render_threads
+from pr_threads.threads import FIELDS, nodes, open_threads
+from pr_threads.threads import render as render_threads
 
 EVENTS = {"pass": "APPROVE", "changes": "REQUEST_CHANGES"}
 # the bot's verdicts given with a reason -> (how its reply opens, what the reason records, help)
