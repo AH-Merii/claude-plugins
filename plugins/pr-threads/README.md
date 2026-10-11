@@ -9,10 +9,10 @@ requests as threads pinned to local `path:line`:
   edits, and a branch that's ahead of, behind or diverged from the pushed head are refused
   up front.
 - **The bot** answers each thread with a verdict: `verify` (the fix is in a commit of the
-  PR), `withdraw` (the author's pushback holds) or `dispute` (the finding stands), each with
-  its reason. `resolve` then runs as you, only on threads whose last comment is the bot's
-  verification or withdrawal, since GitHub won't let the app resolve threads without
-  write access to the code.
+  PR), `withdraw` (the author's pushback holds), `dispute` (the finding stands) or `reopen`
+  (the fix didn't work), each with its reason. `resolve` then runs as you, only on threads
+  whose last comment is the bot's verification or withdrawal, since GitHub won't let the
+  app resolve threads without write access to the code.
 - **The author** sees only open threads, replies as you, and applies a suggestion to the
   local file, so it goes through the normal commit path.
 - **Either side** reads the handoff state with `status`: `pending`, `changes`, `approved`
@@ -30,7 +30,7 @@ pr-threads [--pr N] suggest path:line[-end] BODY --replacement TEXT | --delete
 pr-threads [--pr N] submit pass|changes SUMMARY [--attach ...]    # as the bot
 pr-threads [--pr N] discard                                       # drop staged comments
 pr-threads [--pr N] verify THREAD SHA [NOTE]                      # as the bot
-pr-threads [--pr N] withdraw|dispute THREAD REASON                # as the bot
+pr-threads [--pr N] withdraw|dispute|reopen THREAD REASON         # as the bot
 pr-threads [--pr N] resolve THREAD...                             # as you, one request
 pr-threads [--pr N] threads [--json]
 pr-threads [--pr N] reply THREAD BODY [--attach ...]
@@ -52,7 +52,8 @@ endings.
 
 `verify` refuses unless SHA is in the history of the PR head on GitHub. `resolve` resolves
 all of its threads or none, and names each one that fails and why: no verification from
-the bot, someone (even the bot) commented after it, or the bot disputes it.
+the bot, someone (even the bot) commented after it, or the bot's latest verdict on it is a
+dispute or a reopen.
 
 ## Requirements
 
@@ -63,7 +64,7 @@ the bot, someone (even the bot) commented after it, or the bot disputes it.
 
 ## Setup: the reviewer bot
 
-`submit`, `verify`, `withdraw` and `dispute` run as a GitHub App. Without it they print
+`submit`, `verify`, `withdraw`, `dispute` and `reopen` run as a GitHub App. Without it they print
 the install link, exit non-zero and post nothing. Create the app once:
 
 ```sh

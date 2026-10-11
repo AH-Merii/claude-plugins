@@ -1,4 +1,4 @@
-"""The bot's verdicts on a thread: its verify, withdraw and dispute replies, told apart by a marker.
+"""The bot's verdicts on a thread: its verify, withdraw, dispute and reopen replies, told apart by a marker.
 
 A verdict counts only when the bot wrote it: a marker pasted by anyone else is just text.
 """
@@ -9,7 +9,10 @@ from pr_threads import Refusal
 from pr_threads.threads import nodes
 
 # marker kind -> what the reply is
-KINDS = {"verify": "verification", "withdraw": "withdrawal", "dispute": "dispute"}
+KINDS = {"verify": "verification", "withdraw": "withdrawal", "dispute": "dispute", "reopen": "reopening"}
+# the bot's latest verdict -> why it keeps the thread from resolving, whatever came after it
+BLOCKING = {"dispute": "is disputed: the bot's latest verdict on it is a dispute",
+            "reopen": "was reopened: the bot's latest verdict on it is that the fix didn't work"}
 MARKER = "<!-- pr-threads:%s -->"
 # the latest comments are what count, so read from the end of each thread
 FIELDS = "id isResolved comments(last: 100) { nodes { author { login } body } }"
@@ -57,8 +60,8 @@ def unresolvable(thread, bot):
     if last and login(last) == bot and kind(last) in ("verify", "withdraw"):
         return None
     found = bot_kinds(thread, bot)
-    if found and found[-1] == "dispute":
-        return "is disputed: the bot's latest verdict on it is a dispute"
+    if found and found[-1] in BLOCKING:
+        return BLOCKING[found[-1]]
     if last and kind(last):
         return (f"its last comment is a {KINDS[kind(last)]} written by "
                 f"{login(last) or 'a deleted account'}, not the bot")

@@ -29,9 +29,11 @@ so always pass `--pr N` there.
    answer each thread as the bot:
    - `pr-threads verify T1 <sha> ["note"]`: the fix is in `<sha>`, a commit of the PR.
    - `pr-threads withdraw T1 "reason"`: the author's pushback holds.
-   - `pr-threads dispute T1 "reason"`: the finding stands.
+   - `pr-threads dispute T1 "reason"`: the finding stands against the author's pushback.
+   - `pr-threads reopen T1 "reason"`: the fix didn't work. The thread stays open, and
+     isn't disputed: nobody pushed back.
 
-`submit`, `verify`, `withdraw` and `dispute` only run as the bot. If they print an install
+`submit`, `verify`, `withdraw`, `dispute` and `reopen` only run as the bot. If they print an install
 link, stop and give it to the user; never fall back to posting from their account.
 
 ## Author

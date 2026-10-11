@@ -12,9 +12,12 @@ from pr_threads.suggestions import accept, parse_suggestion, suggestion_body
 from pr_threads.threads import FIELDS, nodes, open_threads, render as render_threads
 
 EVENTS = {"pass": "APPROVE", "changes": "REQUEST_CHANGES"}
-# pushback verb -> (how its reply opens, what the reason records)
-PUSHBACK = {"withdraw": ("Withdrawn", "why the finding was dropped"),
-            "dispute": ("Disputed", "why the finding stands")}
+# the bot's verdicts given with a reason -> (how its reply opens, what the reason records, help)
+REASONED = {
+    "withdraw": ("Withdrawn", "why the finding was dropped", "drop a finding after the author's pushback"),
+    "dispute": ("Disputed", "why the finding stands", "keep a finding against the author's pushback"),
+    "reopen": ("Reopened", "why the fix didn't work", "reopen a thread the author says is fixed"),
+}
 
 
 # --- staged review comments, kept per repo and PR until submit succeeds ---
@@ -176,8 +179,8 @@ def cmd_verify(args):
     bot_reply(args.thread, "verify", f"Verified in {sha}." + (f" {args.note}" if args.note else ""))
 
 
-def cmd_pushback(args):
-    opening, records = PUSHBACK[args.verb]
+def cmd_reasoned(args):
+    opening, records, _ = REASONED[args.verb]
     if not args.reason.strip():
         raise Refusal(f"{args.verb} needs a reason: it's the record of {records}")
     bot_reply(args.thread, args.verb, f"{opening}: {args.reason}")
@@ -270,8 +273,8 @@ def parser():
     v.add_argument("thread")
     v.add_argument("sha")
     v.add_argument("note", nargs="?")
-    for name, (_, records) in PUSHBACK.items():
-        v = verb(name, cmd_pushback, f"{name} a finding after pushback, as the bot, with {records}")
+    for name, (_, records, help) in REASONED.items():
+        v = verb(name, cmd_reasoned, f"{help}, as the bot, with {records}")
         v.add_argument("thread")
         v.add_argument("reason")
     v = verb("resolve", cmd_resolve, "resolve threads the bot verified or withdrew, as you, in one request")

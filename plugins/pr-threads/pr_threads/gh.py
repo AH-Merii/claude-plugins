@@ -1,7 +1,7 @@
 """The only place pr-threads talks to GitHub: gh, the bot's token command and the upload command.
 
 Reads, the author's writes and resolve go out as the user's own gh login. The bot's
-writes (submit, verify, withdraw, dispute) carry its token in GH_TOKEN.
+writes (submit, verify, withdraw, dispute, reopen) carry its token in GH_TOKEN.
 """
 import functools
 import json
