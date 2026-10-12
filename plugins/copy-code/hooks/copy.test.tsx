@@ -3,6 +3,7 @@ import { type Engine, expect, mock, test } from 'claude-code/testing'
 const REPLY = 'Run this:\n\n```sh\nls -la\n```\n\nand this:\n\n```py\nprint(1)\n```'
 
 test('each code block gets a copy row that copies its code', async ($, on) => {
+  mock.clock(on)
   const copied: string[] = []
   on('ui.copy', (_$, e) => {
     copied.push(e.text)

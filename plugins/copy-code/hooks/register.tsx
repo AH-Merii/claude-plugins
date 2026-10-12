@@ -14,8 +14,13 @@ const RIGHT = 2 + LABEL.length + 1
 const MIN_NAME = 4
 // Narrower than this a box can't hold its corners and copy, so Claude Code draws the reply.
 const MIN_COLUMNS = 12
+// How long a toast stays; Claude Code's default.
+const TOAST_MS = 4000
 
 export const register: Register = on => {
+  // The toast showing, if any. Raising another relays out the transcript, which can drop a press in flight.
+  let toast = { text: '', until: 0 }
+
   on('ui.render', { component: 'AssistantMessage', surface: 'terminal' }, ($, e, next) => {
     const segments = split(e.props.text)
     const isDrawable = segments.some(s => s.kind === 'code') && segments.every(s => s.text.length <= MAX)
@@ -36,7 +41,12 @@ export const register: Register = on => {
 
           const copy = async () => {
             const result = await $.ui.copy({ text: s.code, surface: 'terminal' })
-            $.ui.toast(result.isCopied ? 'Copied' : `Copy failed: ${result.reason}`)
+            const text = result.isCopied ? 'Copied' : `Copy failed: ${result.reason}`
+            const now = await $.clock.now()
+            if (text !== toast.text || now >= toast.until) {
+              toast = { text, until: now + TOAST_MS }
+              $.ui.toast(text, { timeoutMs: TOAST_MS })
+            }
           }
 
           // Not the wrapper's key: a keyed Box is a scope of its own, and hovering the code would join it.
