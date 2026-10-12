@@ -62,16 +62,18 @@ export const register: Register = on => {
                 </Box>
                 {tag}
               </Box>
-              <Box position="absolute" top={0} right={2}>
-                <Button
-                  key={`${e.requestId}:copy:${i}`}
-                  label={` ${ICON} copy `}
-                  plain
-                  dimColor
-                  hover={{ scope, dimColor: false, inverse: false, backgroundColor: 'userMessageBackground' }}
-                  onPress={copy}
-                />
-              </Box>
+              {s.code !== '' && (
+                <Box position="absolute" top={0} right={2}>
+                  <Button
+                    key={`${e.requestId}:copy:${i}`}
+                    label={` ${ICON} copy `}
+                    plain
+                    dimColor
+                    hover={{ scope, dimColor: false, inverse: false, backgroundColor: 'userMessageBackground' }}
+                    onPress={copy}
+                  />
+                </Box>
+              )}
             </Box>
           )
         })}
