@@ -42,7 +42,7 @@ export const register: Register = on => {
 
           // The overlay redraws the whole box lit, so hovering the code lights nothing; the label is drawn last, over the top border.
           return (
-            <Box key={`${e.requestId}:${i}`} flexDirection="column" marginBottom={1}>
+            <Box key={`${e.requestId}:${i}`} flexDirection="column" marginBottom={1} marginLeft={s.indent ?? 0}>
               <Box borderStyle="round" borderDimColor paddingX={1}>
                 <Code source={s.code} language={s.language} />
               </Box>

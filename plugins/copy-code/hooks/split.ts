@@ -1,9 +1,9 @@
 export type Segment =
   | { kind: 'prose'; text: string }
-  | { kind: 'code'; text: string; code: string; language?: string }
+  | { kind: 'code'; text: string; code: string; language?: string; indent?: number }
 
 // A backtick fence's info string may hold no backtick (CommonMark); a tilde fence's may.
-const OPEN = /^ {0,3}(`{3,}(?!.*`)|~{3,})\s*([^\s`]*)/
+const OPEN = /^( {0,3})(`{3,}(?!.*`)|~{3,})\s*([^\s`]*)/
 
 // Splits markdown into prose and fenced code blocks, each code block keeping its fences.
 export function split(text: string): Segment[] {
@@ -22,7 +22,7 @@ export function split(text: string): Segment[] {
   while (i < lines.length) {
     const line = lines[i] ?? ''
     const open = OPEN.exec(line)
-    const fence = open?.[1]
+    const fence = open?.[2]
     if (!fence) {
       prose.push(line)
       i++
@@ -34,10 +34,15 @@ export function split(text: string): Segment[] {
     while (end < lines.length && !close.test(lines[end] ?? '')) end++
 
     flush()
-    const body = lines.slice(i + 1, end)
+    // As CommonMark does: up to the fence's own indent comes off each code line.
+    const indent = open?.[1]?.length ?? 0
+    const body = lines.slice(i + 1, end).map(l => l.replace(new RegExp(`^ {0,${indent}}`), ''))
     const segment: Segment = { kind: 'code', text: lines.slice(i, end + 1).join('\n'), code: body.join('\n') }
-    if (open?.[2]) {
-      segment.language = open[2]
+    if (open?.[3]) {
+      segment.language = open[3]
+    }
+    if (indent > 0) {
+      segment.indent = indent
     }
     segments.push(segment)
     i = end + 1
