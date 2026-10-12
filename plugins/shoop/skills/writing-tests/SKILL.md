@@ -1,6 +1,6 @@
 ---
 name: writing-tests
-description: How to write, review and fix automated tests that check behaviour rather than implementation. Covers what deserves a test, fakes versus one live check, do-nothing-stub and wrong-implementation checks, testing the rule rather than the instance, refactor-proof tests, shared behaviour across variants, tests-first and the bug-fix loop, and reviewing tests. Use when writing tests, adding a regression test for a bug, reviewing or critiquing a test suite, answering test-review findings, or deciding whether something needs a test at all.
+description: How to write, review and fix automated tests that check behaviour rather than implementation. Covers what deserves a test, configuration validity versus values, fakes versus one live check, do-nothing-stub and wrong-implementation checks, testing the rule rather than the instance, refactor-proof tests, shared behaviour across variants, tests-first and the bug-fix loop, and reviewing tests. Use when writing tests, adding a regression test for a bug, reviewing or critiquing a test suite, answering test-review findings, or deciding whether something needs a test at all.
 ---
 
 # Writing tests
@@ -13,6 +13,7 @@ Tests are the spec. They say what the code must do, the default suite runs offli
 - **Be selective about happy paths.** Keep the few high-level ones that define the feature. Exhaustive happy-path coverage is padding.
 - **Don't re-test libraries or tools.** Whether a dependency does what it says is implicit.
 - **Plumbing needs no tests.** If a real run already exercises it (CI config, build tasks, wiring), that run's output is the evidence. Scale the method to the task.
+- **Configuration gets validity checks, never value checks.** A test may check that a config parses, that the tool's own validator accepts it, or that it's formatted, since those pass for any valid config. It never pins a setting or a choice, such as which programs are installed, which font is set or what PATH holds, not even as a consistency check between two values.
 - **Reminder-style code gets the obvious cases.** If the code only catches forgetfulness, such as a guard or a lint, test the obvious forgetful cases. Skip the rare or adversarial forms its purpose leaves out.
 
 ## Test behaviour, not fidelity
@@ -27,6 +28,7 @@ Tests are the spec. They say what the code must do, the default suite runs offli
 
 ## Every test must be able to fail
 
+- **Judge each test in both directions.** Ask what legitimate change turns it red, such as removing a feature, renaming an internal or changing a preference: any answer is a defect. Then ask what real violation leaves it green. A red only counts when what broke was a bug, so going red on every change proves nothing.
 - **It fails against a do-nothing stub.** Replace the code under test with one that does nothing: returns nothing, returns empty, or exits successfully. Every test must then fail. A test that passes on silence checks nothing.
 - **Expected values come from an independent source.** Use a literal, a worked example or the spec. Never recompute them the way the code does: the test then shares the code's bugs and passes with them.
 - **Guard loops over derived lists.** If a test iterates over cases taken from the code, also assert that the list isn't empty or holds known members. Otherwise a stub gives zero iterations and the test passes.
