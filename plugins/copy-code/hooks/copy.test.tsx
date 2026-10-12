@@ -54,7 +54,10 @@ async function drawAt($: Engine, columns: number) {
     viewport: { columns, rows: 40 },
     props: { text: `\`\`\`${LONG}\nx\n\`\`\``, isFirstOfReply: true },
   })
-  const drawn = { name: await ui.find({ type: 'Text', text: /averyvery/ }), buttons: await ui.findAll({ type: 'Button' }) }
+  const drawn = {
+    name: await ui.find({ type: 'Text', text: /averyvery/ }),
+    buttons: await ui.findAll({ type: 'Button' }),
+  }
   await ui.unmount()
   return drawn
 }

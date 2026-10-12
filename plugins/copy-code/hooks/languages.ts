@@ -1,3 +1,4 @@
+// biome-ignore format: one row per language family reads better than one alias per line
 export const NAMES: Record<string, string> = {
   py: 'python', python3: 'python', py3: 'python',
   js: 'javascript', mjs: 'javascript', cjs: 'javascript',
