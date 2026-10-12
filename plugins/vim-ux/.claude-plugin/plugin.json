@@ -1,7 +1,7 @@
 {
   "name": "vim-ux",
   "displayName": "vim-ux",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Gives Claude Code's vim mode a bar cursor in INSERT and a block in NORMAL and VISUAL, and a Ctrl+C that only clears the prompt",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
@@ -10,5 +10,11 @@
   "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/vim-ux",
   "repository": "https://github.com/AH-Merii/claude-plugins",
   "license": "MIT",
-  "keywords": ["mod", "terminal", "tui", "vim", "cursor"]
+  "keywords": [
+    "mod",
+    "terminal",
+    "tui",
+    "vim",
+    "cursor"
+  ]
 }
