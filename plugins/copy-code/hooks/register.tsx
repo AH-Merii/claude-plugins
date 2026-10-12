@@ -1,5 +1,6 @@
 import type { Register } from 'claude-code'
 
+import { fence } from './fence'
 import { languageName } from './languages'
 import { split } from './split'
 
@@ -24,15 +25,18 @@ export const register: Register = on => {
   let toast = { text: '', until: 0 }
 
   on('ui.render', { component: 'AssistantMessage', surface: 'terminal' }, ($, e, next) => {
-    const segments = split(e.props.text)
-    const isDrawable = segments.some(s => s.kind === 'code') && segments.every(s => s.text.length <= MAX)
+    const segments = split(e.props.text).map(s => ({
+      ...s,
+      drawn: s.kind === 'code' ? fence(s.code, s.language) : s.text,
+    }))
+    const isDrawable = segments.some(s => s.kind === 'code') && segments.every(s => s.drawn.length <= MAX)
 
     const columns = e.viewport?.columns
     if (!isDrawable || (columns !== undefined && columns < MIN_COLUMNS)) {
       return next(e)
     }
 
-    const { Box, Button, Code, Markdown, Text } = $.ui.resolve(e)
+    const { Box, Button, Markdown, Text } = $.ui.resolve(e)
 
     return (
       <Box flexDirection="row">
@@ -79,7 +83,7 @@ export const register: Register = on => {
             return (
               <Box key={`${e.requestId}:${i}`} flexDirection="column" marginTop={gap} marginLeft={s.indent ?? 0}>
                 <Box borderStyle="round" borderDimColor paddingX={1}>
-                  <Code source={s.code} language={s.language} />
+                  <Markdown text={s.drawn} />
                 </Box>
                 {tag}
                 <Box
@@ -93,7 +97,7 @@ export const register: Register = on => {
                   hover={{ scope, display: 'flex' }}
                 >
                   <Box flexGrow={1} borderStyle="round" paddingX={1}>
-                    <Code source={s.code} language={s.language} />
+                    <Markdown text={s.drawn} />
                   </Box>
                   {tag}
                 </Box>
