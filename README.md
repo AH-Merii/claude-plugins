@@ -52,6 +52,7 @@ plugins/<name>/
 ├── hooks/hooks.json             # every hook the plugin registers
 ├── hooks/*.py, *.sh             # command-hook scripts
 ├── hooks/register.tsx           # a mod: live-UI function hooks, shipped as-is, no build step
+├── capabilities.json            # the mod's acknowledged non-UI capabilities (check:capabilities)
 ├── tests/                       # claude plugin test plugins/<name> for mods
 └── README.md                    # what it does, prerequisites, caveats, a GIF for UI
 ```

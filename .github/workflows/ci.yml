@@ -98,6 +98,22 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
+  capabilities:
+    name: Plugin capabilities
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - *mise
+      # No secrets or token on this step: it reads the PR's mods but never runs them.
+      # On main the merge base with origin/main is HEAD itself, so nothing is new.
+      - run: mise run check:capabilities ${BASE_SHA:+--base "$BASE_SHA"}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+
   # The only check to require on main: it passes only when every check job passed.
   ci-ok:
     name: ci-ok
@@ -110,6 +126,7 @@ jobs:
       - complexity
       - secrets
       - workflows
+      - capabilities
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

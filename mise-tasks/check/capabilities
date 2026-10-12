@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+#MISE description="Flag capabilities a plugin's hooks module gained since the merge base"
+#MISE tools={claude="2.1.289"}
+#MISE env={DISABLE_AUTOUPDATER="1"}
+#USAGE flag "--base <rev>" default="origin/main" help="Compare with the merge base of this revision and HEAD"
+#USAGE arg "[plugin]..." help="Plugin folders to check; default: every folder under plugins/"
+# Mods run with the user's full permissions, so widening what one can do must be a
+# visible decision. This compares the `hooks:` and `calls:` lines that
+# `claude plugin validate` prints at the merge base and in the working tree.
+# validate only scans the module's source and never runs it, so a PR's mod stays data.
+#
+# A gained `$.ui.*` call or `ui.*` hook only warns. Any other gained capability,
+# including ones this task has never heard of, fails until the plugin's
+# capabilities.json acknowledges it as printed, e.g. ["$.process.run", "on tool.check{tool=Read}"].
+# A new plugin starts empty, so its first review sees every capability it has.
+set -euo pipefail
+source ci/each-plugin.sh
+
+base=$(git merge-base "$usage_base" HEAD)
+scratch=$(mktemp -d)
+trap 'rm -rf "$scratch"' EXIT
+summary=${GITHUB_STEP_SUMMARY:-/dev/null}
+
+# Print a plugin's capabilities, one per line: `$.noun.method` for each call and
+# `on noun.event{filter}` for each hook. The filter stays, so widening or dropping
+# it (say `tool.check{tool=Read}` to `tool.check`) shows as a gained capability.
+# validate prints `❯ <module> hooks: …` and `❯ <module> calls: …` for the plugin's
+# one hooks module. The module path may hold spaces, so each line is split at its
+# first ` hooks: ` or ` calls: `. A hooks section that lacks either line can't be
+# read, and fails rather than reading as "no capabilities".
+capabilities() {
+  local out
+  out=$(claude plugin validate "$1") || { echo "$out"; return 1; }
+  awk '
+    # Split a list at the commas outside {filter} braces.
+    function emit(list, prefix,   i, c, depth, item) {
+      for (i = 1; i <= length(list); i++) {
+        c = substr(list, i, 1)
+        if (c == "{") depth++
+        if (c == "}") depth--
+        if (c == "," && depth == 0) { put(item, prefix); item = ""; continue }
+        item = item c
+      }
+      put(item, prefix)
+    }
+    function put(item, prefix) { sub(/^ +/, "", item); sub(/ +$/, "", item); if (item != "") print prefix item }
+    /^Validating hooks:/ { inside = 1; next }
+    /^Validating / { inside = 0 }
+    !inside || !/^ *❯ / { next }
+    { module = 1 }
+    (i = index($0, " hooks: ")) { hooks = 1; list = substr($0, i + 8); if (list != "nothing") emit(list, "on "); next }
+    (i = index($0, " calls: ")) { calls = 1; list = substr($0, i + 8); if (list != "nothing on $") emit(list, ""); next }
+    END { if (module && !(hooks && calls)) { print "validate printed no hooks: or calls: line for the hooks module"; exit 1 } }
+  ' <<<"$out" || { echo "$out"; return 1; }
+}
+
+compare() {
+  local dir=${1%/} before='' after allowed='' cap rc=0
+  if git cat-file -e "$base:$dir" 2>/dev/null; then
+    git archive "$base" "$dir" | tar -x -C "$scratch"
+    # A base that doesn't validate counts as empty: everything shows as new.
+    before=$(capabilities "$scratch/$dir") || before=''
+  fi
+  after=$(capabilities "$dir") || { echo "$after"; echo "validate failed, so the capabilities can't be read"; return 1; }
+  if [ -f "$dir/capabilities.json" ]; then
+    allowed=$(jq -r '.[]' "$dir/capabilities.json") || { echo "$dir/capabilities.json must be a JSON array of strings"; return 1; }
+  fi
+  echo "capabilities:"
+  sed 's/^/  /' <<<"${after:-none}"
+  while IFS= read -r cap; do
+    echo "removed: $cap"
+  done < <(comm -23 <(sort -u <<<"$before" | sed '/^$/d') <(sort -u <<<"$after" | sed '/^$/d'))
+  while IFS= read -r cap; do
+    if grep -qxF -- "$cap" <<<"$allowed"; then
+      echo "gained: $cap (acknowledged in capabilities.json)"
+    elif [[ $cap == '$.ui.'* || $cap == 'on ui.'* ]]; then
+      echo "::warning title=New plugin capability::$dir gains $cap"
+      echo "- :warning: \`$dir\` gains \`$cap\` (UI only)" >>"$summary"
+    else
+      echo "::error title=New plugin capability::$dir gains $cap; acknowledge it in $dir/capabilities.json"
+      echo "- :x: \`$dir\` gains \`$cap\`, not acknowledged in \`capabilities.json\`" >>"$summary"
+      rc=1
+    fi
+  done < <(comm -13 <(sort -u <<<"$before" | sed '/^$/d') <(sort -u <<<"$after" | sed '/^$/d'))
+  return "$rc"
+}
+
+# "$@" holds --base too; mise passes the plugin folders alone, shell-quoted.
+eval "set -- ${usage_plugin:-}"
+echo "comparing with merge base $base"
+each_plugin compare "$@"
