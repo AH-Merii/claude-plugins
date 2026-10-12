@@ -148,19 +148,26 @@ lab.py start --cwd ~/project -- claude --model haiku \
 
 All of it lives in `$XDG_RUNTIME_DIR/screen-lab/`:
 
-- `state.json`: pid, output, grid, any recording;
+- `state.json`: pid, output, grid, any recording, and the owning session;
 - `feed`: the FIFO;
 - `size`;
 - `osc52.log`;
 - `relay.log` and `ghostty.log`, for when the window closes unexpectedly.
 
-Only one lab runs at a time.
+Only one lab runs at a time. `start` holds `lock` while it checks the spare output and opens
+the window, so two sessions starting at once can't both get through.
+
+The lab's owner is the session's `$CLAUDE_PID`, the `claude` process. While that process
+is alive, every command except `preflight` refuses another session, `stop` included. Once
+it has exited, any session may drive or stop the lab, so a lab left behind never blocks the
+next one. Subagents share their parent's `claude` process, so they share its lab too.
 
 ## Troubleshooting
 
 | Symptom | Cause |
 |---------|-------|
 | `start` aborted: window on the wrong output | the rule is missing, or names another output; rerun `preflight` |
+| refused: `belongs to another Claude session` | another session is using the lab; retry later or ask the user. Never stop it |
 | `no lab is running` right after start | the command exited; read `relay.log` and `ghostty.log` |
 | `shot` refuses: other windows share the workspace | ask the user to move them, or to switch the spare output to an empty workspace |
 | warning: the lab window has focus | the pointer is on the spare screen; ask the user to move it |

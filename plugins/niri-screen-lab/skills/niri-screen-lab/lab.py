@@ -5,6 +5,8 @@ Run `lab.py -h` for the commands. See SKILL.md and reference.md next to this fil
 """
 
 import argparse
+import contextlib
+import fcntl
 import json
 import os
 import re
@@ -273,6 +275,31 @@ def find_window(pid):
     return None
 
 
+def session():
+    """The Claude session running this command: its claude process id, or None outside Claude Code."""
+    pid = os.environ.get("CLAUDE_PID", "")
+    return int(pid) if pid.isdigit() else None
+
+
+def check_owner(st):
+    """A running lab belongs to the session that started it, until that session ends."""
+    owner = st.get("owner")
+    if alive(st["pid"]) and owner and owner != session() and alive_pid(owner):
+        raise Refuse(
+            f"the lab belongs to another Claude session (claude pid {owner}) and only one lab runs at a time; "
+            "try again later, or ask the user"
+        )
+
+
+@contextlib.contextmanager
+def start_lock():
+    """Serialises `start`, so two sessions can't both find the spare output free."""
+    STATE.mkdir(mode=0o700, exist_ok=True)
+    with open(STATE / "lock", "w") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
+        yield
+
+
 def running():
     st = load_state()
     if not st or not alive(st["pid"]):
@@ -444,24 +471,16 @@ def settle_grid(st):
     return grid
 
 
-def cmd_start(a):
-    if not a.cmd:
-        raise Refuse("usage: lab.py start [--cwd DIR] -- CMD [ARGS...]")
-    check_runtime()
-    check_niri()
-    check_app_id()
-    need("ghostty", "the terminal under test")
-    need("grim", "screenshots without the clipboard")
-    output, _ = spare_output()
-    rule_for(output)
+def launch(a, output):
+    """Open the lab if the spare output is free, recorded as this session's. Call it under start_lock."""
     st = load_state()
     if st and alive(st["pid"]):
+        check_owner(st)
         raise Refuse(f"a lab is already running (pid {st['pid']}); `lab.py stop` it first")
     ws = next(x for x in niri("workspaces") if x["output"] == output and x["is_active"])
     others = [x["app_id"] for x in niri("windows") if x["workspace_id"] == ws["id"]]
     if others:
         raise Refuse(f"{output}'s active workspace holds {', '.join(map(str, others))}; ask the user to clear it")
-    STATE.mkdir(mode=0o700, exist_ok=True)
     for f in ("go", "size", "osc52.log", "relay.log"):
         (STATE / f).unlink(missing_ok=True)
     if not FEED.is_fifo():
@@ -493,8 +512,23 @@ def cmd_start(a):
         stdout=log,
         stderr=log,
     )
-    st = {"pid": proc.pid, "output": output, "app_id": APP_ID, "cmd": a.cmd}
+    st = {"pid": proc.pid, "output": output, "app_id": APP_ID, "cmd": a.cmd, "owner": session()}
     save_state(st)
+    return proc, st
+
+
+def cmd_start(a):
+    if not a.cmd:
+        raise Refuse("usage: lab.py start [--cwd DIR] -- CMD [ARGS...]")
+    check_runtime()
+    check_niri()
+    check_app_id()
+    need("ghostty", "the terminal under test")
+    need("grim", "screenshots without the clipboard")
+    output, _ = spare_output()
+    rule_for(output)
+    with start_lock():
+        proc, st = launch(a, output)
     w = wait_for_window(proc.pid)
     if not w or w["output"] != output or w["app_id"] != APP_ID or w["is_focused"]:
         kill(st)
@@ -765,7 +799,11 @@ def cmd_stop(a):
     print("stopped")
 
 
-def main():
+# Commands that never touch a running lab. Every other one is refused while another session owns the lab.
+LAB_FREE = {"preflight", "doctor"}
+
+
+def parser():
     p = argparse.ArgumentParser(prog="lab.py", description=__doc__.splitlines()[0])
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("preflight", aliases=["doctor"], help="check every prerequisite").set_defaults(fn=cmd_preflight)
@@ -823,10 +861,16 @@ def main():
             s.add_argument("--width", type=int, default=1200)
         s.set_defaults(fn=fn)
     sub.add_parser("stop", help="kill Ghostty and clean up").set_defaults(fn=cmd_stop)
-    a = p.parse_args()
+    return p
+
+
+def main():
+    a = parser().parse_args()
     if getattr(a, "cmd", None) and a.cmd[0] == "--":
         a.cmd = a.cmd[1:]
     try:
+        if a.command not in LAB_FREE and (st := load_state()):
+            check_owner(st)
         sys.exit(a.fn(a) or 0)
     except Refuse as e:
         print(f"niri-screen-lab: {e}", file=sys.stderr)

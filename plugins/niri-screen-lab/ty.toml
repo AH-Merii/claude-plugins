@@ -1,0 +1,3 @@
+# Tests import lab.py the way the skill runs it: from its own folder.
+[environment]
+extra-paths = ["skills/niri-screen-lab"]
