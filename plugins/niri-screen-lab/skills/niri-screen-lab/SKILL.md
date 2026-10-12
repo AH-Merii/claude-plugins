@@ -1,9 +1,9 @@
 ---
-name: screen-lab
+name: niri-screen-lab
 description: Visually test terminal apps in a real Ghostty window on the user's spare monitor (niri), without stealing focus or touching the clipboard. Type keys, send mouse hovers and clicks, take screenshots, and record GIFs. Use it whenever you need to see what a TUI or CLI actually renders. Typical asks are "screenshot a terminal app", "test a Claude Code mod visually", "check how it looks in Ghostty", "record a GIF of the TUI", "hover/click test", and "images in the terminal" (kitty graphics). Use it too when verifying a UI change yourself before handing it back. Prefer it to tmux capture-pane, wtype, ydotool and niri screenshots, which all disturb the user or change the app.
 ---
 
-# screen-lab
+# niri-screen-lab
 
 A real Ghostty window on a monitor the user is not working on. You drive it with `lab.py`,
 which sits next to this file (call it by its path, e.g. `<skill-dir>/lab.py`). The window
