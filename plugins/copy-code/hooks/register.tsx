@@ -69,7 +69,8 @@ export const register: Register = on => {
             const scope = `${e.requestId}:${i}:lit`
             // The name's cells: the box less its left corner, the right side and a space either side.
             const room = columns === undefined ? Infinity : columns - GUTTER - (s.indent ?? 0) - 2 - RIGHT - 2
-            // Drawn in both layers so it is lit with the box without joining the hover group.
+            // Drawn once, over the overlay, so it stays unlit while the box is lit: drawn under the overlay, it kept
+            // the lit background after the box went dark.
             const tag = s.language && room >= MIN_NAME && (
               <Box position="absolute" top={0} left={2} right={RIGHT}>
                 <Text dimColor wrap="truncate-end">
@@ -79,13 +80,12 @@ export const register: Register = on => {
               </Box>
             )
 
-            // The overlay redraws the whole box lit, so hovering the code lights nothing; the label is drawn last, over the top border.
+            // The overlay redraws the whole box lit, so hovering the code lights nothing; the name and the label go over its top border.
             return (
               <Box key={`${e.requestId}:${i}`} flexDirection="column" marginTop={gap} marginLeft={s.indent ?? 0}>
                 <Box borderStyle="round" borderDimColor paddingX={1}>
                   <Markdown text={s.drawn} />
                 </Box>
-                {tag}
                 <Box
                   position="absolute"
                   top={0}
@@ -99,8 +99,8 @@ export const register: Register = on => {
                   <Box flexGrow={1} borderStyle="round" paddingX={1}>
                     <Markdown text={s.drawn} />
                   </Box>
-                  {tag}
                 </Box>
+                {tag}
                 {s.code !== '' && (
                   <Box position="absolute" top={0} right={2}>
                     <Button
