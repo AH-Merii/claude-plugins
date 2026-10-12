@@ -19,6 +19,15 @@ const GUTTER = 2
 const MIN_COLUMNS = 12
 // How long a toast stays; Claude Code's default.
 const TOAST_MS = 4000
+// Copies stdin as plain text. Claude Code runs wl-copy without --type, so wl-copy guesses one: `x` lands as
+// application/octet-stream and HTML as text/html, which a paste as text can't read. Its output goes to /dev/null,
+// since the clipboard server it leaves running would hold the pipes open until the call timed out.
+const WL_COPY = ['sh', '-c', "exec wl-copy --type 'text/plain;charset=utf-8' >/dev/null 2>&1"]
+// How long wl-copy may take before Claude Code's copy is left to stand.
+const WL_COPY_MS = 2000
+// Claude Code's own wl-copy lands after its copy call returns: up to 28 ms after a typed copy run at once, in
+// six live runs. The typed copy waits this long so it lands last.
+const WL_COPY_AFTER_MS = 300
 
 export const register: Register = on => {
   // The toast showing, if any. Raising another relays out the transcript, which can drop a press in flight.
@@ -38,6 +47,16 @@ export const register: Register = on => {
 
     const { Box, Button, Markdown, Text } = $.ui.resolve(e)
 
+    // After Claude Code's copy, on Wayland and not over SSH (where wl-copy would reach the remote desktop),
+    // wl-copy puts the code back on the clipboard typed as text. When wl-copy fails or is missing, Claude Code's
+    // copy stands.
+    const retype = async (text: string) => {
+      if ((await $.env.get('WAYLAND_DISPLAY')) && !(await $.env.get('SSH_CONNECTION'))) {
+        await $.clock.sleep(WL_COPY_AFTER_MS)
+        await $.process.run(WL_COPY, { stdin: text, timeoutMs: WL_COPY_MS }).catch(() => undefined)
+      }
+    }
+
     return (
       <Box flexDirection="row">
         <Box width={GUTTER} flexShrink={0}>
@@ -55,6 +74,8 @@ export const register: Register = on => {
               )
             }
 
+            // Claude Code copies first: its own wl-copy, the primary selection, a tmux buffer and the terminal's
+            // OSC 52. Its result is what the toast says, so the toast shows before the retype.
             const copy = async () => {
               const result = await $.ui.copy({ text: s.code, surface: 'terminal' })
               const text = result.isCopied ? 'Copied' : `Copy failed: ${result.reason}`
@@ -63,6 +84,7 @@ export const register: Register = on => {
                 toast = { text, until: now + TOAST_MS }
                 $.ui.toast(text, { timeoutMs: TOAST_MS })
               }
+              await retype(s.code)
             }
 
             // Not the wrapper's key: a keyed Box is a scope of its own, and hovering the code would join it.

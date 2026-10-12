@@ -18,6 +18,7 @@ async function fencesOf(ui: Awaited<ReturnType<typeof mount>>) {
 
 test('code holding a markdown fence is drawn only as one fenced block it cannot close, and copies as written', async ($, on) => {
   mock.clock(on)
+  mock.env(on, {})
   const copied: string[] = []
   on('ui.copy', (_$, e) => {
     copied.push(e.text)

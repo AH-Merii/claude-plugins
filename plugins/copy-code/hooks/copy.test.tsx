@@ -5,6 +5,7 @@ const REPLY = 'Run this:\n\n```sh\nls -la\n```\n\nand this:\n\n```py\nprint(1)\n
 
 test('each code block gets a copy row that copies its code', async ($, on) => {
   mock.clock(on)
+  mock.env(on, {})
   const copied: string[] = []
   on('ui.copy', (_$, e) => {
     copied.push(e.text)
@@ -94,6 +95,7 @@ test('a terminal too narrow for a box leaves the reply to Claude Code', async ($
 
 test('quick presses all copy, and a toast repeats only once it has gone', async ($, on) => {
   const clock = mock.clock(on)
+  mock.env(on, {})
   const copied: string[] = []
   const toasts: { text: string; timeoutMs?: number }[] = []
   on('ui.copy', (_$, e) => {
@@ -126,6 +128,7 @@ test('quick presses all copy, and a toast repeats only once it has gone', async 
 
 test('a failed copy is announced even while "Copied" shows', async ($, on) => {
   mock.clock(on)
+  mock.env(on, {})
   let isCopied = true
   const toasts: string[] = []
   on('ui.copy', () => ({ value: isCopied ? { isCopied: true } : { isCopied: false, reason: 'no-clipboard' } }))
