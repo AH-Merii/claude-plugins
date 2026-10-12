@@ -9,6 +9,7 @@ My Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
 | [pr-threads](plugins/pr-threads) | skill, hooks, bin | agents review PRs or act on reviews: comments pinned to local `path:line`, one review per round from a reviewer bot, open threads only, suggestions applied locally |
 | [shoop](plugins/shoop) | skill | an agent writes or reviews tests, files an issue or records a decision on one, writes a commit message, or describes a PR |
 | [copy-code](plugins/copy-code) | mod | you copy code from Claude's replies: each code block gets a box with its language and a copy button (terminal only) |
+| [vim-ux](plugins/vim-ux) | mod | you use Claude Code's vim mode: a bar cursor in INSERT and a block in NORMAL and VISUAL, and a Ctrl+C that only clears the prompt (terminal only) |
 
 ## Install
 

@@ -54,6 +54,16 @@
           "jsonpath": "$.version"
         }
       ]
+    },
+    "plugins/vim-ux": {
+      "component": "vim-ux",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": ".claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
     }
   }
 }

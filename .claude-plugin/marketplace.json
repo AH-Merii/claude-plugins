@@ -33,6 +33,12 @@
       "source": "./plugins/copy-code",
       "category": "development",
       "tags": ["mod", "terminal", "tui", "code-block", "clipboard"]
+    },
+    {
+      "name": "vim-ux",
+      "source": "./plugins/vim-ux",
+      "category": "development",
+      "tags": ["mod", "terminal", "tui", "vim", "cursor"]
     }
   ]
 }
