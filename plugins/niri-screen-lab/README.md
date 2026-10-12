@@ -41,3 +41,13 @@ claude plugin marketplace add AH-Merii/claude-plugins && claude plugin install n
 ```
 
 See [reference.md](skills/niri-screen-lab/reference.md) for the details behind each rule.
+
+## Tests
+
+```sh
+python3 -m unittest discover -s plugins/niri-screen-lab/tests
+```
+
+They need only Python: a renamed `sleep` stands in for the lab's Ghostty. One opt-in run
+on the real desktop starts two labs at once with `SCREEN_LAB_LIVE=1`. It needs everything
+`preflight` checks, and no lab running.

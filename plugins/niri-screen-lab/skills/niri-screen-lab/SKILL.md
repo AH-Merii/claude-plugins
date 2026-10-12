@@ -46,6 +46,10 @@ clipboard stay as they were.
   `--resume <test-session-id> --fork-session` on a session made for testing. Never resume
   the session you are running in. Start it with `--cwd` set to the project the session
   belongs to.
+- A lab belongs to the Claude session that started it. While that session is alive, every
+  command from another session is refused with "belongs to another Claude session". Then
+  don't stop it, kill its Ghostty or delete its state: another agent is using it. Try again
+  later, or tell the user.
 - If anything opens on the user's main screen, stop the lab at once and tell them.
 
 Read [reference.md](reference.md) for prerequisites and why each rule exists. It also
