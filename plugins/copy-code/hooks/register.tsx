@@ -12,6 +12,8 @@ const LABEL = ` ${ICON} copy `
 const RIGHT = 2 + LABEL.length + 1
 // With fewer cells than this a name says nothing, so it is left out.
 const MIN_NAME = 4
+// The reply's left gutter, as Claude Code draws it: the bullet on a reply's first block, else blank.
+const GUTTER = 2
 // Narrower than this a box can't hold its corners and copy, so Claude Code draws the reply.
 const MIN_COLUMNS = 12
 // How long a toast stays; Claude Code's default.
@@ -33,73 +35,84 @@ export const register: Register = on => {
     const { Box, Button, Code, Markdown, Text } = $.ui.resolve(e)
 
     return (
-      <Box flexDirection="column">
-        {segments.map((s, i) => {
-          if (s.kind === 'prose') {
-            return <Markdown key={`${e.requestId}:${i}`} text={s.text} />
-          }
-
-          const copy = async () => {
-            const result = await $.ui.copy({ text: s.code, surface: 'terminal' })
-            const text = result.isCopied ? 'Copied' : `Copy failed: ${result.reason}`
-            const now = await $.clock.now()
-            if (text !== toast.text || now >= toast.until) {
-              toast = { text, until: now + TOAST_MS }
-              $.ui.toast(text, { timeoutMs: TOAST_MS })
+      <Box flexDirection="row">
+        <Box width={GUTTER} flexShrink={0}>
+          {e.props.isFirstOfReply && <Text color="text">●</Text>}
+        </Box>
+        <Box flexDirection="column" flexGrow={1}>
+          {segments.map((s, i) => {
+            // One blank row between segments, none after the last, as Claude Code spaces them.
+            const gap = i > 0 ? 1 : 0
+            if (s.kind === 'prose') {
+              return (
+                <Box key={`${e.requestId}:${i}`} marginTop={gap}>
+                  <Markdown text={s.text} />
+                </Box>
+              )
             }
-          }
 
-          // Not the wrapper's key: a keyed Box is a scope of its own, and hovering the code would join it.
-          const scope = `${e.requestId}:${i}:lit`
-          // The name's cells: the box less its left corner, the right side and a space either side.
-          const room = columns === undefined ? Infinity : columns - (s.indent ?? 0) - 2 - RIGHT - 2
-          // Drawn in both layers so it is lit with the box without joining the hover group.
-          const tag = s.language && room >= MIN_NAME && (
-            <Box position="absolute" top={0} left={2} right={RIGHT}>
-              <Text dimColor wrap="truncate-end">
-                {' '}
-                {languageName(s.language)}{' '}
-              </Text>
-            </Box>
-          )
+            const copy = async () => {
+              const result = await $.ui.copy({ text: s.code, surface: 'terminal' })
+              const text = result.isCopied ? 'Copied' : `Copy failed: ${result.reason}`
+              const now = await $.clock.now()
+              if (text !== toast.text || now >= toast.until) {
+                toast = { text, until: now + TOAST_MS }
+                $.ui.toast(text, { timeoutMs: TOAST_MS })
+              }
+            }
 
-          // The overlay redraws the whole box lit, so hovering the code lights nothing; the label is drawn last, over the top border.
-          return (
-            <Box key={`${e.requestId}:${i}`} flexDirection="column" marginBottom={1} marginLeft={s.indent ?? 0}>
-              <Box borderStyle="round" borderDimColor paddingX={1}>
-                <Code source={s.code} language={s.language} />
+            // Not the wrapper's key: a keyed Box is a scope of its own, and hovering the code would join it.
+            const scope = `${e.requestId}:${i}:lit`
+            // The name's cells: the box less its left corner, the right side and a space either side.
+            const room = columns === undefined ? Infinity : columns - GUTTER - (s.indent ?? 0) - 2 - RIGHT - 2
+            // Drawn in both layers so it is lit with the box without joining the hover group.
+            const tag = s.language && room >= MIN_NAME && (
+              <Box position="absolute" top={0} left={2} right={RIGHT}>
+                <Text dimColor wrap="truncate-end">
+                  {' '}
+                  {languageName(s.language)}{' '}
+                </Text>
               </Box>
-              {tag}
-              <Box
-                position="absolute"
-                top={0}
-                left={0}
-                right={0}
-                bottom={0}
-                display="none"
-                backgroundColor="userMessageBackground"
-                hover={{ scope, display: 'flex' }}
-              >
-                <Box flexGrow={1} borderStyle="round" paddingX={1}>
+            )
+
+            // The overlay redraws the whole box lit, so hovering the code lights nothing; the label is drawn last, over the top border.
+            return (
+              <Box key={`${e.requestId}:${i}`} flexDirection="column" marginTop={gap} marginLeft={s.indent ?? 0}>
+                <Box borderStyle="round" borderDimColor paddingX={1}>
                   <Code source={s.code} language={s.language} />
                 </Box>
                 {tag}
-              </Box>
-              {s.code !== '' && (
-                <Box position="absolute" top={0} right={2}>
-                  <Button
-                    key={`${e.requestId}:copy:${i}`}
-                    label={LABEL}
-                    plain
-                    dimColor
-                    hover={{ scope, dimColor: false, inverse: false, backgroundColor: 'userMessageBackground' }}
-                    onPress={copy}
-                  />
+                <Box
+                  position="absolute"
+                  top={0}
+                  left={0}
+                  right={0}
+                  bottom={0}
+                  display="none"
+                  backgroundColor="userMessageBackground"
+                  hover={{ scope, display: 'flex' }}
+                >
+                  <Box flexGrow={1} borderStyle="round" paddingX={1}>
+                    <Code source={s.code} language={s.language} />
+                  </Box>
+                  {tag}
                 </Box>
-              )}
-            </Box>
-          )
-        })}
+                {s.code !== '' && (
+                  <Box position="absolute" top={0} right={2}>
+                    <Button
+                      key={`${e.requestId}:copy:${i}`}
+                      label={LABEL}
+                      plain
+                      dimColor
+                      hover={{ scope, dimColor: false, inverse: false, backgroundColor: 'userMessageBackground' }}
+                      onPress={copy}
+                    />
+                  </Box>
+                )}
+              </Box>
+            )
+          })}
+        </Box>
       </Box>
     )
   })
