@@ -69,20 +69,19 @@ export const register: Register = on => {
             const scope = `${e.requestId}:${i}:lit`
             // The name's cells: the box less its left corner, the right side and a space either side.
             const room = columns === undefined ? Infinity : columns - GUTTER - (s.indent ?? 0) - 2 - RIGHT - 2
-            // Drawn once, over the overlay, so it stays unlit while the box is lit: drawn under the overlay, it kept
-            // the lit background after the box went dark.
-            const tag = s.language && room >= MIN_NAME && (
-              <Box position="absolute" top={0} left={2} right={RIGHT}>
-                <Text dimColor wrap="truncate-end">
-                  {' '}
-                  {languageName(s.language)}{' '}
-                </Text>
-              </Box>
-            )
+            const name = s.language !== undefined && room >= MIN_NAME ? languageName(s.language) : undefined
 
-            // The overlay redraws the whole box lit, so hovering the code lights nothing; the name and the label go over its top border.
+            // The overlay redraws the whole box lit, so hovering the code lights nothing. The top row (name and copy)
+            // lies over the top border in the flow, so it scrolls away with the block: absolute, it was pinned to the
+            // viewport's top row once the block scrolled off. Column-reverse lays it out first but draws it last,
+            // over the overlay, so the name stays unlit: under the overlay it kept the lit background afterwards.
             return (
-              <Box key={`${e.requestId}:${i}`} flexDirection="column" marginTop={gap} marginLeft={s.indent ?? 0}>
+              <Box
+                key={`${e.requestId}:${i}`}
+                flexDirection="column-reverse"
+                marginTop={gap}
+                marginLeft={s.indent ?? 0}
+              >
                 <Box borderStyle="round" borderDimColor paddingX={1}>
                   <Markdown text={s.drawn} />
                 </Box>
@@ -100,9 +99,16 @@ export const register: Register = on => {
                     <Markdown text={s.drawn} />
                   </Box>
                 </Box>
-                {tag}
-                {s.code !== '' && (
-                  <Box position="absolute" top={0} right={2}>
+                <Box flexDirection="row" marginBottom={-1} paddingX={2}>
+                  <Box flexGrow={1} width={0} marginRight={1}>
+                    {name !== undefined && (
+                      <Text dimColor wrap="truncate-end">
+                        {' '}
+                        {name}{' '}
+                      </Text>
+                    )}
+                  </Box>
+                  {s.code !== '' && (
                     <Button
                       key={`${e.requestId}:copy:${i}`}
                       label={LABEL}
@@ -111,8 +117,8 @@ export const register: Register = on => {
                       hover={{ scope, dimColor: false, inverse: false, backgroundColor: 'userMessageBackground' }}
                       onPress={copy}
                     />
-                  </Box>
-                )}
+                  )}
+                </Box>
               </Box>
             )
           })}
