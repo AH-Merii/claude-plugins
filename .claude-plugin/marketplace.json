@@ -27,6 +27,12 @@
       "source": "./plugins/shoop",
       "category": "development",
       "tags": ["skill", "testing", "github", "issues", "conventional-commits", "pull-request"]
+    },
+    {
+      "name": "copy-code",
+      "source": "./plugins/copy-code",
+      "category": "development",
+      "tags": ["mod", "terminal", "tui", "code-block", "clipboard"]
     }
   ]
 }
