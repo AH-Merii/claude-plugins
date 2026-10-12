@@ -1,4 +1,4 @@
-import { type Engine, expect, test } from 'claude-code/testing'
+import { type Engine, expect, mock, test } from 'claude-code/testing'
 
 const REPLY = 'Run this:\n\n```sh\nls -la\n```\n\nand this:\n\n```py\nprint(1)\n```'
 
@@ -85,4 +85,61 @@ test('a terminal too narrow for a box leaves the reply to Claude Code', async ($
   await ui.unmount()
 
   expect(drawn).toMatchObject({ type: 'Text', children: ['native'] })
+})
+
+test('quick presses all copy, and a toast repeats only once it has gone', async ($, on) => {
+  const clock = mock.clock(on)
+  const copied: string[] = []
+  const toasts: { text: string; timeoutMs?: number }[] = []
+  on('ui.copy', (_$, e) => {
+    copied.push(e.text)
+    return { value: { isCopied: true } }
+  })
+  on('ui.toast', (_$, e) => {
+    toasts.push(e)
+    return { value: undefined }
+  })
+
+  const ui = await $.ui.mount({
+    plugin: 'copy-code',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm1',
+    props: { text: REPLY, isFirstOfReply: true },
+  })
+  await ui.press({ key: 'm1:copy:1' })
+  await clock.advance(1000)
+  await ui.press({ key: 'm1:copy:3' })
+  expect(copied).toEqual(['ls -la', 'print(1)'])
+  expect(toasts.map(t => t.text)).toEqual(['Copied'])
+
+  await clock.advance(toasts[0]?.timeoutMs ?? 4000)
+  await ui.press({ key: 'm1:copy:3' })
+  await ui.unmount()
+  expect(toasts.map(t => t.text)).toEqual(['Copied', 'Copied'])
+})
+
+test('a failed copy is announced even while "Copied" shows', async ($, on) => {
+  mock.clock(on)
+  let isCopied = true
+  const toasts: string[] = []
+  on('ui.copy', () => ({ value: isCopied ? { isCopied: true } : { isCopied: false, reason: 'no-clipboard' } }))
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+
+  const ui = await $.ui.mount({
+    plugin: 'copy-code',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm1',
+    props: { text: REPLY, isFirstOfReply: true },
+  })
+  await ui.press({ key: 'm1:copy:1' })
+  isCopied = false
+  await ui.press({ key: 'm1:copy:3' })
+  await ui.unmount()
+
+  expect(toasts).toEqual(['Copied', 'Copy failed: no-clipboard'])
 })
