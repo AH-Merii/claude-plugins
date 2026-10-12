@@ -144,3 +144,17 @@ test('a failed copy is announced even while "Copied" shows', async ($, on) => {
 
   expect(toasts).toEqual(['Copied', 'Copy failed: no-clipboard'])
 })
+
+test('the block opening a reply draws the bullet, and a later block does not', async $ => {
+  for (const isFirstOfReply of [true, false]) {
+    const ui = await $.ui.mount({
+      plugin: 'copy-code',
+      surface: 'terminal',
+      component: 'AssistantMessage',
+      props: { text: REPLY, isFirstOfReply },
+    })
+    const bullets = await ui.findAll({ type: 'Text', text: '●' })
+    await ui.unmount()
+    expect(bullets).toHaveLength(isFirstOfReply ? 1 : 0)
+  }
+})
