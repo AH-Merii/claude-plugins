@@ -4,6 +4,8 @@
 #USAGE arg "[plugin]..." help="Plugin folders to check; default: every folder under plugins/"
 # Plugins without a tests/ folder are skipped. Coverage follows subprocesses, since
 # most tests run hooks and CLIs as child processes; tests/ itself isn't measured.
+# A plugin whose code mostly drives tools CI lacks can lower its floor with a number
+# in tests/coverage-floor.
 set -euo pipefail
 source ci/each-plugin.sh
 
@@ -32,7 +34,8 @@ test_plugin() {
     echo "$errors"
     return 1
   fi
-  local root work rc=0
+  local root work floor=$FAIL_UNDER rc=0
+  [ -f "$dir/tests/coverage-floor" ] && floor=$(<"$dir/tests/coverage-floor")
   root=$(cd "$dir" && pwd)
   work=$(mktemp -d)
   # Absolute paths: subprocesses run tests from other folders.
@@ -43,7 +46,7 @@ source = $root
 omit = */tests/*
 data_file = $work/coverage
 [report]
-fail_under = $FAIL_UNDER
+fail_under = $floor
 show_missing = true
 skip_covered = true
 RC
