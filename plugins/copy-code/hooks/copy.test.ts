@@ -24,3 +24,20 @@ test('each code block gets a copy row that copies its code', async ($, on) => {
 
   expect(copied).toEqual(['print(1)', 'ls -la'])
 })
+
+test('an empty block draws no copy button', async ($, on) => {
+  on('ui.copy', () => ({ value: { isCopied: true } }))
+  on('ui.toast', () => ({ value: undefined }))
+
+  const ui = await $.ui.mount({
+    plugin: 'copy-code',
+    surface: 'terminal',
+    component: 'AssistantMessage',
+    requestId: 'm1',
+    props: { text: 'Empty:\n\n```\n```\n\nand:\n\n```py\n```\n\nfull:\n\n```sh\nls\n```', isFirstOfReply: true },
+  })
+  const buttons = await ui.findAll({ type: 'Button' })
+  await ui.unmount()
+
+  expect(buttons.map(b => b.key)).toEqual(['m1:copy:5'])
+})
