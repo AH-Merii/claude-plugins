@@ -2,17 +2,20 @@ name: CI
 
 on:
   pull_request:
+  # Pushes to main rescan the full history for secrets, and recheck the merged result.
+  push:
+    branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.event.pull_request.number }}
+  group: ci-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 # Each check job runs one mise task from mise-tasks/check/, so a check runs the same
-# way locally (`mise run check:<name>`) and here. Every task checks each plugin in
-# turn and names the plugins that fail. To add a check, add a task, a job below and
+# way locally (`mise run check:<name>`) and here. The plugin tasks check each plugin
+# in turn and name the plugins that fail. To add a check, add a task, a job below and
 # one line to ci-ok's `needs:`.
 
 jobs:
@@ -67,6 +70,34 @@ jobs:
       - *mise
       - run: mise run check:complexity
 
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - *mise
+      # A PR scans only its own commits; a push to main (no PR base) scans everything.
+      - run: mise run check:secrets ${BASE_SHA:+"$BASE_SHA..$HEAD_SHA"}
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+
+  workflows:
+    name: Workflow security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - *checkout
+      - *mise
+      # The token turns on zizmor's online audits; it stays read-only.
+      - run: mise run check:workflows
+        env:
+          GH_TOKEN: ${{ github.token }}
+
   # The only check to require on main: it passes only when every check job passed.
   ci-ok:
     name: ci-ok
@@ -77,6 +108,8 @@ jobs:
       - types
       - test
       - complexity
+      - secrets
+      - workflows
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
