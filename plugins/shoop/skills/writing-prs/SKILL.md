@@ -1,6 +1,6 @@
 ---
 name: writing-prs
-description: How to write pull request titles and descriptions. Covers a commit-style title and a short prose description of what the PR does, how it was checked, the decisions a reviewer would question and what it leaves out, all linked to the issues it implements. Also covers keeping the description current and what stays out. Use when opening a PR, rewriting a PR description after the work changed, or checking whether a description gives a reviewer what they need.
+description: How to write pull request titles and descriptions. Covers a commit-style title and a short prose description shaped by the type of change (feature, fix, refactor, perf, chore, breaking, draft): what the PR does, how it was checked, the decisions a reviewer would question and what it leaves out, all linked to the issues it implements. Also covers keeping the description current and what stays out. Use when opening a PR, rewriting a PR description after the work changed, or checking whether a description gives a reviewer what they need.
 ---
 
 # Writing pull requests
@@ -24,6 +24,18 @@ The rules a PR shares with commit messages are in the conventional-commits skill
 - **Say up front if it isn't meant to merge as is:** "This is an ideation PR: it is here to pick a direction, not to merge as is."
 - **Write prose paragraphs, with bullets for parallel items.** Use no template headings such as Summary or Test plan.
 - **Images go in when they show the point faster,** under the same sourcing rules as issue comments (writing-issues skill). Comparisons of several visual options go in comments, one per option.
+
+## Shape by type
+
+The title's type sets the order of the description. Each step is a sentence or a short paragraph of prose, never a heading.
+
+- **`feat`: the problem, the solution, how to try it, visual proof.** Open with the need it serves. Summarise how it works at a high level, not file by file. Give the steps a reviewer follows to try it locally. Add a screenshot or recording when the change is visible.
+- **`fix`: the bug, its root cause, the fix, the check.** Say what went wrong and what it hit, linking the issue or an error log. Explain why it happened, then how the change stops it. End with the regression test that fails without the fix, or the manual steps that showed it gone.
+- **`refactor`: the motivation, what changed, the risk.** Say what made the code hard to work with, such as debt, a slow path or a feature it blocks. Give the structural change at a high level. Then say why behaviour is unchanged, backed by the tests that pass before and after.
+- **`perf`: the bottleneck, the change, the measurement.** Give before and after numbers and how they were measured.
+- **`chore`, `docs`, `ci` and `test`: the objective and the impact.** Say why it's needed now, such as a security patch or an out-of-date guide. State plainly when nothing changes at runtime, so it can be approved quickly. These are the shortest descriptions.
+- **Breaking changes (`!` in the title): what breaks, why, how to migrate.** Detailed migration examples go in a comment.
+- **Drafts: the status, the questions, the next steps.** Open a GitHub draft PR with the normal title, not a `WIP:` or `draft:` prefix. Say what works and what is still broken or missing. Point to the lines or decisions you want advice on. List what remains before a final review as bullets. When it's ready, rewrite the description to its type's shape.
 
 ## Keep it current
 
