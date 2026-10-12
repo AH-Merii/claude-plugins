@@ -1,0 +1,10 @@
+[
+  "on session.start",
+  "on command.describe{command=vim-ux-clear}",
+  "on command.run{command=vim-ux-clear}",
+  "on session.end",
+  "$.command.register",
+  "$.fs.write",
+  "$.prompt.fill",
+  "$.settings.read"
+]
