@@ -10,7 +10,6 @@
 ### Features
 
 * **niri-screen-lab:** a lab belongs to the session that started it ([4845e1b](https://github.com/AH-Merii/claude-plugins/commit/4845e1bb2fa973bff3278b5ada1f64b3c2c6eb59))
-* **niri-screen-lab:** a lab belongs to the session that started it ([7aafeb9](https://github.com/AH-Merii/claude-plugins/commit/7aafeb91c66c3fe8189ea3e512cde25a9017f81d))
 
 
 ### Code Refactoring
