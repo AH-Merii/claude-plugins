@@ -30,4 +30,6 @@ claude --plugin-dir path/to/copy-code
 ## Notes
 
 - Languages appear by their full name: `py` shows as `python`, `md` as `markdown`. A name it doesn't know appears as written.
-- Syntax colours come from Claude Code's highlighter. Languages it has no grammar for, such as fish, zig, lean and typst, appear as plain text.
+- Code is coloured as in Claude Code's own code blocks. Languages it has no grammar for, such as fish, zig, lean and typst, appear as plain text.
+- On Wayland, after Claude Code's own copy, the mod runs `wl-copy --type 'text/plain;charset=utf-8'`, so the clipboard holds the code as text. Claude Code's copy lets `wl-copy` guess the type, so a one-letter block can land as binary data and HTML as rich text. Claude Code's copy still fills the primary selection, a tmux buffer and the terminal's clipboard. Over SSH, without a Wayland display, or when `wl-copy` is missing or fails, only Claude Code's copy runs.
+- In a narrow terminal a long language name is shortened, and left out when there is no room for it. Below 12 columns the mod steps aside and Claude Code draws the reply.
