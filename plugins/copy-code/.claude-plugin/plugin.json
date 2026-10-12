@@ -1,7 +1,7 @@
 {
   "name": "copy-code",
   "displayName": "copy-code",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Frames each code block in Claude's replies in a box that names its language and has a copy button",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
@@ -10,5 +10,11 @@
   "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/copy-code",
   "repository": "https://github.com/AH-Merii/claude-plugins",
   "license": "MIT",
-  "keywords": ["mod", "terminal", "tui", "code-block", "clipboard"]
+  "keywords": [
+    "mod",
+    "terminal",
+    "tui",
+    "code-block",
+    "clipboard"
+  ]
 }

@@ -1,8 +1,8 @@
 {
-  "plugins/copy-code": "0.1.0",
+  "plugins/copy-code": "0.2.0",
   "plugins/gitbutler-guard": "0.1.0",
   "plugins/niri-screen-lab": "0.2.0",
   "plugins/pr-threads": "0.1.0",
   "plugins/shoop": "0.2.0",
-  "plugins/vim-ux": "0.1.0"
+  "plugins/vim-ux": "0.2.0"
 }
