@@ -2,7 +2,8 @@ export type Segment =
   | { kind: 'prose'; text: string }
   | { kind: 'code'; text: string; code: string; language?: string }
 
-const OPEN = /^ {0,3}(`{3,}|~{3,})\s*([^\s`]*)/
+// A backtick fence's info string may hold no backtick (CommonMark); a tilde fence's may.
+const OPEN = /^ {0,3}(`{3,}(?!.*`)|~{3,})\s*([^\s`]*)/
 
 // Splits markdown into prose and fenced code blocks, each code block keeping its fences.
 export function split(text: string): Segment[] {
