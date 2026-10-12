@@ -30,3 +30,15 @@ test('text without fences is one prose segment', () => {
 test('blank lines between back-to-back blocks are not a prose segment', () => {
   expect(split('```\na\n```\n\n```\nb\n```').map(s => s.kind)).toEqual(['code', 'code'])
 })
+
+test('a backtick line whose info string holds a backtick is prose, not a fence', () => {
+  for (const line of ['```npm i``` installs it.', '```js `x`']) {
+    const segments = split(`${line}\n\nThen run:\n\n\`\`\`sh\nls\n\`\`\``)
+    expect(segments.map(s => s.kind)).toEqual(['prose', 'code'])
+    expect(segments[1]).toMatchObject({ code: 'ls', language: 'sh' })
+  }
+})
+
+test('a tilde fence may hold a backtick in its info string', () => {
+  expect(split('~~~js `x`\ny\n~~~')).toEqual([{ kind: 'code', text: '~~~js `x`\ny\n~~~', code: 'y', language: 'js' }])
+})
