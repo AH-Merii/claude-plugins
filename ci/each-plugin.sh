@@ -37,3 +37,8 @@ each_plugin() {
 has_python() {
   [ -n "$(find "$1" -name '*.py' -not -path '*/__pycache__/*' -print -quit)" ]
 }
+
+# True when the plugin has TypeScript files besides the types Claude Code generates.
+has_typescript() {
+  [ -n "$(find "$1" \( -name '*.ts' -o -name '*.tsx' \) -not -path '*/.claude-plugin/types/*' -print -quit)" ]
+}

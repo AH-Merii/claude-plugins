@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
-#MISE description="Lint and format-check each plugin (ruff for Python)"
-#MISE tools={ruff="0.17.0"}
+#MISE description="Lint and format-check each plugin (ruff for Python, Biome for TypeScript)"
+#MISE tools={ruff="0.17.0", biome="2.5.15"}
 #USAGE arg "[plugin]..." help="Plugin folders to check; default: every folder under plugins/"
-# Rules and line length come from ruff.toml at the repo root. TypeScript (biome)
-# joins this task when the first TS mod lands.
+# Rules and line length come from ruff.toml and biome.json at the repo root.
 set -euo pipefail
 source ci/each-plugin.sh
 
 lint() {
-  has_python "$1" || { echo "no Python files"; return 0; }
-  local rc=0
-  ruff check --no-cache "$1" || rc=1
-  ruff format --check --no-cache "$1" || rc=1
+  local rc=0 checked=0
+  if has_python "$1"; then
+    checked=1
+    ruff check --no-cache "$1" || rc=1
+    ruff format --check --no-cache "$1" || rc=1
+  fi
+  if has_typescript "$1"; then
+    checked=1
+    biome ci --colors=off "$1" || rc=1
+  fi
+  [ "$checked" -eq 1 ] || echo "no Python or TypeScript files"
   return "$rc"
 }
 
