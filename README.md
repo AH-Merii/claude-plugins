@@ -60,7 +60,8 @@ Add each plugin to `.claude-plugin/marketplace.json` with `"source": "./plugins/
 and tags naming its components. The generated `.claude-plugin/types/` is gitignored.
 
 Check a change with `claude plugin validate --strict .` and
-`claude plugin validate --strict plugins/<name>`.
+`claude plugin validate --strict plugins/<name>`. After cloning, run `mise run setup` once to
+install the pre-push secret scan.
 
 ## License
 
