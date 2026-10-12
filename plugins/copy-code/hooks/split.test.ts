@@ -42,3 +42,9 @@ test('a backtick line whose info string holds a backtick is prose, not a fence',
 test('a tilde fence may hold a backtick in its info string', () => {
   expect(split('~~~js `x`\ny\n~~~')).toEqual([{ kind: 'code', text: '~~~js `x`\ny\n~~~', code: 'y', language: 'js' }])
 })
+
+test('an indented fence drops up to its own indent from each code line', () => {
+  const segments = split('1. Item:\n\n   ```sh\n   echo in-list\n     nested\n  less\n   ```\n2. Next.')
+  expect(segments.map(s => s.kind)).toEqual(['prose', 'code', 'prose'])
+  expect(segments[1]).toMatchObject({ code: 'echo in-list\n  nested\nless', indent: 3 })
+})
