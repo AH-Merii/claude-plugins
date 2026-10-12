@@ -7,7 +7,15 @@ set -euo pipefail
 source ci/each-plugin.sh
 
 validate() {
-  claude plugin validate --strict "$1"
+  local rc=0
+  claude plugin validate --strict "$1" || rc=1
+  # Claude Code updates a plugin only when its version changes, and release-please
+  # bumps only the plugins listed in its config.
+  if [ "$1" != . ] && ! jq -e --arg p "${1%/}" '.packages[$p]' release-please-config.json >/dev/null; then
+    echo "${1%/} is missing from release-please-config.json, so its version would never be bumped"
+    rc=1
+  fi
+  return "$rc"
 }
 
 if [ $# -eq 0 ]; then

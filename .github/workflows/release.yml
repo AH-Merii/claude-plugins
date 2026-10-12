@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+# release-please reads the Conventional Commit titles merged to main and keeps one
+# release PR open that bumps each changed plugin's version in plugin.json and its
+# CHANGELOG.md. Merging that PR tags and publishes the releases. Claude Code only
+# updates an installed plugin when its version changes, so every change needs a bump.
+# Plugins and their baseline are in release-please-config.json.
+
+jobs:
+  release-please:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
