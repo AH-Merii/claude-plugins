@@ -1,4 +1,4 @@
-# screen-lab reference
+# niri-screen-lab reference
 
 ## Prerequisites
 

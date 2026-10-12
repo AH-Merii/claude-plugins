@@ -5,8 +5,8 @@
   "metadata": { "description": "Claude Code skills and mods by AH-Merii" },
   "plugins": [
     {
-      "name": "screen-lab",
-      "source": "./plugins/screen-lab",
+      "name": "niri-screen-lab",
+      "source": "./plugins/niri-screen-lab",
       "category": "development",
       "tags": ["skill", "testing", "tui", "terminal", "niri", "ghostty"]
     },

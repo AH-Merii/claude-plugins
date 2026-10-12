@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""screen-lab: a real Ghostty window on a spare niri output that never takes focus or touches the clipboard.
+"""niri-screen-lab: a real Ghostty window on a spare niri output that never takes focus or touches the clipboard.
 
 Run `lab.py -h` for the commands. See SKILL.md and reference.md next to this file.
 """
@@ -829,7 +829,7 @@ def main():
     try:
         sys.exit(a.fn(a) or 0)
     except Refuse as e:
-        print(f"screen-lab: {e}", file=sys.stderr)
+        print(f"niri-screen-lab: {e}", file=sys.stderr)
         sys.exit(1)
 
 

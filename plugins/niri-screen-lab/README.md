@@ -1,4 +1,4 @@
-# screen-lab
+# niri-screen-lab
 
 A skill that lets an agent look at a terminal app the way a person would. It opens the app
 in a real Ghostty window on your spare monitor, types into it through a pty, sends mouse
@@ -37,7 +37,7 @@ or add when something is missing.
 ## Install
 
 ```sh
-claude plugin marketplace add AH-Merii/claude-plugins && claude plugin install screen-lab@ah-merii
+claude plugin marketplace add AH-Merii/claude-plugins && claude plugin install niri-screen-lab@ah-merii
 ```
 
-See [reference.md](skills/screen-lab/reference.md) for the details behind each rule.
+See [reference.md](skills/niri-screen-lab/reference.md) for the details behind each rule.

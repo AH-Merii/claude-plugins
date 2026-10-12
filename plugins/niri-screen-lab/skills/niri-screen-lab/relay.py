@@ -84,7 +84,7 @@ if pid == 0:
     try:
         os.execvp(argv[0], argv)
     except OSError as e:
-        print(f"screen-lab relay: cannot run {argv[0]}: {e}", file=sys.stderr)
+        print(f"niri-screen-lab relay: cannot run {argv[0]}: {e}", file=sys.stderr)
         os._exit(127)
 fcntl.ioctl(child, termios.TIOCSWINSZ, winsize())
 
