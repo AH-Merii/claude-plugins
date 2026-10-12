@@ -1,11 +1,23 @@
 {
   "name": "niri-screen-lab",
   "displayName": "Niri Screen Lab",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Visually test terminal apps in a real Ghostty window on a spare niri monitor, without stealing focus or touching the clipboard",
-  "author": { "name": "AH-Merii (AbdulHamid Merii)", "url": "https://github.com/AH-Merii" },
+  "author": {
+    "name": "AH-Merii (AbdulHamid Merii)",
+    "url": "https://github.com/AH-Merii"
+  },
   "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/niri-screen-lab",
   "repository": "https://github.com/AH-Merii/claude-plugins",
   "license": "MIT",
-  "keywords": ["skill", "testing", "tui", "screenshot", "gif", "ghostty", "niri", "wayland"]
+  "keywords": [
+    "skill",
+    "testing",
+    "tui",
+    "screenshot",
+    "gif",
+    "ghostty",
+    "niri",
+    "wayland"
+  ]
 }
