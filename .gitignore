@@ -1,3 +1,19 @@
 .claude-plugin/types/
 .DS_Store
 __pycache__/
+
+# Secret files, so they can't be committed by accident (#4).
+.env*
+!.env.example
+*.pem
+*.key
+*.p12
+id_rsa
+id_dsa
+id_ecdsa
+id_ed25519
+credentials*.json
+.npmrc
+config.local
+*.secret*
+.claude/settings.local.json

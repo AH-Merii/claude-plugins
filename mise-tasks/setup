@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#MISE description="Install the repo's git hooks from .githooks/ (pre-push secret scan)"
+# Puts a stub in the hooks folder rather than setting core.hooksPath, which would
+# switch off GitButler's managed pre-commit and post-checkout hooks. The stub runs
+# the tracked hook, so edits to .githooks/ apply without rerunning this. Rerunning
+# is safe; a hook the stub didn't write is left alone.
+set -euo pipefail
+
+marker="# Installed by mise run setup"
+hooks=$(git rev-parse --git-path hooks)
+mkdir -p "$hooks"
+rc=0
+for src in .githooks/*; do
+  name=${src##*/}
+  dest=$hooks/$name
+  if [ -e "$dest" ] && ! grep -qF "$marker" "$dest"; then
+    echo "skipped $dest: a hook not written by this task is already there" >&2
+    rc=1
+    continue
+  fi
+  # The hooks folder is shared by every checkout and worktree, so the stub does
+  # nothing in one without the tracked hook (e.g. a branch older than it) rather
+  # than blocking its pushes.
+  # shellcheck disable=SC2016  # the stub expands $(...) and $@ when git runs it
+  printf '#!/bin/sh\n%s; runs the tracked .githooks/%s.\nhook="$(git rev-parse --show-toplevel)/.githooks/%s"\n[ -x "$hook" ] || exit 0\nexec "$hook" "$@"\n' \
+    "$marker" "$name" "$name" >"$dest"
+  chmod +x "$dest"
+  echo "installed $dest"
+done
+exit "$rc"

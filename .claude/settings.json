@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(but commit *)",
+            "command": "cd \"$CLAUDE_PROJECT_DIR\" && mise run -q check:secrets --uncommitted >&2 || exit 2",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
