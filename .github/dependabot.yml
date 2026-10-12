@@ -1,0 +1,17 @@
+# Actions are the only third-party code CI runs; the plugins have no package
+# dependencies. Dependabot bumps the pinned SHAs and their `# vX.Y.Z` comments.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    # A new release must age a week before Dependabot proposes it.
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    # `ci:` titles, so release-please cuts no plugin release for a bump.
+    commit-message:
+      prefix: ci

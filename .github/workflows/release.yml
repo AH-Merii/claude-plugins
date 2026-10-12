@@ -4,10 +4,12 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
+permissions: {}
+
+# One release run at a time, so two quick merges can't race on the release PR.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 # release-please reads the Conventional Commit titles merged to main and keeps one
 # release PR open that bumps each changed plugin's version in plugin.json and its
@@ -17,6 +19,12 @@ permissions:
 
 jobs:
   release-please:
+    name: Release PR and tags
+    # Granted to this job only; other jobs added later start with none.
+    permissions:
+      contents: write # push the release branch, tags and GitHub releases
+      issues: write # label the release PR (labels go through the issues API)
+      pull-requests: write # open and update the release PR
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Run every local security check: secrets (full history) and workflows"
+#MISE depends=["check:secrets", "check:workflows"]
+# CodeQL also scans this repo, but only on GitHub (default setup); it has no local run.

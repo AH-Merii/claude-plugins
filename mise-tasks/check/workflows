@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+#MISE description="Audit GitHub Actions workflows and Dependabot config (zizmor)"
+#MISE tools={zizmor="1.30.1"}
+#USAGE arg "[path]..." help="Files or folders to audit; default: the repo root, which covers .github/"
+# Catches unpinned actions, template injection and over-broad GITHUB_TOKEN
+# permissions. With GH_TOKEN set (CI sets it) zizmor also runs its online audits,
+# e.g. that each pinned SHA really belongs to the action it names.
+set -euo pipefail
+
+[ $# -gt 0 ] || set -- .
+zizmor "$@"

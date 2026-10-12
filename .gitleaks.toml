@@ -1,0 +1,7 @@
+# The one gitleaks config for this repo: `mise run check:secrets` reads it locally and
+# in CI, and the pre-push and agent hooks (#4) reuse it, so allowlists live only here.
+# Give every allowlist entry a comment with its reason.
+title = "claude-plugins"
+
+[extend]
+useDefault = true
