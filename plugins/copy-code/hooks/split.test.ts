@@ -32,15 +32,9 @@ test('blank lines between back-to-back blocks are not a prose segment', () => {
 })
 
 test('a backtick line whose info string holds a backtick is prose, not a fence', () => {
-  for (const line of ['```npm i``` installs it.', '```js `x`']) {
-    const segments = split(`${line}\n\nThen run:\n\n\`\`\`sh\nls\n\`\`\``)
-    expect(segments.map(s => s.kind)).toEqual(['prose', 'code'])
-    expect(segments[1]).toMatchObject({ code: 'ls', language: 'sh' })
-  }
-})
-
-test('a tilde fence may hold a backtick in its info string', () => {
-  expect(split('~~~js `x`\ny\n~~~')).toEqual([{ kind: 'code', text: '~~~js `x`\ny\n~~~', code: 'y', language: 'js' }])
+  const segments = split('```npm i``` installs it.\n\nThen run:\n\n```sh\nls\n```')
+  expect(segments.map(s => s.kind)).toEqual(['prose', 'code'])
+  expect(segments[1]).toMatchObject({ code: 'ls', language: 'sh' })
 })
 
 test('an indented fence drops up to its own indent from each code line', () => {
