@@ -7,13 +7,21 @@ const MAX = 10000
 
 // nf-fa-copy, from a Nerd Font.
 const ICON = '\uF0C5'
+const LABEL = ` ${ICON} copy `
+// The cells right of the language name: the corner, the copy label and a gap.
+const RIGHT = 2 + LABEL.length + 1
+// With fewer cells than this a name says nothing, so it is left out.
+const MIN_NAME = 4
+// Narrower than this a box can't hold its corners and copy, so Claude Code draws the reply.
+const MIN_COLUMNS = 12
 
 export const register: Register = on => {
   on('ui.render', { component: 'AssistantMessage', surface: 'terminal' }, ($, e, next) => {
     const segments = split(e.props.text)
     const isDrawable = segments.some(s => s.kind === 'code') && segments.every(s => s.text.length <= MAX)
 
-    if (!isDrawable) {
+    const columns = e.viewport?.columns
+    if (!isDrawable || (columns !== undefined && columns < MIN_COLUMNS)) {
       return next(e)
     }
 
@@ -33,10 +41,15 @@ export const register: Register = on => {
 
           // Not the wrapper's key: a keyed Box is a scope of its own, and hovering the code would join it.
           const scope = `${e.requestId}:${i}:lit`
+          // The name's cells: the box less its left corner, the right side and a space either side.
+          const room = columns === undefined ? Infinity : columns - (s.indent ?? 0) - 2 - RIGHT - 2
           // Drawn in both layers so it is lit with the box without joining the hover group.
-          const tag = s.language && (
-            <Box position="absolute" top={0} left={2}>
-              <Text dimColor> {languageName(s.language)} </Text>
+          const tag = s.language && room >= MIN_NAME && (
+            <Box position="absolute" top={0} left={2} right={RIGHT}>
+              <Text dimColor wrap="truncate-end">
+                {' '}
+                {languageName(s.language)}{' '}
+              </Text>
             </Box>
           )
 
@@ -66,7 +79,7 @@ export const register: Register = on => {
                 <Box position="absolute" top={0} right={2}>
                   <Button
                     key={`${e.requestId}:copy:${i}`}
-                    label={` ${ICON} copy `}
+                    label={LABEL}
                     plain
                     dimColor
                     hover={{ scope, dimColor: false, inverse: false, backgroundColor: 'userMessageBackground' }}
