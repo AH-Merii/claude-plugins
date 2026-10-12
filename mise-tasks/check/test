@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-#MISE description="Run each plugin's unittest suite under coverage, with a floor"
-#MISE tools={python="3.14", uv="0.13.0", "pipx:coverage"="7.16.2"}
+#MISE description="Run each plugin's tests: unittest under coverage with a floor, and claude plugin test for mods"
+#MISE tools={python="3.14", uv="0.13.0", "pipx:coverage"="7.16.2", claude="2.1.289"}
+#MISE env={DISABLE_AUTOUPDATER="1"}
 #USAGE arg "[plugin]..." help="Plugin folders to check; default: every folder under plugins/"
-# Plugins without a tests/ folder are skipped. Coverage follows subprocesses, since
+# A mod's *.test.ts(x) files run under `claude plugin test`, offline and without
+# credentials. Python plugins without a tests/ folder are skipped. Coverage follows subprocesses, since
 # most tests run hooks and CLIs as child processes; tests/ itself isn't measured.
 # A plugin whose code mostly drives tools CI lacks can lower its floor with a number
 # in tests/coverage-floor.
@@ -22,12 +24,8 @@ undiscoverable() {
     done
 }
 
-test_plugin() {
+python_tests() {
   local dir=$1
-  if [ -z "$(find "$dir/tests" -name 'test*.py' -print -quit 2>/dev/null)" ]; then
-    echo "no tests/test*.py; skipping"
-    return 0
-  fi
   local errors
   errors=$(undiscoverable "$dir/tests")
   if [ -n "$errors" ]; then
@@ -58,6 +56,20 @@ RC
     COVERAGE_RCFILE="$work/coveragerc" coverage report || rc=$?
   fi
   rm -rf "$work"
+  return "$rc"
+}
+
+test_plugin() {
+  local dir=$1 rc=0 ran=0
+  if [ -n "$(find "$dir/tests" -name 'test*.py' -print -quit 2>/dev/null)" ]; then
+    ran=1
+    python_tests "$dir" || rc=1
+  fi
+  if [ -n "$(find "$dir" \( -name '*.test.ts' -o -name '*.test.tsx' \) -not -path '*/.claude-plugin/types/*' -print -quit)" ]; then
+    ran=1
+    claude plugin test "$dir" || rc=1
+  fi
+  [ "$ran" -eq 1 ] || echo "no tests/test*.py or *.test.ts(x); skipping"
   return "$rc"
 }
 

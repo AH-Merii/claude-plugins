@@ -1,15 +1,41 @@
 #!/usr/bin/env bash
-#MISE description="Type-check each plugin (ty for Python)"
-#MISE tools={ty="0.0.86"}
+#MISE description="Type-check each plugin (ty for Python, tsc for TypeScript mods)"
+#MISE tools={ty="0.0.86", claude="2.1.289", node="24.21.0", "npm:typescript"="5.9.3"}
+#MISE env={DISABLE_AUTOUPDATER="1"}
 #USAGE arg "[plugin]..." help="Plugin folders to check; default: every folder under plugins/"
 # ty checks unannotated function bodies too, which matters here: the plugins carry
 # almost no annotations. A plugin's own ty.toml (e.g. extra-paths) is honoured.
 set -euo pipefail
 source ci/each-plugin.sh
 
+# A mod's tsconfig.json extends the types Claude Code writes beside the mod each time it
+# loads it, so a fresh clone has none. A headless start writes them before it stops for
+# want of a login. It runs with an empty environment, HOME and config dir, so no
+# credentials can be found and nothing reaches the model; "Not logged in" is expected.
+mod_types() {
+  local home
+  home=$(mktemp -d)
+  env -i PATH="$PATH" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" DISABLE_AUTOUPDATER=1 \
+    claude -p 'write the plugin types' --plugin-dir "$1" >/dev/null 2>&1 || true
+  rm -rf "$home"
+  if [ ! -f "$1/.claude-plugin/types/claude-code/index.d.ts" ]; then
+    echo "Claude Code wrote no types into $1/.claude-plugin/types, so tsc can't check it."
+    return 1
+  fi
+}
+
 types() {
-  has_python "$1" || { echo "no Python files"; return 0; }
-  ty check --project "$1" --python-version 3.14 --error-on-warning "$1"
+  local rc=0 checked=0
+  if has_python "$1"; then
+    checked=1
+    ty check --project "$1" --python-version 3.14 --error-on-warning "$1" || rc=1
+  fi
+  if has_typescript "$1"; then
+    checked=1
+    { mod_types "$1" && tsc -p "$1"; } || rc=1
+  fi
+  [ "$checked" -eq 1 ] || echo "no Python or TypeScript files"
+  return "$rc"
 }
 
 each_plugin types "$@"
