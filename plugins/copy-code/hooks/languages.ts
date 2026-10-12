@@ -13,7 +13,10 @@ export const NAMES: Record<string, string> = {
   txt: 'text', plaintext: 'text', patch: 'diff', dockerfile: 'docker', containerfile: 'docker',
 }
 
+// A Map, not NAMES itself: an object would also answer inherited keys such as `constructor`.
+const ALIASES = new Map(Object.entries(NAMES))
+
 // The full name of a fence's language, as written when it is not an alias.
 export function languageName(language: string): string {
-  return NAMES[language.toLowerCase()] ?? language
+  return ALIASES.get(language.toLowerCase()) ?? language
 }
