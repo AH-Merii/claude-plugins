@@ -13,6 +13,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from pathlib import Path
 
 SKILL = os.path.join(os.path.dirname(__file__), "..", "skills", "niri-screen-lab")
 LAB = os.path.join(SKILL, "lab.py")
@@ -50,6 +51,12 @@ def commands():
     return set(sub.choices)
 
 
+def lab_process(pid):
+    """A process as lab.py records one it started: its pid and start time (field 22 of /proc/PID/stat)."""
+    fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
+    return {"pid": pid, "started": int(fields[19])}
+
+
 def sleeper(name="sleep"):
     """A long-lived process; `name` sets what /proc/PID/comm reads."""
     return subprocess.Popen([name, "60"])
@@ -62,7 +69,7 @@ class OwnerTest(unittest.TestCase):
         self.tmp = tmp.name
         self.state = os.path.join(self.tmp, "screen-lab")
         os.mkdir(self.state, 0o700)
-        # Stand-in for the lab's Ghostty: lab.py checks the comm name only.
+        # Stand-in for the lab's Ghostty, recorded as the process the lab started.
         fake = os.path.join(self.tmp, "ghostty")
         shutil.copy(shutil.which("sleep") or "/usr/bin/sleep", fake)
         self.ghostty = self.spawn(fake)
@@ -83,7 +90,14 @@ class OwnerTest(unittest.TestCase):
     def make_lab(self, owner):
         with open(os.path.join(self.state, "state.json"), "w") as f:
             json.dump(
-                {"pid": self.ghostty.pid, "output": "eDP-1", "app_id": lab.APP_ID, "cmd": ["true"], "owner": owner}, f
+                {
+                    **lab_process(self.ghostty.pid),
+                    "output": "eDP-1",
+                    "app_id": lab.APP_ID,
+                    "cmd": ["true"],
+                    "owner": owner,
+                },
+                f,
             )
 
     def run_lab(self, args, session):
