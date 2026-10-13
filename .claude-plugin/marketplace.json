@@ -8,7 +8,7 @@
       "name": "niri-screen-lab",
       "source": "./plugins/niri-screen-lab",
       "category": "development",
-      "tags": ["skill", "testing", "tui", "terminal", "niri", "ghostty"]
+      "tags": ["skill", "testing", "tui", "terminal", "browser", "niri", "ghostty", "chromium"]
     },
     {
       "name": "gitbutler-guard",

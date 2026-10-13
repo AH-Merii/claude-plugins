@@ -13,6 +13,7 @@
 | a niri window rule | opens the lab there, unfocused | parsed from the niri config, includes followed |
 | a valid GTK app-id | Ghostty silently ignores an invalid `--class` | `Gio.Application.id_is_valid` (needs python3 + PyGObject) |
 | ghostty | the terminal under test | on `PATH` |
+| chromium | the browser under test (`browse` only) | on `PATH`, with `preflight --browser` |
 | grim | screenshots that never touch the clipboard | on `PATH` |
 | wf-recorder, ffmpeg | GIFs: record, then palettegen/paletteuse | on `PATH` |
 | `$XDG_RUNTIME_DIR` | runtime state in `$XDG_RUNTIME_DIR/screen-lab/` | exists |
@@ -34,7 +35,7 @@ reloads the file when it is saved.
 
 Overrides: `SCREEN_LAB_OUTPUT=<name>` chooses the spare output, and `SCREEN_LAB_APP_ID`
 changes the app-id (default `dev.claude.lab`). The rule must match whichever app-id you
-use.
+use. Both kinds of lab use the same app-id, so one rule places either.
 
 ## What start does, and why
 
@@ -63,6 +64,55 @@ use.
   the top-left and bottom-right corners. start screenshots them to find the grid origin
   and the cell size, then clears the screen and runs the command.
 
+## The browser lab
+
+`lab.py browse URL` opens Chromium the way `start` opens Ghostty: the app-id is checked,
+the window must turn up on the spare output, unfocused, and the same refusals apply. Then:
+
+- **The profile is new each time.** It lives in `$XDG_CACHE_HOME/niri-screen-lab/profile`
+  (on disk, not in the runtime tmpfs) and `stop` deletes it. So the page never sees the
+  user's cookies, sign-ins or extensions. Downloads go to
+  `$XDG_CACHE_HOME/niri-screen-lab/downloads` without asking, never to `~/Downloads`.
+- **Chromium runs with these flags:**
+  - `--class=dev.claude.lab`, which sets its Wayland app-id;
+  - `--password-store=basic`, so it never opens the user's keyring;
+  - `--deny-permission-prompts` and `--disable-notifications`, so no prompt or notification
+    reaches the user's screen;
+  - `--disable-blink-features=FileSystemAccessLocal`. `showOpenFilePicker()` and
+    `showSaveFilePicker()` would open a portal dialog, which DevTools can't hold back.
+    Without them, pages fall back to `<input type=file>`, which it can;
+  - `--test-type`, which keeps Chromium's "unsupported command-line flag" bar (for the flag
+    above) off the page, where it would shift the viewport;
+  - `--remote-debugging-port=0`: a free port on 127.0.0.1, which Chromium writes to
+    `DevToolsActivePort` in the profile.
+- **The keeper holds file choosers back.** `browser.py keep` holds one DevTools session to
+  the whole browser and asks every page for `Page.setInterceptFileChooserDialog`, since
+  interception lasts only as long as the session that asked. A chooser then opens no dialog;
+  it is logged to `filechooser.log`. The keeper exits with Chromium.
+- **The viewport is measured.** A marker page puts a magenta square in each corner of the
+  viewport; a screenshot finds them, which gives the viewport's place in a full shot and its
+  scale. Then the lab goes to URL.
+- **Input is refused while the window has focus.** niri lets only the client with keyboard
+  focus set the clipboard or the primary selection: smithay logs "denying setting selection
+  by a non-focused client" otherwise (`src/wayland/selection/data_device/device.rs` and
+  `primary_selection/device.rs`). Input through DevTools reaches the page without focus, so
+  an unfocused lab can click and type freely, and nothing the page does can write the
+  user's clipboard. With focus (a pointer on the spare screen) that no longer holds, so
+  `keys`, `key`, `hover`, `click`, `scroll`, `open` and `js` refuse.
+
+Browser input:
+
+- `keys` types text with `Input.insertText`, and presses `\r`, `\t`, `\e` and backspace as
+  keys.
+- `key` takes the names below plus any single character, with `ctrl-`, `alt-`, `shift-` and
+  `meta-` in front (`ctrl-a`, `ctrl-shift-p`, `shift-1`). A shortcut types no text.
+- `hover`, `click` and `scroll` take the page's CSS pixels, `X Y` from the viewport's top
+  left. `cell X Y [--crop]` maps a screenshot pixel to them. `js` can give an element's
+  position directly:
+  `lab.py js "(r => [r.x + r.width/2, r.y + r.height/2])(document.querySelector('button').getBoundingClientRect())"`.
+- `js` runs an expression with `awaitPromise`, so `fetch(...).then(...)` works, and prints
+  its JSON value. A thrown error is reported as one.
+
 ## Input
 
 The relay is a pty between Ghostty and the command. Bytes written to
@@ -83,6 +133,8 @@ Nothing goes through the compositor, so the user's focused window can never rece
   `hover`, `click` and `scroll` build these for you. Columns and rows are 1-based.
 
 ## Mouse coordinates
+
+This section is about the terminal lab; a browser lab's coordinates are above.
 
 `lab.py info` shows `grid`: the origin `x,y` in a full-output screenshot, plus `cell_w`,
 `cell_h`, `cols` and `rows`.
@@ -106,6 +158,9 @@ The size the terminal reports (TIOCGWINSZ: cols, rows, pixels) stays current in
   converts with ffmpeg (palettegen, then paletteuse). A `--crop` GIF of about 3 s is
   roughly 200 KB.
 - `rec-start [--crop]` and `rec-stop FILE` do the same with no fixed length.
+- wf-recorder records a frame only when the screen changes. A still screen gives one frame,
+  which can't become a GIF, so `rec-stop` refuses; take a `shot` instead. A terminal's
+  blinking cursor is enough motion; a still web page isn't.
 
 niri reports no position for tiled windows (`tile_pos_in_workspace_view` is null), so a
 capture is always of the whole output. `--crop` cuts out the grid that start measured.
@@ -152,7 +207,9 @@ All of it lives in `$XDG_RUNTIME_DIR/screen-lab/`:
 - `feed`: the FIFO;
 - `size`;
 - `osc52.log`;
-- `relay.log` and `ghostty.log`, for when the window closes unexpectedly.
+- `relay.log` and `ghostty.log`, for when the window closes unexpectedly;
+- a browser lab's `chromium.log`, `keeper.log` and `filechooser.log`. Its profile and
+  downloads are in `$XDG_CACHE_HOME/niri-screen-lab/`.
 
 Only one lab runs at a time. `start` holds `lock` while it checks the spare output and opens
 the window, so two sessions starting at once can't both get through.
@@ -173,3 +230,6 @@ next one. Subagents share their parent's `claude` process, so they share its lab
 | warning: the lab window has focus | the pointer is on the spare screen; ask the user to move it |
 | `cell` refuses: resized | the user changed the column width; restart the lab |
 | keys do nothing | the app is in kitty keyboard mode and wants CSI-u; send them with `keys` |
+| browser input refused: the window has focus | the pointer is on the spare screen; ask the user to move it |
+| `rec-stop` refuses: ffmpeg could not make the GIF | nothing moved while recording; drive the page during the recording, or take a `shot` |
+| a page's file upload does nothing | the lab held the chooser back (`filechooser.log`); load the content with `js` instead |
