@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/AH-Merii/claude-plugins/compare/niri-screen-lab-v0.2.0...niri-screen-lab-v0.3.0) (2026-10-13)
+
+
+### Features
+
+* **niri-screen-lab:** drive web pages in a browser lab ([#41](https://github.com/AH-Merii/claude-plugins/issues/41)) ([15e58ff](https://github.com/AH-Merii/claude-plugins/commit/15e58ffadedb1fc37462b7e3d9a528e1d2fdd872))
+
+
+### Bug Fixes
+
+* **niri-screen-lab:** act only on processes the lab started ([#47](https://github.com/AH-Merii/claude-plugins/issues/47)) ([dd12398](https://github.com/AH-Merii/claude-plugins/commit/dd123986cc1ce4d4caf5473094794c0eb5c162ce)), closes [#45](https://github.com/AH-Merii/claude-plugins/issues/45)
+
 ## [0.2.0](https://github.com/AH-Merii/claude-plugins/compare/niri-screen-lab-v0.1.0...niri-screen-lab-v0.2.0) (2026-10-12)
 
 

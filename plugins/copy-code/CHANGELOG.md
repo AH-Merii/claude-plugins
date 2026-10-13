@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/AH-Merii/claude-plugins/compare/copy-code-v0.2.0...copy-code-v0.3.0) (2026-10-13)
+
+
+### Features
+
+* **copy-code:** ask Claude to give every code block a language ([#44](https://github.com/AH-Merii/claude-plugins/issues/44)) ([6656262](https://github.com/AH-Merii/claude-plugins/commit/6656262703cd78e2d03082c368c1b2739584475e))
+
 ## [0.2.0](https://github.com/AH-Merii/claude-plugins/compare/copy-code-v0.1.0...copy-code-v0.2.0) (2026-10-12)
 
 

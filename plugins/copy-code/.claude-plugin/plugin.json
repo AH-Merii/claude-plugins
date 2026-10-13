@@ -1,7 +1,7 @@
 {
   "name": "copy-code",
   "displayName": "copy-code",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Frames each code block in Claude's replies in a box that names its language and has a copy button",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
