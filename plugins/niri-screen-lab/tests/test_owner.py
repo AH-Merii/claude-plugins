@@ -25,6 +25,9 @@ REFUSED = "another Claude session"
 # One runnable argv per command that touches the lab.
 SAMPLE_ARGS = {
     "start": ["start", "--", "true"],
+    "browse": ["browse", "about:blank"],
+    "open": ["open", "about:blank"],
+    "js": ["js", "1"],
     "keys": ["keys", "x"],
     "key": ["key", "enter"],
     "hover": ["hover", "1", "1"],
