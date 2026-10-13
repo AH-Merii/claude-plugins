@@ -203,7 +203,7 @@ lab.py start --cwd ~/project -- claude --model haiku \
 
 All of it lives in `$XDG_RUNTIME_DIR/screen-lab/`:
 
-- `state.json`: pid, output, grid, any recording, and the owning session;
+- `state.json`: the lab's pid and start time, output, grid, any recording, and the owning session;
 - `feed`: the FIFO;
 - `size`;
 - `osc52.log`;
@@ -213,6 +213,12 @@ All of it lives in `$XDG_RUNTIME_DIR/screen-lab/`:
 
 Only one lab runs at a time. `start` holds `lock` while it checks the spare output and opens
 the window, so two sessions starting at once can't both get through.
+
+The lab records each process it starts (Ghostty or Chromium, the recorder, the keeper) by pid
+and start time. Once one exits, the kernel may give its pid to another process, even one of
+the user's own windows, so a command treats a process as the lab's only while both match: it
+never drives or signals anything else. A `state.json` without start times, from an older
+version, counts as a lab that has exited.
 
 The lab's owner is the session's `$CLAUDE_PID`, the `claude` process. While that process
 is alive, every command except `preflight` refuses another session, `stop` included. Once

@@ -17,7 +17,7 @@ import urllib.parse
 from pathlib import Path
 from unittest import mock
 
-from test_owner import commands, lab, sleeper
+from test_owner import commands, lab, lab_process, sleeper
 
 browser = lab.browser  # test_owner puts the skill's folder on sys.path
 
@@ -57,7 +57,7 @@ class LabStateTest(unittest.TestCase):
         self.addCleanup(p.wait)
         self.addCleanup(p.kill)
         # Port 9 (discard) has no DevTools: a command that gets past its checks fails to connect.
-        lab.save_state({"kind": kind, "pid": p.pid, "output": "eDP-1", "port": 9, "owner": None})
+        lab.save_state({"kind": kind, **lab_process(p.pid), "output": "eDP-1", "port": 9, "owner": None})
         window = {"id": 1, "is_focused": focused, "layout": {"window_size": [100, 100]}}
         patcher = mock.patch.object(lab, "find_window", return_value=window)
         patcher.start()

@@ -44,8 +44,6 @@ PACKAGES = {
     "gi": "python-gobject",
     "chromium": "chromium",
 }
-# The process a lab runs, by kind: `start` opens a terminal lab, `browse` a browser lab.
-PROCESS = {"terminal": "ghostty", "browser": "chromium"}
 
 
 class Refuse(Exception):
@@ -263,12 +261,24 @@ def save_state(st):
     STATE_FILE.write_text(json.dumps(st))
 
 
-def alive(pid):
+def started(pid):
+    """When process `pid` started, in clock ticks after boot (field 22 of /proc/PID/stat); None once it has exited."""
     try:
-        comm = Path(f"/proc/{pid}/comm").read_text()
+        fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
     except OSError:
-        return False
-    return any(name in comm for name in PROCESS.values())
+        return None
+    return None if fields[0] in "ZX" else int(fields[19])
+
+
+def launched(pid):
+    """How the state records a process the lab started: a pid alone could name a later process that reused it."""
+    return {"pid": pid, "started": started(pid)}
+
+
+def alive(proc):
+    """True while `proc`, as launched() recorded it, still runs. A record without a start time can't be verified,
+    so it counts as gone: the lab never treats as its own, or signals, a process it can't tell it started."""
+    return isinstance(proc, dict) and proc.get("started") is not None and started(proc["pid"]) == proc["started"]
 
 
 def kind(st):
@@ -294,7 +304,7 @@ def session():
 def check_owner(st):
     """A running lab belongs to the session that started it, until that session ends."""
     owner = st.get("owner")
-    if alive(st["pid"]) and owner and owner != session() and alive_pid(owner):
+    if alive(st) and owner and owner != session() and alive_pid(owner):
         raise Refuse(
             f"the lab belongs to another Claude session (claude pid {owner}) and only one lab runs at a time; "
             "try again later, or ask the user"
@@ -312,7 +322,7 @@ def start_lock():
 
 def running():
     st = load_state()
-    if not st or not alive(st["pid"]):
+    if not st or not alive(st):
         raise Refuse("no lab is running; use `lab.py start -- CMD...`")
     return st
 
@@ -442,7 +452,8 @@ def cmd_preflight(a):
 
         def empty():
             ws = next(x for x in niri("workspaces") if x["output"] == spare["name"] and x["is_active"])
-            mine = (load_state() or {}).get("pid")
+            st = load_state()
+            mine = st["pid"] if st and alive(st) else None
             others = [x["app_id"] for x in niri("windows") if x["workspace_id"] == ws["id"] and x["pid"] != mine]
             if others:
                 raise Refuse(
@@ -494,7 +505,7 @@ def settle_grid(st):
 def claim(output):
     """Refuse unless no lab runs and the spare output's visible workspace is empty. Call it under start_lock."""
     st = load_state()
-    if st and alive(st["pid"]):
+    if st and alive(st):
         check_owner(st)
         raise Refuse(f"a lab is already running (pid {st['pid']}); `lab.py stop` it first")
     ws = next(x for x in niri("workspaces") if x["output"] == output and x["is_active"])
@@ -541,7 +552,14 @@ def launch(a, output):
         stdout=log,
         stderr=log,
     )
-    st = {"kind": "terminal", "pid": proc.pid, "output": output, "app_id": APP_ID, "cmd": a.cmd, "owner": session()}
+    st = {
+        "kind": "terminal",
+        **launched(proc.pid),
+        "output": output,
+        "app_id": APP_ID,
+        "cmd": a.cmd,
+        "owner": session(),
+    }
     save_state(st)
     return proc, st
 
@@ -618,7 +636,7 @@ def launch_browser(output):
     )
     st = {
         "kind": "browser",
-        "pid": proc.pid,
+        **launched(proc.pid),
         "output": output,
         "app_id": APP_ID,
         "cmd": ["chromium"],
@@ -690,7 +708,7 @@ def start_keeper(port):
         stdout=log,
         stderr=log,
     )
-    return p.pid
+    return launched(p.pid)
 
 
 def cmd_browse(a):
@@ -950,7 +968,7 @@ def cmd_shot(a):
 def rec_start(st, crop):
     need("wf-recorder", "recording GIFs")
     need("ffmpeg", "GIF conversion")
-    if st.get("rec") and alive_pid(st["rec"]["pid"]):
+    if alive(st.get("rec")):
         raise Refuse("already recording; `lab.py rec-stop FILE.gif` first")
     alone(st)
     video = str(STATE / "rec.mp4")
@@ -963,7 +981,7 @@ def rec_start(st, crop):
         stderr=log,
         start_new_session=True,
     )
-    st["rec"] = {"pid": p.pid, "video": video}
+    st["rec"] = {**launched(p.pid), "video": video}
     save_state(st)
     time.sleep(0.6)
     if p.poll() is not None:
@@ -985,9 +1003,10 @@ def rec_stop(st, out, fps, width):
     save_state(st)
     if not rec:
         raise Refuse("not recording")
-    os.kill(rec["pid"], signal.SIGINT)
+    if alive(rec):
+        os.kill(rec["pid"], signal.SIGINT)
     for _ in range(50):
-        if not alive_pid(rec["pid"]):
+        if not alive(rec):
             break
         time.sleep(0.1)
     try:
@@ -1034,27 +1053,30 @@ def cmd_rec_stop(a):
 
 
 def kill(st):
-    rec = st.get("rec")
-    if rec and alive_pid(rec["pid"]):
-        os.kill(rec["pid"], signal.SIGINT)
+    """Stop every process the lab started and clear its state. Returns False if the lab itself had already exited."""
+    if alive(st.get("rec")):
+        os.kill(st["rec"]["pid"], signal.SIGINT)
     # End the process itself: closing Ghostty's window through niri leaves a "close running process?" dialog.
-    if alive(st["pid"]):
+    # Once it has exited, its window has gone with it, and its pid may now be another process's.
+    up = alive(st)
+    if up:
         os.kill(st["pid"], signal.SIGTERM)
-    for i in range(40):
-        if not find_window(st["pid"]) and not alive(st["pid"]):
+    for i in range(40 if up else 0):
+        if not find_window(st["pid"]) and not alive(st):
             break
-        if i == 20 and alive(st["pid"]):
+        if i == 20 and alive(st):
             os.kill(st["pid"], signal.SIGKILL)
         time.sleep(0.25)
-    if st.get("keeper") and alive_pid(st["keeper"]):
-        os.kill(st["keeper"], signal.SIGTERM)
+    if alive(st.get("keeper")):
+        os.kill(st["keeper"]["pid"], signal.SIGTERM)
     if st.get("profile"):
         shutil.rmtree(st["profile"], ignore_errors=True)
     STATE_FILE.unlink(missing_ok=True)
     for f in ("go", "size", "rec.mp4"):
         (STATE / f).unlink(missing_ok=True)
-    if find_window(st["pid"]):
+    if up and find_window(st["pid"]):
         raise Refuse("the lab window is still open; tell the user")
+    return up
 
 
 def cmd_stop(a):
@@ -1062,8 +1084,7 @@ def cmd_stop(a):
     if not st:
         print("no lab running")
         return
-    kill(st)
-    print("stopped")
+    print("stopped" if kill(st) else "the lab had already exited; cleared its state")
 
 
 # Commands that never touch a running lab. Every other one is refused while another session owns the lab.
