@@ -345,13 +345,18 @@ def global_rect(st, x, y, w, h):
     return f"{o['x'] + round(x / s)},{o['y'] + round(y / s)} {round(w / s)}x{round(h / s)}"
 
 
+def unresized(st, what):
+    """Refuse once the lab window's size differs from when `what` (the grid, the viewport) was measured."""
+    w = find_window(st["pid"])
+    if w and w["layout"]["window_size"] != st.get("window_size"):
+        raise Refuse(f"the lab window was resized since the {what} was measured; restart the lab to remeasure")
+
+
 def grid(st):
     g = st.get("grid")
     if not g:
         raise Refuse("the grid was not measured at start; pixel-to-cell mapping is unavailable")
-    w = find_window(st["pid"])
-    if w and w["layout"]["window_size"] != st.get("window_size"):
-        raise Refuse("the lab window was resized since the grid was measured; restart the lab to remeasure")
+    unresized(st, "grid")
     cols, rows = (STATE / "size").read_text().split()[:2]
     if (int(cols), int(rows)) != (g["cols"], g["rows"]):
         raise Refuse(
@@ -559,16 +564,22 @@ def placed(proc, st, output):
     return w
 
 
-def cmd_start(a):
-    if not a.cmd:
-        raise Refuse("usage: lab.py start [--cwd DIR] -- CMD [ARGS...]")
+def pre_launch(app, why):
+    """The checks before any lab opens; `app` is the program under test. Returns the spare output."""
     check_runtime()
     check_niri()
     check_app_id()
-    need("ghostty", "the terminal under test")
+    need(app, why)
     need("grim", "screenshots without the clipboard")
     output, _ = spare_output()
     rule_for(output)
+    return output
+
+
+def cmd_start(a):
+    if not a.cmd:
+        raise Refuse("usage: lab.py start [--cwd DIR] -- CMD [ARGS...]")
+    output = pre_launch("ghostty", "the terminal under test")
     with start_lock():
         proc, st = launch(a, output)
     w = placed(proc, st, output)
@@ -694,13 +705,7 @@ def start_keeper(port):
 
 
 def cmd_browse(a):
-    check_runtime()
-    check_niri()
-    check_app_id()
-    need("chromium", "the browser under test")
-    need("grim", "screenshots without the clipboard")
-    output, _ = spare_output()
-    rule_for(output)
+    output = pre_launch("chromium", "the browser under test")
     with start_lock():
         proc, st = launch_browser(output)
     w = placed(proc, st, output)
@@ -742,9 +747,7 @@ def viewport(st):
     v = st.get("viewport")
     if not v:
         raise Refuse("the viewport was not found at start; pixel mapping and cropping are unavailable")
-    w = find_window(st["pid"])
-    if w and w["layout"]["window_size"] != st.get("window_size"):
-        raise Refuse("the lab window was resized since the viewport was measured; restart the lab to remeasure")
+    unresized(st, "viewport")
     return v
 
 
