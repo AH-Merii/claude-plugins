@@ -413,7 +413,7 @@ class Desk:
         if name == "MoveWindowToWorkspace" and "focus" not in a:
             return {"Err": "error parsing request"}
         handlers[name](a)
-        return "Handled"
+        return {"Ok": "Handled"}
 
     # ---------- the fakes' side door ----------
 
