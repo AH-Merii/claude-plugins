@@ -32,8 +32,8 @@ const WL_COPY_AFTER_MS = 300
 // most often when its code isn't valid on its own. The text never varies, so the cached prompt before it holds.
 const FENCES =
   'Code blocks in your replies are boxed by copy-code, which names and colours each by its fence language. ' +
-  'Give every fenced block a language tag (python, bash, json; text for plain output), even a sketch that is ' +
-  'not valid code on its own.'
+  'Give every fenced block a language tag (python, bash, json; text for plain output). For a sketch that is ' +
+  'not valid code on its own, tag the real language it is closest to: a made-up tag such as pseudo gets no colours.'
 
 export const register: Register = on => {
   // Only where a terminal draws the replies: in print mode or the Desktop app the box isn't there.
