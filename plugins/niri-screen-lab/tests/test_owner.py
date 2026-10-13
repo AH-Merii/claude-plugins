@@ -1,32 +1,27 @@
 """Run with: python3 -m unittest discover -s plugins/niri-screen-lab/tests
 
-A lab belongs to the Claude session that started it (CLAUDE_PID). While that session
-is alive, every other session is refused, so parallel agents can't drive, capture or
-stop each other's lab. Once it has ended, anyone may take the lab over.
+Several labs run at once, so every command that acts on a lab names it with `--lab ID`; there is no
+"the only lab" default, since sibling subagents share CLAUDE_PID and could pick each other's lab.
+A lab belongs to the Claude session that started it (CLAUDE_PID). While that session is alive, every
+other session is refused, so parallel agents can't drive, capture or stop each other's lab. Once it has
+ended, anyone may take the lab over.
 """
 
 import argparse
-import json
-import os
-import shutil
-import subprocess
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 
-SKILL = os.path.join(os.path.dirname(__file__), "..", "skills", "niri-screen-lab")
-LAB = os.path.join(SKILL, "lab.py")
-sys.path.insert(0, SKILL)
+from labtest import SKILL, DeskTest, started, wait_for
+
+sys.path.insert(0, str(SKILL))
 
 import lab
 
 REFUSED = "another Claude session"
 
-# One runnable argv per command that touches the lab.
-SAMPLE_ARGS = {
-    "start": ["start", "--", "true"],
-    "browse": ["browse", "about:blank"],
+# One runnable argv per command that acts on a lab; `--lab ID` is added to each.
+LAB_ARGS = {
     "open": ["open", "about:blank"],
     "js": ["js", "1"],
     "keys": ["keys", "x"],
@@ -42,8 +37,8 @@ SAMPLE_ARGS = {
     "rec-stop": ["rec-stop", "out.gif"],
     "stop": ["stop"],
 }
-# Commands that never touch a running lab.
-LAB_FREE = {"preflight", "doctor"}
+# Commands that take no lab id: they check the desktop, list the labs, or open a new one.
+NO_LAB = {"preflight", "doctor", "list", "start", "browse"}
 
 
 def commands():
@@ -51,95 +46,96 @@ def commands():
     return set(sub.choices)
 
 
-def lab_process(pid):
-    """A process as lab.py records one it started: its pid and start time (field 22 of /proc/PID/stat)."""
-    fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
-    return {"pid": pid, "started": int(fields[19])}
+def on(lab_id, name):
+    return [*LAB_ARGS[name], "--lab", lab_id]
 
 
-def sleeper(name="sleep"):
-    """A long-lived process; `name` sets what /proc/PID/comm reads."""
-    return subprocess.Popen([name, "60"])
+class LabTest(DeskTest):
+    def typed(self, lab_id, text):
+        """True once lab `lab_id`'s terminal has printed `text`."""
+        pid = self.window(lab_id)["pid"]
+        return any(text in t for _, p, t in self.desk.draws if p == pid)
 
 
-class OwnerTest(unittest.TestCase):
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.tmp = tmp.name
-        self.state = os.path.join(self.tmp, "screen-lab")
-        os.mkdir(self.state, 0o700)
-        # Stand-in for the lab's Ghostty, recorded as the process the lab started.
-        fake = os.path.join(self.tmp, "ghostty")
-        shutil.copy(shutil.which("sleep") or "/usr/bin/sleep", fake)
-        self.ghostty = self.spawn(fake)
-        self.owner = self.spawn()
-        self.other = self.spawn()
-        # The relay's side of the input FIFO.
-        feed = os.path.join(self.state, "feed")
-        os.mkfifo(feed, 0o600)
-        self.feed = os.open(feed, os.O_RDONLY | os.O_NONBLOCK)
-        self.addCleanup(os.close, self.feed)
-
-    def spawn(self, name="sleep"):
-        p = sleeper(name)
-        self.addCleanup(p.wait)
-        self.addCleanup(p.kill)
-        return p
-
-    def make_lab(self, owner):
-        with open(os.path.join(self.state, "state.json"), "w") as f:
-            json.dump(
-                {
-                    **lab_process(self.ghostty.pid),
-                    "output": "eDP-1",
-                    "app_id": lab.APP_ID,
-                    "cmd": ["true"],
-                    "owner": owner,
-                },
-                f,
-            )
-
-    def run_lab(self, args, session):
-        env = {
-            k: v for k, v in os.environ.items() if not k.startswith(("CLAUDE", "NIRI", "WAYLAND")) and k != "DISPLAY"
-        }
-        env |= {"XDG_RUNTIME_DIR": self.tmp, "CLAUDE_PID": str(session.pid)}
-        return subprocess.run(
-            [sys.executable, LAB, *args], env=env, cwd=self.tmp, capture_output=True, text=True, timeout=30, check=False
-        )
-
-    def fed(self):
-        try:
-            return os.read(self.feed, 4096)
-        except BlockingIOError:
-            return b""
-
+class LabAddressTest(LabTest):
     def test_every_command_is_classified(self):
         self.assertIn("keys", commands())
-        self.assertEqual(commands(), set(SAMPLE_ARGS) | LAB_FREE)
+        self.assertEqual(commands(), set(LAB_ARGS) | NO_LAB)
 
-    def test_the_owning_session_drives_its_lab(self):
-        self.make_lab(self.owner.pid)
-        r = self.run_lab(["keys", "hi"], self.owner)
-        self.assertEqual(self.fed(), b"hi", r.stderr)
+    def test_every_lab_command_requires_lab_even_with_one_lab_running(self):
+        only = self.start()
+        for name, argv in LAB_ARGS.items():
+            with self.subTest(command=name):
+                r = self.run_lab(*(["keys", "no-default"] if name == "keys" else argv))
+                self.assertNotEqual(r.returncode, 0, r.stdout)
+                self.assertIn("--lab", r.stderr)
+        self.assertIsNotNone(started(self.window(only)["pid"]), "a command without --lab stopped the lab")
+        self.assertFalse(self.typed(only, "no-default"), "keys without --lab reached the lab")
+
+    def test_a_command_acts_only_on_the_lab_it_names(self):
+        a, b = self.start(), self.start()
+        self.ok("keys", "for-b", "--lab", b)
+        wait_for(lambda: self.typed(b, "for-b"), what="lab b to print what was typed")
+        self.assertFalse(self.typed(a, "for-b"))
+        self.ok("stop", "--lab", a)
+        self.assertIsNone(self.workspace(a))
+        self.assertIsNotNone(started(self.window(b)["pid"]), "stopping lab a stopped lab b")
+
+    def test_an_unknown_lab_is_refused(self):
+        self.start()
+        r = self.run_lab("keys", "x", "--lab", "no-such-lab")
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("no-such-lab", r.stderr)
+
+    def test_each_lab_keeps_its_state_and_profile_in_its_own_folders(self):
+        term, page = self.start(), self.browse()
+        self.assertNotEqual(term, page)
+        for lab_id in (term, page):
+            self.assertTrue(self.state_dir(lab_id).is_dir(), f"no state folder for lab {lab_id}")
+        chromium = next(x for x in self.desk.launches if x["app"] == "chromium")
+        profile = next(a.split("=", 1)[1] for a in chromium["argv"] if a.startswith("--user-data-dir="))
+        self.assertTrue(Path(profile).is_relative_to(self.cache / "niri-screen-lab" / page), profile)
+        self.ok("stop", "--lab", term)
+        self.assertFalse(self.state_dir(term).exists())
+        self.assertTrue(self.state_dir(page).is_dir(), "stopping one lab removed another's state")
+
+
+class OwnerTest(LabTest):
+    def setUp(self):
+        super().setUp()
+        self.owner, self.other = self.session(), self.session()
 
     def test_another_live_session_is_refused_and_the_lab_is_untouched(self):
-        self.make_lab(self.owner.pid)
-        for name, args in SAMPLE_ARGS.items():
+        lab_id = self.start(session=self.owner)
+        pid = self.window(lab_id)["pid"]
+        for name in LAB_ARGS:
+            argv = ["keys", "from-other", "--lab", lab_id] if name == "keys" else on(lab_id, name)
             with self.subTest(command=name):
-                r = self.run_lab(args, self.other)
+                r = self.run_lab(*argv, session=self.other)
+                self.assertEqual(r.returncode, 1)
                 self.assertIn(REFUSED, r.stderr)
-                self.assertNotIn("lab.py stop", r.stderr)
-                self.assertIsNone(self.ghostty.poll(), "the lab was killed")
-                self.assertEqual(self.fed(), b"")
+                self.assertIsNotNone(started(pid), "the lab was stopped")
+        self.assertFalse(self.typed(lab_id, "from-other"))
+
+    def test_another_session_starts_its_own_lab_beside_a_running_one(self):
+        mine = self.start(session=self.owner)
+        theirs = self.start(session=self.other)
+        self.assertNotEqual(mine, theirs)
+        self.assertIsNotNone(started(self.window(mine)["pid"]))
+        self.assertIsNotNone(started(self.window(theirs)["pid"]))
 
     def test_a_lab_whose_session_ended_can_be_taken_over(self):
-        ended = subprocess.Popen(["true"])
-        ended.wait()
-        self.make_lab(ended.pid)
-        r = self.run_lab(["keys", "hi"], self.other)
-        self.assertEqual(self.fed(), b"hi", r.stderr)
+        lab_id = self.start(session=self.owner)
+        self.owner.kill()
+        self.owner.wait()
+        pid = self.window(lab_id)["pid"]
+        for argv in (["list"], ["start", "--", "cat"], ["browse", "about:blank"]):  # each sweeps dead labs
+            with self.subTest(command=argv[0]):
+                self.ok(*argv, session=self.other)
+                self.assertIsNotNone(started(pid), "the sweep ended a running lab because its session had ended")
+                self.assertIn(lab_id, self.ok("list", session=self.other).stdout)
+        self.ok("keys", "taken-over", "--lab", lab_id, session=self.other)
+        wait_for(lambda: self.typed(lab_id, "taken-over"), what="the lab to print what was typed")
 
 
 if __name__ == "__main__":

@@ -1,69 +1,64 @@
 """Run with: python3 -m unittest discover -s plugins/niri-screen-lab/tests
 
-The lab acts only on processes it started. state.json names each of them (the lab's Ghostty or
-Chromium, the recorder, a browser lab's keeper) by pid and start time. Once one has exited, the
-kernel may give its pid to another process, even one of the user's own Ghostty or Chromium
-windows. No command may take that process for the lab's, or signal it.
+The lab acts only on processes it started. Each lab's state.json, in its own folder, names every one of
+them (the lab's Ghostty or Chromium, a recorder or poller, a browser lab's keeper) by pid and start time.
+Once one has exited, the kernel may give its pid to another process, even one of the user's own Ghostty
+or Chromium windows. No command, and no sweep of dead labs, may take that process for the lab's, or signal it.
+
+These tests find the records by their shape ({"pid", "started"} anywhere in state.json), not by key.
 """
 
-import contextlib
+import json
+import os
 import shutil
+import signal
 import time
 import unittest
-from unittest import mock
+from pathlib import Path
 
-from test_browser import LabStateTest
-from test_owner import SAMPLE_ARGS, lab, lab_process, sleeper
+from labtest import DeskTest, sleeper, started, wait_for
+from test_owner import LAB_ARGS
 
-APP = {"terminal": "ghostty", "browser": "chromium"}
-
-
-def stale(kind, app, rec, keeper, video):
-    """state.json naming three live processes by pid, with another process's start time."""
-
-    def other(pid):
-        return {"pid": pid, "started": 1}  # clock tick 1 after boot: never a process this test started
-
-    return {"kind": kind, **other(app), "output": "eDP-1", "owner": None, "port": 9,
-            "rec": {**other(rec), "video": video}, "keeper": other(keeper)}  # fmt: skip
+# Commands that act on a running lab, rather than stop it.
+DRIVE = {name: argv for name, argv in LAB_ARGS.items() if name != "stop"}
+# The ways a record can name a pid without naming the process now running under it.
+NOT_THE_LAB = {
+    "another start time": lambda rec, pid: rec.update(pid=pid),  # keeps the old process's start time
+    "no start time": lambda rec, pid: (rec.update(pid=pid), rec.pop("started")),
+}
+KINDS = ("terminal", "browser")
 
 
-def unverified(kind, app, rec, keeper, video):
-    """state.json as lab.py wrote it before it recorded start times: bare pids."""
-    return {"kind": kind, "pid": app, "output": "eDP-1", "owner": None, "port": 9,
-            "rec": {"pid": rec, "video": video}, "keeper": keeper}  # fmt: skip
+def records(obj):
+    """Every {"pid": int, "started": ...} record in a state file, as live references into it."""
+    if isinstance(obj, dict):
+        if isinstance(obj.get("pid"), int) and "started" in obj:
+            yield obj
+        for v in obj.values():
+            yield from records(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from records(v)
 
 
-# The ways a state file can name a pid without naming the process now running under it.
-NOT_THE_LAB = {"another start time": stale, "no start time": unverified}
-# Commands that act on a running lab, rather than open or stop one.
-DRIVE = {name: argv for name, argv in SAMPLE_ARGS.items() if name not in {"start", "browse", "stop"}}
+def comm(pid):
+    return Path(f"/proc/{pid}/comm").read_text().strip()
 
 
-class IdentityTest(LabStateTest):
-    def setUp(self):
-        super().setUp()
-        self.users = set()  # pids of the stand-ins for the user's own processes
-        # niri is the outside boundary. The user's window is found by its pid, as niri reports it.
-        windows = {"workspaces": [{"id": 1, "output": "eDP-1", "is_active": True}], "windows": []}
-        for name, fake in (
-            ("niri", lambda *args: windows[args[0]]),
-            ("find_window", lambda pid: self.user_window(pid)),
-            ("need", lambda *_: None),  # grim, wf-recorder and ffmpeg may be missing; no test runs them
-        ):
-            patcher = mock.patch.object(lab, name, side_effect=fake)
-            patcher.start()
-            self.addCleanup(patcher.stop)
-        self.video = self.tmp / "rec.mp4"
+class IdentityTest(DeskTest):
+    def open_recording(self, kind):
+        """A lab of `kind` that is recording; its id and app pid."""
+        lab_id = self.start() if kind == "terminal" else self.browse("--window", "about:blank")
+        app = self.launch()["pid"]
+        self.ok("rec-start", "--lab", lab_id)
+        return lab_id, app
 
-    def user_window(self, pid):
-        if pid not in self.users:
-            return None
-        return {"id": 7, "pid": pid, "app_id": "com.mitchellh.ghostty", "is_focused": False, "workspace_id": 2,
-                "output": "DP-1", "layout": {"window_size": [100, 100]}}  # fmt: skip
+    def state(self, lab_id):
+        path = self.state_dir(lab_id) / "state.json"
+        return path, json.loads(path.read_text())
 
-    def spawn(self, name):
-        """A long-lived process whose /proc/PID/comm reads `name`."""
+    def users_process(self, name):
+        """A stand-in for one of the user's own processes, named like the lab's."""
         fake = self.tmp / name
         if not fake.exists():
             shutil.copy(shutil.which("sleep") or "/usr/bin/sleep", fake)
@@ -72,78 +67,81 @@ class IdentityTest(LabStateTest):
         self.addCleanup(p.kill)
         return p
 
-    def users_process(self, name):
-        """A stand-in for one of the user's own processes, named like the lab's."""
-        p = self.spawn(name)
-        self.users.add(p.pid)
-        return p
+    def hand_to_user(self, recs, how):
+        """End each recorded process, then give its pid to a lookalike of the user's; returns the lookalikes."""
+        users = []
+        for rec in recs:
+            pid, when = rec["pid"], rec["started"]
+            name = comm(pid) if started(pid) == when else "ghostty"
+            if pid > 1 and started(pid) == when:
+                os.kill(pid, signal.SIGTERM)
+            wait_for(lambda pid=pid, when=when: started(pid) != when, timeout=5, what=f"{name} to exit")
+            user = self.users_process(name)
+            NOT_THE_LAB[how](rec, user.pid)
+            users.append(user)
+        return users
 
-    def stale_lab(self, kind, state, owner=None):
-        """A state file whose lab, recorder and keeper pids now belong to the user's own processes."""
-        app, rec, keeper = (self.users_process(n) for n in (APP[kind], "wf-recorder", "python3"))
-        lab.save_state({**state(kind, app.pid, rec.pid, keeper.pid, str(self.video)), "owner": owner})
-        return app, rec, keeper
+    def stale_lab(self, kind, how):
+        """A recording lab whose every recorded pid now belongs to one of the user's processes."""
+        lab_id, _ = self.open_recording(kind)
+        path, st = self.state(lab_id)
+        recs = list(records(st))
+        self.assertGreaterEqual(len(recs), 2 if kind == "terminal" else 3, f"too few process records: {st}")
+        users = self.hand_to_user(recs, how)
+        path.write_text(json.dumps(st))
+        return lab_id, users
 
-    def assertUntouched(self, *procs):
+    def assertUntouched(self, users):
         time.sleep(0.05)  # a signal sent just now has been delivered by then
-        for p in procs:
+        for p in users:
             self.assertIsNone(p.poll(), f"signalled the user's {p.args[0]} (pid {p.pid})")
 
-    def test_drive_commands_are_listed(self):
-        self.assertIn("keys", DRIVE)
-        self.assertNotIn("stop", DRIVE)
-
     def test_a_reused_pid_is_no_running_lab(self):
-        for kind in APP:
-            for how, state in NOT_THE_LAB.items():
-                procs = self.stale_lab(kind, state)
+        for kind in KINDS:
+            for how in NOT_THE_LAB:
+                lab_id, users = self.stale_lab(kind, how)
                 for command, argv in DRIVE.items():
                     with self.subTest(kind=kind, identity=how, command=command):
-                        with self.assertRaisesRegex(lab.Refuse, "no lab is running"):
-                            self.run_cmd(argv)
-                        self.assertUntouched(*procs)
+                        r = self.run_lab(*argv, "--lab", lab_id)
+                        self.assertEqual(r.returncode, 1, r.stdout)
+                        self.assertRegex(r.stderr, "(?i)no lab")
+                        self.assertUntouched(users)
 
-    def test_stop_signals_no_process_it_did_not_start(self):
-        for kind in APP:
-            for how, state in NOT_THE_LAB.items():
-                with self.subTest(kind=kind, identity=how):
-                    procs = self.stale_lab(kind, state)
-                    self.run_cmd(["stop"])
-                    self.assertUntouched(*procs)
-                    self.assertIsNone(lab.load_state(), "the stale state was kept")
+    def test_stop_and_the_sweep_signal_no_process_they_did_not_start(self):
+        for kind in KINDS:
+            for how in NOT_THE_LAB:
+                for ender in (["stop", "--lab"], ["list"]):
+                    with self.subTest(kind=kind, identity=how, command=ender[0]):
+                        lab_id, users = self.stale_lab(kind, how)
+                        self.run_lab(*ender, *([lab_id] if ender[0] == "stop" else []))
+                        self.assertUntouched(users)
+                        self.assertFalse(self.state_dir(lab_id).exists(), "the stale state was kept")
 
     def test_rec_stop_signals_no_recorder_it_did_not_start(self):
-        for how, state in NOT_THE_LAB.items():
-            with self.subTest(identity=how):
-                self.video.touch()  # rec-stop deletes it
-                app = self.spawn("ghostty")
-                recorder = self.users_process("wf-recorder")
-                st = state("terminal", app.pid, recorder.pid, None, str(self.video))
-                lab.save_state({**st, **lab_process(app.pid)})
-                with contextlib.suppress(lab.Refuse):
-                    self.run_cmd(["rec-stop", str(self.tmp / "out.gif")])
-                self.assertUntouched(recorder)
-
-    def test_a_lab_whose_processes_exited_does_not_block_a_new_one(self):
-        session = self.spawn("claude")  # another Claude session, still running
-        for kind in APP:
-            for how, state in NOT_THE_LAB.items():
-                for owner in (None, session.pid):
-                    with self.subTest(kind=kind, identity=how, owner=owner):
-                        self.stale_lab(kind, state, owner)
-                        lab.check_owner(lab.load_state())
-                        lab.claim("eDP-1")
+        for kind in KINDS:
+            for how in NOT_THE_LAB:
+                with self.subTest(kind=kind, identity=how):
+                    lab_id, app = self.open_recording(kind)
+                    path, st = self.state(lab_id)
+                    helpers = [rec for rec in records(st) if rec["pid"] != app]
+                    self.assertTrue(helpers, f"no recorder record: {st}")
+                    users = self.hand_to_user(helpers, how)
+                    path.write_text(json.dumps(st))
+                    self.run_lab("rec-stop", str(self.tmp / "out.gif"), "--lab", lab_id)
+                    self.assertUntouched(users)
+                    self.ok("stop", "--lab", lab_id)
 
     def test_stop_ends_every_process_the_lab_started(self):
-        for kind, name in APP.items():
+        for kind in KINDS:
             with self.subTest(kind=kind):
-                app, recorder, keeper = (self.spawn(n) for n in (name, "wf-recorder", "python3"))
-                rec = {**lab_process(recorder.pid), "video": str(self.video)}
-                st = {"kind": kind, **lab_process(app.pid), "output": "eDP-1", "owner": None}
-                lab.save_state({**st, "rec": rec, "keeper": lab_process(keeper.pid)})
-                self.run_cmd(["stop"])
-                for p in (app, recorder, keeper):
-                    self.assertIsNotNone(p.wait(timeout=5), f"{p.args[0]} was left running")
+                lab_id, _ = self.open_recording(kind)
+                _, st = self.state(lab_id)
+                recs = [dict(r) for r in records(st)]
+                self.assertGreaterEqual(len(recs), 2, f"too few process records: {st}")
+                self.ok("stop", "--lab", lab_id)
+                for rec in recs:
+                    wait_for(lambda rec=rec: started(rec["pid"]) != rec["started"], timeout=5,
+                             what=f"pid {rec['pid']} to exit")  # fmt: skip
 
 
 if __name__ == "__main__":
