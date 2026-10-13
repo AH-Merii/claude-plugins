@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """The browser lab's side of niri-screen-lab: Chromium's flags, a stdlib-only DevTools (CDP) client, key events,
-and the keeper that holds file choosers back.
+screenshots, the keeper that holds file choosers back, and the poller that records.
 
-`python3 browser.py keep STATE_DIR PORT` runs the keeper. lab.py starts it next to Chromium. See reference.md.
+`python3 browser.py keep STATE_DIR PORT` runs the keeper and `python3 browser.py poll PORT FOLDER` the poller;
+lab.py starts them. See reference.md.
 """
 
 import base64
 import json
 import os
+import signal
 import socket
 import struct
 import sys
@@ -29,14 +31,9 @@ CHROMIUM_FLAGS = [
     "--test-type",  # no "unsupported command-line flag" bar over the page for the line above
     "--new-window",
 ]
-# Magenta squares in the viewport's top-left and bottom-right corners: start finds the viewport with them.
-# No "#" in it: in a data: URL that starts the fragment and cuts the page off.
-MARKER = 24
-MARKER_PAGE = (
-    "data:text/html,<body style='margin:0;background:white'>"
-    f"<div style='position:fixed;left:0;top:0;width:{MARKER}px;height:{MARKER}px;background:rgb(255,0,255)'></div>"
-    f"<div style='position:fixed;right:0;bottom:0;width:{MARKER}px;height:{MARKER}px;background:rgb(255,0,255)'></div>"
-)
+# DevTools methods that raise or activate a target: on a windowed lab they would hand it the user's focus.
+DENIED = {"Page.bringToFront", "Target.activateTarget"}
+POLL_PERIOD = 0.1  # a recording's screenshot interval; Chromium managed about 10 a second
 
 
 class CDPError(Exception):
@@ -147,6 +144,8 @@ class CDP:
                 return json.loads(data)
 
     def post(self, method, session=None, **params):
+        if method in DENIED:
+            raise CDPError(f"{method} is refused: it could give a lab window the user's focus")
         self.next_id += 1
         msg = {"id": self.next_id, "method": method, "params": params}
         if session:
@@ -188,6 +187,16 @@ def navigate(cdp, url, timeout=30.0):
         if time.monotonic() > deadline:
             raise CDPError(f"{url} did not finish loading in {timeout:.0f}s")
         time.sleep(0.1)
+
+
+def screenshot(cdp):
+    """The page's viewport as PNG bytes, drawn whether or not the window is visible, or there is none."""
+    return base64.b64decode(cdp.call("Page.captureScreenshot", format="png")["data"])
+
+
+def png_size(data):
+    """(width, height) from a PNG's header."""
+    return struct.unpack(">II", data[16:24])
 
 
 # ---------- keys ----------
@@ -266,7 +275,7 @@ def mouse(cdp, kind, x, y, button="none", clicks=0, **extra):
 # ---------- the keeper ----------
 
 
-def keep(state, port):
+def keep(state, port, windowed):
     """Hold a browser-wide session that intercepts every page's file chooser and logs it, until Chromium exits.
 
     Interception lasts only as long as the session that asked for it, so it lives here, not in a lab.py command.
@@ -274,28 +283,71 @@ def keep(state, port):
     log = open(Path(state) / "filechooser.log", "a", buffering=1)  # noqa: SIM115 -- open for the keeper's life
     cdp = CDP(endpoints(port, "browser"), timeout=None)
     cdp.post("Target.setAutoAttach", autoAttach=True, waitForDebuggerOnStart=False, flatten=True)
+    keeper = Keeper(cdp, log, windowed)
     while True:
         try:
             msg = cdp.recv()
         except (CDPError, OSError):
             return
-        handle(cdp, msg, log)
+        keeper.handle(msg)
 
 
-def handle(cdp, msg, log):
-    method = msg.get("method")
-    if method == "Target.attachedToTarget" and msg["params"]["targetInfo"]["type"] == "page":
-        session = msg["params"]["sessionId"]
-        cdp.post("Page.enable", session)
-        cdp.post("Page.setInterceptFileChooserDialog", session, enabled=True)
-    elif method == "Page.fileChooserOpened":
-        p = msg["params"]
-        log.write(json.dumps({"time": time.time(), "mode": p.get("mode"), "backendNodeId": p.get("backendNodeId")}))
-        log.write("\n")
+class Keeper:
+    """Answers what Chromium tells the keeper's session. Every page gets its file chooser intercepted. In a
+    windowed lab, a page that opens in a window of its own (a popup) is closed: only the lab's first window
+    was placed on its hidden workspace, so a popup would show, and could take focus, on the user's screen."""
+
+    def __init__(self, cdp, log, windowed):
+        self.cdp, self.log, self.windowed = cdp, log, windowed
+        self.home = None  # the lab's own browser window, the one its first page is in
+        self.asked = {}  # request id -> the page whose window it asked for
+
+    def handle(self, msg):
+        method = msg.get("method")
+        if method == "Target.attachedToTarget" and msg["params"]["targetInfo"]["type"] == "page":
+            session, target = msg["params"]["sessionId"], msg["params"]["targetInfo"]["targetId"]
+            self.cdp.post("Page.enable", session)
+            self.cdp.post("Page.setInterceptFileChooserDialog", session, enabled=True)
+            if self.windowed:
+                self.asked[self.cdp.post("Browser.getWindowForTarget", targetId=target)] = target
+        elif method == "Page.fileChooserOpened":
+            p = msg["params"]
+            entry = {"time": time.time(), "mode": p.get("mode"), "backendNodeId": p.get("backendNodeId")}
+            self.log.write(json.dumps(entry) + "\n")
+        elif msg.get("id") in self.asked:
+            target, window = self.asked.pop(msg["id"]), msg.get("result", {}).get("windowId")
+            if self.home is None:
+                self.home = window
+            elif window is not None and window != self.home:
+                self.cdp.post("Target.closeTarget", targetId=target)
+
+
+# ---------- the poller ----------
+
+
+def poll(port, folder):
+    """Write a screenshot to folder/f00000.png, f00001.png, ... every POLL_PERIOD until SIGTERM."""
+    stop = []
+    signal.signal(signal.SIGTERM, lambda *_: stop.append(1))
+    cdp = CDP(endpoints(port, "page"))
+    i = 0
+    while not stop:
+        began = time.monotonic()
+        try:
+            data = screenshot(cdp)
+        except (CDPError, OSError):
+            return
+        tmp = Path(folder) / f"f{i:05d}.part"
+        tmp.write_bytes(data)
+        tmp.rename(tmp.with_suffix(".png"))
+        i += 1
+        time.sleep(max(0.0, POLL_PERIOD - (time.monotonic() - began)))
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 4 and sys.argv[1] == "keep":
-        keep(sys.argv[2], int(sys.argv[3]))
+    if len(sys.argv) == 5 and sys.argv[1] == "keep":
+        keep(sys.argv[2], int(sys.argv[3]), sys.argv[4] == "windowed")
+    elif len(sys.argv) == 4 and sys.argv[1] == "poll":
+        poll(int(sys.argv[2]), sys.argv[3])
     else:
-        sys.exit("usage: browser.py keep STATE_DIR PORT")
+        sys.exit("usage: browser.py keep STATE_DIR PORT | browser.py poll PORT FOLDER")

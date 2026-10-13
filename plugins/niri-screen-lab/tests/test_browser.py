@@ -1,27 +1,27 @@
 """Run with: python3 -m unittest discover -s plugins/niri-screen-lab/tests
 
-The browser lab's rules that need no desktop: a page gets no input while the lab window has
-focus (only a focused client can set the clipboard), browser-only commands refuse a terminal lab,
-keys and pixels map the way hover, click and `keys` rely on, and the DevTools client reads what
-Chromium sends. niri is the outside boundary: find_window is replaced where a rule depends on it.
+The browser lab's rules: a windowed lab's page gets no input while its window has focus (only a focused
+client can set the clipboard), while a headless lab has no window to focus; browser-only commands refuse
+a terminal lab; keys map the way `key` and `keys` rely on; and the DevTools client reads what Chromium
+sends and never asks it to raise or activate a target.
 """
 
+import io
 import json
-import shutil
 import socket
 import struct
 import tempfile
 import threading
+import time
 import unittest
-import urllib.parse
 from pathlib import Path
-from unittest import mock
 
-from test_owner import commands, lab, lab_process, sleeper
+from labtest import DeskTest, wait_for
+from test_owner import commands, lab
 
 browser = lab.browser  # test_owner puts the skill's folder on sys.path
 
-# Commands that act on the page, and so must refuse while the lab window has focus.
+# Commands that act on the page, and so must refuse while a windowed lab's window has focus.
 PAGE_INPUT = {
     "keys": ["keys", "hi"],
     "key": ["key", "enter"],
@@ -32,67 +32,62 @@ PAGE_INPUT = {
     "js": ["js", "1"],
 }
 NOT_PAGE_INPUT = {
-    "preflight", "doctor", "start", "browse", "info", "cell", "shot", "gif", "rec-start", "rec-stop", "stop",
+    "preflight", "doctor", "list", "start", "browse", "info", "cell", "shot", "gif", "rec-start", "rec-stop", "stop",
 }  # fmt: skip
 
 
-class LabStateTest(unittest.TestCase):
-    """Runs commands in-process against a state dir of its own, with a renamed sleep as the lab's process."""
-
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        state = Path(tmp.name) / "screen-lab"
-        state.mkdir(mode=0o700)
-        for name, value in (("STATE", state), ("STATE_FILE", state / "state.json"), ("FEED", state / "feed")):
-            patcher = mock.patch.object(lab, name, value)
-            patcher.start()
-            self.addCleanup(patcher.stop)
-        self.tmp = Path(tmp.name)
-
-    def make_lab(self, kind, focused):
-        fake = self.tmp / {"browser": "chromium", "terminal": "ghostty"}[kind]
-        shutil.copy(shutil.which("sleep") or "/usr/bin/sleep", fake)
-        p = sleeper(str(fake))
-        self.addCleanup(p.wait)
-        self.addCleanup(p.kill)
-        # Port 9 (discard) has no DevTools: a command that gets past its checks fails to connect.
-        lab.save_state({"kind": kind, **lab_process(p.pid), "output": "eDP-1", "port": 9, "owner": None})
-        window = {"id": 1, "is_focused": focused, "layout": {"window_size": [100, 100]}}
-        patcher = mock.patch.object(lab, "find_window", return_value=window)
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def run_cmd(self, argv):
-        a = lab.parser().parse_args(argv)
-        return a.fn(a)
+def page_input(calls):
+    return [m for m in calls if m.startswith("Input.") or m in ("Page.navigate", "Runtime.evaluate")]
 
 
-class FocusTest(LabStateTest):
+class FocusTest(DeskTest):
     def test_every_command_is_classified(self):
         self.assertIn("click", PAGE_INPUT)
         self.assertEqual(commands(), set(PAGE_INPUT) | NOT_PAGE_INPUT)
 
-    def test_page_input_is_refused_while_the_lab_window_has_focus(self):
-        self.make_lab("browser", focused=True)
+    def test_page_input_is_refused_while_a_windowed_labs_window_has_focus(self):
+        lab_id = self.browse("--window", "about:blank")
+        pid = self.launch()["pid"]
+        with self.desk.lock:
+            self.desk.set_focus(self.window(lab_id)["id"])
+        sent = len(page_input(self.cdp_calls(pid)))
         for name, argv in PAGE_INPUT.items():
-            with self.subTest(command=name), self.assertRaisesRegex(lab.Refuse, "has focus"):
-                self.run_cmd(argv)
+            with self.subTest(command=name):
+                r = self.run_lab(*argv, "--lab", lab_id)
+                self.assertEqual(r.returncode, 1)
+                self.assertIn("has focus", r.stderr)
+        self.assertEqual(len(page_input(self.cdp_calls(pid))), sent, "a page got input while its window had focus")
 
-    def test_page_input_goes_ahead_while_the_lab_window_is_unfocused(self):
-        self.make_lab("browser", focused=False)
-        for name, argv in PAGE_INPUT.items():
-            # Past the focus check, the command tries DevTools on a port with nothing behind it.
-            with self.subTest(command=name), self.assertRaises(OSError):
-                self.run_cmd(argv)
+    def test_page_input_is_refused_while_any_window_of_a_windowed_lab_has_focus(self):
+        lab_id = self.browse("--window", "about:blank")
+        pid = self.launch()["pid"]
+        with self.desk.lock:  # a popup the page opened: a second, focused window of the same browser
+            self.desk.set_focus(self.desk.open_window(pid, lab.APP_ID, None))
+        sent = len(page_input(self.cdp_calls(pid)))
+        r = self.run_lab("click", "10", "10", "--lab", lab_id)
+        self.assertEqual(r.returncode, 1)
+        self.assertIn("has focus", r.stderr)
+        self.assertEqual(len(page_input(self.cdp_calls(pid))), sent, "a page got input while a lab window had focus")
+
+    def test_page_input_goes_ahead_in_an_unfocused_or_headless_lab(self):
+        for mode, flags in {"windowed": ("--window",), "headless": ()}.items():
+            lab_id = self.browse(*flags, "about:blank")
+            pid = self.launch()["pid"]
+            for name, argv in PAGE_INPUT.items():
+                with self.subTest(mode=mode, command=name):
+                    sent = len(page_input(self.cdp_calls(pid)))
+                    self.ok(*argv, "--lab", lab_id)
+                    self.assertGreater(len(page_input(self.cdp_calls(pid))), sent)
 
 
-class KindTest(LabStateTest):
+class KindTest(DeskTest):
     def test_browser_only_commands_refuse_a_terminal_lab(self):
-        self.make_lab("terminal", focused=False)
+        lab_id = self.start()
         for argv in (["open", "about:blank"], ["js", "1"]):
-            with self.subTest(command=argv[0]), self.assertRaisesRegex(lab.Refuse, "needs a browser lab"):
-                self.run_cmd(argv)
+            with self.subTest(command=argv[0]):
+                r = self.run_lab(*argv, "--lab", lab_id)
+                self.assertEqual(r.returncode, 1)
+                self.assertIn("needs a browser lab", r.stderr)
 
 
 class KeysTest(unittest.TestCase):
@@ -135,28 +130,6 @@ class KeysTest(unittest.TestCase):
                 ("Input.dispatchKeyEvent", "Escape"),
             ],
         )
-
-
-# A 200x100 px viewport at (10, 20) in the output, showing a page 100x50 CSS pixels wide: 2 px per CSS pixel.
-VIEWPORT = {"x": 10, "y": 20, "width": 200, "height": 100, "css_width": 100, "css_height": 50}
-
-
-class PixelTest(unittest.TestCase):
-    def test_screenshot_pixels_map_to_page_pixels(self):
-        self.assertEqual(lab.css_point(VIEWPORT, 110, 70, crop=False), (50, 25))
-        self.assertEqual(lab.css_point(VIEWPORT, 100, 50, crop=True), (50, 25))
-        self.assertEqual(lab.css_point(VIEWPORT, 10, 20, crop=False), (0, 0))
-
-    def test_pixels_outside_the_viewport_map_to_nothing(self):
-        for x, y, crop in ((5, 70, False), (110, 15, False), (210, 70, False), (200, 10, True)):
-            with self.subTest(x=x, y=y, crop=crop):
-                self.assertIsNone(lab.css_point(VIEWPORT, x, y, crop))
-
-    def test_only_the_two_marker_squares_count_as_the_viewport(self):
-        # A 936x927 CSS viewport at scale 1: two 24x24 squares are 1152 magenta pixels.
-        self.assertTrue(lab.plausible_viewport((0, 0, 936, 927, 1152, None), 936, 927))
-        self.assertFalse(lab.plausible_viewport((0, 0, 936, 927, 5000, None), 936, 927), "magenta wallpaper")
-        self.assertFalse(lab.plausible_viewport((0, 0, 936, 927, 1152, None), 936, 500), "scales disagree")
 
 
 def server_frame(payload, final=True, opcode=0x1):
@@ -236,12 +209,108 @@ class CDPTest(unittest.TestCase):
         self.assertEqual(bytes(b ^ (1, 2, 3, 4)[i % 4] for i, b in enumerate(f[8:])), payload)
 
 
-class MarkerPageTest(unittest.TestCase):
-    def test_the_whole_marker_page_reaches_the_browser(self):
-        # A "#" in a data: URL starts the fragment: the markers after it would never render.
-        parts = urllib.parse.urlsplit(browser.MARKER_PAGE)
-        self.assertEqual(parts.fragment, "")
-        self.assertEqual(parts.path.count("position:fixed"), 2)
+class Listener:
+    """Accepts one WebSocket and records every byte the client sends after the handshake."""
+
+    def __init__(self):
+        self.listener = socket.create_server(("127.0.0.1", 0))
+        self.url = f"ws://127.0.0.1:{self.listener.getsockname()[1]}/devtools/page/X"
+        self.received = b""
+        self.thread = threading.Thread(target=self.serve, daemon=True)
+        self.thread.start()
+
+    def serve(self):
+        conn, _ = self.listener.accept()
+        with conn:
+            head = b""
+            while b"\r\n\r\n" not in head:
+                head += conn.recv(4096)
+            conn.sendall(b"HTTP/1.1 101 Switching Protocols\r\n\r\n")
+            while chunk := conn.recv(4096):
+                self.received += chunk
+
+    def close(self):
+        self.listener.close()
+
+
+class DenyTest(unittest.TestCase):
+    def test_the_client_refuses_to_raise_or_activate_a_target_and_sends_nothing(self):
+        for method in ("Page.bringToFront", "Target.activateTarget"):
+            for how in ("call", "post"):
+                with self.subTest(method=method, how=how):
+                    server = Listener()
+                    self.addCleanup(server.close)
+                    cdp = browser.CDP(server.url, timeout=5)
+                    with self.assertRaisesRegex(browser.CDPError, method):
+                        getattr(cdp, how)(method)
+                    cdp.close()
+                    server.thread.join(timeout=5)
+                    self.assertEqual(server.received, b"", f"{method} reached Chromium")
+
+
+class Recorder:
+    """Stands in for the keeper's DevTools connection: notes what it sends, numbering requests as Chromium would."""
+
+    def __init__(self):
+        self.sent = []
+
+    def post(self, method, session=None, **params):
+        self.sent.append((method, params))
+        return len(self.sent)
+
+
+class PopupTest(unittest.TestCase):
+    def keeper_after(self, windowed, pages):
+        """A keeper told that each page in `pages` (target id -> its browser window) opened, in order."""
+        cdp = Recorder()
+        keeper = browser.Keeper(cdp, io.StringIO(), windowed)
+        for i, (target, window) in enumerate(pages.items()):
+            info = {"type": "page", "targetId": target}
+            keeper.handle({"method": "Target.attachedToTarget", "params": {"sessionId": f"S{i}", "targetInfo": info}})
+            ask = ("Browser.getWindowForTarget", {"targetId": target})
+            asked = [n for n, sent in enumerate(cdp.sent, 1) if sent == ask]
+            if asked:
+                keeper.handle({"id": asked[-1], "result": {"windowId": window, "bounds": {}}})
+        return [p["targetId"] for m, p in cdp.sent if m == "Target.closeTarget"]
+
+    def test_a_windowed_lab_closes_pages_that_open_in_a_new_window(self):
+        closed = self.keeper_after(True, {"MAIN": 1, "TAB": 1, "POPUP": 2, "POPUP2": 3})
+        self.assertEqual(closed, ["POPUP", "POPUP2"])
+
+    def test_a_headless_lab_keeps_every_page(self):
+        self.assertEqual(self.keeper_after(False, {"MAIN": 1, "TAB": 1, "POPUP": 2}), [])
+
+
+class LabPopupTest(DeskTest):
+    """What `browse` sets up: a windowed lab closes a popup, which would show on the user's screen, and a
+    headless lab, which has no screen to show it on, keeps it."""
+
+    def popup_after_browse(self, *flags):
+        """Browse in a lab with `flags`, open a popup from the page, and return its pid once the popup's file
+        chooser is intercepted, which happens in both modes."""
+        lab_id = self.browse(*flags, "about:blank")
+        pid = self.launch()["pid"]
+
+        def intercepted():
+            return self.cdp_calls(pid).count("Page.setInterceptFileChooserDialog")
+
+        wait_for(lambda: intercepted() == 1, what="the keeper to attach to the lab's page")
+        self.ok("js", "--lab", lab_id, "void window.open('about:blank', '', 'popup')")
+        wait_for(lambda: intercepted() == 2, what="the keeper to attach to the popup")
+        return pid
+
+    def closed(self, pid):
+        return [p["targetId"] for _, p_, m, p in self.desk.cdp if p_ == pid and m == "Target.closeTarget"]
+
+    def test_a_windowed_lab_closes_a_popup(self):
+        pid = self.popup_after_browse("--window")
+        wait_for(lambda: self.closed(pid), what="the popup to be closed")
+        self.assertEqual(self.closed(pid), ["P2"])
+
+    def test_a_headless_lab_keeps_a_popup(self):
+        pid = self.popup_after_browse()
+        time.sleep(1)  # a windowed keeper closes it within this time (see the test above)
+        self.assertEqual(self.closed(pid), [])
 
 
 class ProfileTest(unittest.TestCase):

@@ -4,7 +4,7 @@ My Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
 
 | Name | Type | Use it when… |
 |------|------|--------------|
-| [niri-screen-lab](plugins/niri-screen-lab) | skill | an agent needs to see what a terminal app really renders: screenshots, GIFs, hover and click tests in Ghostty on a spare niri screen |
+| [niri-screen-lab](plugins/niri-screen-lab) | skill | an agent needs to see what a terminal app really renders: screenshots, GIFs, hover and click tests in Ghostty or Chromium, on hidden niri workspaces |
 | [gitbutler-guard](plugins/gitbutler-guard) | hooks | an agent works in a GitButler workspace: blocks git write commands in favour of `but`, and keeps the GitButler skill in step with your `but` CLI |
 | [pr-threads](plugins/pr-threads) | skill, hooks, bin | agents review PRs or act on reviews: comments pinned to local `path:line`, one review per round from a reviewer bot, open threads only, suggestions applied locally |
 | [shoop](plugins/shoop) | skill | an agent writes or reviews tests, files an issue or records a decision on one, writes a commit message, or describes a PR |
