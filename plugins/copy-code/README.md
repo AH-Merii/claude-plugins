@@ -29,6 +29,7 @@ claude --plugin-dir path/to/copy-code
 
 ## Notes
 
+- In the terminal, the mod adds a short note to Claude's system prompt asking it to give every code block a language, so a sketch that isn't valid code on its own still gets a name and colours. Print mode and the Desktop app don't get the note.
 - Languages appear by their full name: `py` shows as `python`, `md` as `markdown`. A name it doesn't know appears as written.
 - Code is coloured as in Claude Code's own code blocks. Languages it has no grammar for, such as fish, zig, lean and typst, appear as plain text.
 - On Wayland, after Claude Code's own copy, the mod runs `wl-copy --type 'text/plain;charset=utf-8'`, so the clipboard holds the code as text. Claude Code's copy lets `wl-copy` guess the type, so a one-letter block can land as binary data and HTML as rich text. Claude Code's copy still fills the primary selection, a tmux buffer and the terminal's clipboard. Over SSH, without a Wayland display, or when `wl-copy` is missing or fails, only Claude Code's copy runs.

@@ -28,8 +28,23 @@ const WL_COPY_MS = 2000
 // Claude Code's own wl-copy lands after its copy call returns: up to 28 ms after a typed copy run at once, in
 // six live runs. The typed copy waits this long so it lands last.
 const WL_COPY_AFTER_MS = 300
+// Asks Claude to tag every fence: an untagged block gets no name and no colours. Claude leaves a fence untagged
+// most often when its code isn't valid on its own. The text never varies, so the cached prompt before it holds.
+const FENCES =
+  'Code blocks in your replies are boxed by copy-code, which names and colours each by its fence language. ' +
+  'Give every fenced block a language tag (python, bash, json; text for plain output). For a sketch that is ' +
+  'not valid code on its own, tag the real language it is closest to: a made-up tag such as pseudo gets no colours.'
 
 export const register: Register = on => {
+  // Only where a terminal draws the replies: in print mode or the Desktop app the box isn't there.
+  on('prompt.compose', async (_$, e, next) => {
+    const composed = await next(e)
+    if (!e.surfaces.includes('terminal')) {
+      return composed
+    }
+    return { sections: [...composed.sections, { id: 'copy-code:fences', text: FENCES, scope: 'session' }] }
+  })
+
   // The toast showing, if any. Raising another relays out the transcript, which can drop a press in flight.
   let toast = { text: '', until: 0 }
 
