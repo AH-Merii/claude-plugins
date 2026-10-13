@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.4.0](https://github.com/AH-Merii/claude-plugins/compare/niri-screen-lab-v0.3.0...niri-screen-lab-v0.4.0) (2026-10-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **niri-screen-lab:** run labs in parallel on hidden workspaces ([#48](https://github.com/AH-Merii/claude-plugins/issues/48))
+
+### Features
+
+* **niri-screen-lab:** run labs in parallel on hidden workspaces ([#48](https://github.com/AH-Merii/claude-plugins/issues/48)) ([925f0a6](https://github.com/AH-Merii/claude-plugins/commit/925f0a647c04908d5ba18c0bbd2161b7f7dfd7f0))
+
 ## [0.3.0](https://github.com/AH-Merii/claude-plugins/compare/niri-screen-lab-v0.2.0...niri-screen-lab-v0.3.0) (2026-10-13)
 
 

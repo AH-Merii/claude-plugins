@@ -1,7 +1,7 @@
 {
   "name": "niri-screen-lab",
   "displayName": "Niri Screen Lab",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Visually test terminal apps in a real Ghostty window, or web pages in Chromium, on hidden niri workspaces, several at once, without stealing focus or touching the clipboard",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
