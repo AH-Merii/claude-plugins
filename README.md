@@ -10,6 +10,7 @@ My Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
 | [shoop](plugins/shoop) | skill | an agent writes or reviews tests, files an issue or records a decision on one, writes a commit message, or describes a PR |
 | [copy-code](plugins/copy-code) | mod | you copy code from Claude's replies: each code block gets a box with its language and a copy button (terminal only) |
 | [vim-ux](plugins/vim-ux) | mod | you use Claude Code's vim mode: a bar cursor in INSERT and a block in NORMAL and VISUAL, and a Ctrl+C that only clears the prompt (terminal only) |
+| [interview-detective](https://github.com/AH-Merii/interview-detective) | skill | you have a job interview coming up: researches the company's public GitHub, candidates' prep and the web, scrapes related Glassdoor reviews, and writes a sourced report with practice questions (its own repo; run its setup wizard after installing) |
 
 ## Install
 
@@ -61,6 +62,10 @@ plugins/<name>/
 
 Add each plugin to `.claude-plugin/marketplace.json` with `"source": "./plugins/<name>"`
 and tags naming its components. The generated `.claude-plugin/types/` is gitignored.
+
+A plugin with a repo of its own, like interview-detective, is listed with
+`"source": { "source": "github", "repo": "<owner>/<repo>" }` instead. Its repo holds its CI and
+releases, and this repo's per-plugin checks don't cover it.
 
 Check a change with `claude plugin validate --strict .` and
 `claude plugin validate --strict plugins/<name>`. After cloning, run `mise run setup` once to
