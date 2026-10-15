@@ -39,6 +39,12 @@
       "source": "./plugins/vim-ux",
       "category": "development",
       "tags": ["mod", "terminal", "tui", "vim", "cursor"]
+    },
+    {
+      "name": "interview-detective",
+      "source": { "source": "github", "repo": "AH-Merii/interview-detective" },
+      "category": "productivity",
+      "tags": ["skill", "interview", "interview-prep", "glassdoor", "research"]
     }
   ]
 }
