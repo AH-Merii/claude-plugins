@@ -1,6 +1,6 @@
 # nerd-font
 
-A Claude Code mod that other mods depend on to know whether they can draw Nerd Font icons. It works out the answer once a session, so every mod on screen draws the same way: `attention`'s magnifying glass and `copy-code`'s copy label either both use the icon or both fall back to plain characters.
+A Claude Code mod that other mods depend on to know whether they can draw Nerd Font icons. It works out the answer once a session, so every mod on screen draws the same way: `attention-is-all-i-need`'s magnifying glass and `copy-code`'s copy label either both use the icon or both fall back to plain characters.
 
 ## How it decides
 

@@ -75,7 +75,7 @@ export const DEFAULTS: readonly Category[] = [
 export const RESOLVED = 'resolved'
 // The category whose items attach to a pinned decision, by its id, instead of standing alone.
 export const SUGGEST = 'suggestion'
-// Ids the categories had before they were renamed, so an older attention.json still reaches them.
+// Ids the categories had before they were renamed, so an older attention-is-all-i-need.json still reaches them.
 const RENAMED: Record<string, string> = { suggest: 'suggestion', default: 'proceeding-with' }
 
 const ID = /^[a-z][a-z0-9-]*$/

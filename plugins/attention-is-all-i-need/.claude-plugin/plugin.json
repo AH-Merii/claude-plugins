@@ -1,13 +1,13 @@
 {
-  "name": "attention",
-  "displayName": "attention",
+  "name": "attention-is-all-i-need",
+  "displayName": "attention-is-all-i-need",
   "version": "0.5.0",
   "description": "Colours what needs you at the end of Claude's replies (must-know, decide now, decide later, defaults, your actions) and pins open decisions above the prompt",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
     "url": "https://github.com/AH-Merii"
   },
-  "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/attention",
+  "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/attention-is-all-i-need",
   "repository": "https://github.com/AH-Merii/claude-plugins",
   "license": "MIT",
   "keywords": [

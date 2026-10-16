@@ -20,6 +20,6 @@ export type OpenItem = { id: string; tag: string; text: string; suggestion?: str
 
 declare module 'claude-code' {
   interface PluginState {
-    attention: { categories: Category[]; open: OpenItem[] }
+    'attention-is-all-i-need': { categories: Category[]; open: OpenItem[] }
   }
 }

@@ -41,8 +41,8 @@
       "tags": ["mod", "terminal", "tui", "vim", "cursor"]
     },
     {
-      "name": "attention",
-      "source": "./plugins/attention",
+      "name": "attention-is-all-i-need",
+      "source": "./plugins/attention-is-all-i-need",
       "category": "productivity",
       "tags": ["mod", "skill", "terminal", "tui", "questions", "attention"]
     },

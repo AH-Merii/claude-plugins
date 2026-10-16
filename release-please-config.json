@@ -5,8 +5,8 @@
   "include-component-in-tag": true,
   "bootstrap-sha": "73c1e7e36d5c57c5fe8ce947db2f7bac4bde91cc",
   "packages": {
-    "plugins/attention": {
-      "component": "attention",
+    "plugins/attention-is-all-i-need": {
+      "component": "attention-is-all-i-need",
       "extra-files": [
         {
           "type": "json",
