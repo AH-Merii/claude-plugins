@@ -1,1 +1,1 @@
-["$.process.run (via installed)", "$.state.set", "on session.start"]
+["$.process.run (via installed)", "$.state.set", "on classic.SessionStart", "on session.start"]
