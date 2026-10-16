@@ -1,7 +1,7 @@
 {
   "name": "nerd-font",
   "displayName": "nerd-font",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Works out once whether a Nerd Font is installed, with a setting to force it on or off, so mods that draw Nerd Font glyphs know when to fall back",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
@@ -10,14 +10,24 @@
   "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/nerd-font",
   "repository": "https://github.com/AH-Merii/claude-plugins",
   "license": "MIT",
-  "keywords": ["mod", "terminal", "tui", "nerd-font", "glyphs"],
+  "keywords": [
+    "mod",
+    "terminal",
+    "tui",
+    "nerd-font",
+    "glyphs"
+  ],
   "types": "./types/index.d.ts",
   "userConfig": {
     "glyphs": {
       "type": "string",
       "title": "Nerd Font glyphs",
       "description": "auto: draw them when an installed font's family has \"Nerd Font\" in its name (fc-list). on or off: always or never, whatever is installed",
-      "options": ["auto", "on", "off"],
+      "options": [
+        "auto",
+        "on",
+        "off"
+      ],
       "default": "auto"
     }
   }
