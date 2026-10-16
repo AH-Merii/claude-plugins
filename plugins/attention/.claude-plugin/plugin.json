@@ -18,5 +18,8 @@
     "questions",
     "attention"
   ],
-  "types": "./types/index.d.ts"
+  "types": "./types/index.d.ts",
+  "dependencies": [
+    "nerd-font"
+  ]
 }

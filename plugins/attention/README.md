@@ -31,7 +31,7 @@ So the mod asks Claude for these things:
 
 When Claude's reply weighs in on an open decision, the recommendation goes in a `suggest` line as well as in the prose, so it isn't lost in a paragraph. The band shows the latest one under its decision until the decision is settled.
 
-Pinned items carry over to Claude with each message you type, so a `/compact` doesn't lose them. Each one stays above the prompt until Claude marks it settled, or until you dismiss it with its `✕`.
+Pinned items carry over to Claude with each message you type, so a `/compact` doesn't lose them. Each one stays above the prompt until Claude marks it settled, or until you dismiss it with its `✕`. The 󰍉 beside it scrolls back to the reply that first raised it. If that reply is no longer in the transcript, a toast says so and the item stays pinned. Without a Nerd Font the button is drawn as 🔍; the [`nerd-font`](../nerd-font) mod, which `attention` depends on, decides which.
 
 ## Categories
 
