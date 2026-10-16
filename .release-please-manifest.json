@@ -1,6 +1,6 @@
 {
-  "plugins/attention": "0.3.0",
-  "plugins/copy-code": "0.3.0",
+  "plugins/attention": "0.3.1",
+  "plugins/copy-code": "0.3.1",
   "plugins/gitbutler-guard": "0.1.0",
   "plugins/nerd-font": "0.2.0",
   "plugins/niri-screen-lab": "0.4.1",

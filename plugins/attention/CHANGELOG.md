@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/AH-Merii/claude-plugins/compare/attention-v0.3.0...attention-v0.3.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **copy-code:** hand the prose around code to the plugins beneath ([#64](https://github.com/AH-Merii/claude-plugins/issues/64)) ([7790a3a](https://github.com/AH-Merii/claude-plugins/commit/7790a3a6aeb90e12283fd34135042de8377858eb)), closes [#59](https://github.com/AH-Merii/claude-plugins/issues/59)
+
 ## [0.3.0](https://github.com/AH-Merii/claude-plugins/compare/attention-v0.2.0...attention-v0.3.0) (2026-10-16)
 
 
