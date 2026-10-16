@@ -35,6 +35,16 @@
         }
       ]
     },
+    "plugins/nerd-font": {
+      "component": "nerd-font",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": ".claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
     "plugins/niri-screen-lab": {
       "component": "niri-screen-lab",
       "extra-files": [
