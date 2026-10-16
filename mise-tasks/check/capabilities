@@ -32,12 +32,13 @@ capabilities() {
   local out
   out=$(claude plugin validate "$1") || { echo "$out"; return 1; }
   awk '
-    # Split a list at the commas outside {filter} braces.
+    # Split a list at the commas outside {filter} braces and (via …) parentheses,
+    # so `$.ui.toast (via jump, refresh)` stays one capability.
     function emit(list, prefix,   i, c, depth, item) {
       for (i = 1; i <= length(list); i++) {
         c = substr(list, i, 1)
-        if (c == "{") depth++
-        if (c == "}") depth--
+        if (c == "{" || c == "(") depth++
+        if (c == "}" || c == ")") depth--
         if (c == "," && depth == 0) { put(item, prefix); item = ""; continue }
         item = item c
       }
