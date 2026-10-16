@@ -84,13 +84,19 @@ const mountHint = ($: Engine, hint: string) =>
 const hintProps = (hint: string) => ({ hint, isDraft: false, isWorking: false })
 
 // Draws the prompt hint as Claude Code does, first in `hint`, then in each of `then`,
-// and returns what the hint line showed each time.
+// and returns what the hint line showed each time. The engine marks each hook's returned
+// root with the plugin that drew it (`part` on StyledElement in the types); that says who
+// drew the line, not what it shows, so it is left out.
 async function showModes($: Engine, hint: string, ...then: string[]) {
   const ui = await mountHint($, hint)
-  const shown = [await ui.drawn()]
+  const drawn = async () => {
+    const { part: _part, ...tree } = (await ui.drawn()) as { part?: unknown }
+    return tree
+  }
+  const shown = [await drawn()]
   for (const next of then) {
     await ui.redraw(hintProps(next))
-    shown.push(await ui.drawn())
+    shown.push(await drawn())
   }
   await ui.unmount()
   return shown

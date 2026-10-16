@@ -42,7 +42,7 @@ under `/plugin` → Marketplaces.
 
 ## Requirements
 
-Claude Code with the `claude plugin` command, tested on 2.1.289. Mods will need 2.1.287 or
+Claude Code with the `claude plugin` command, tested on 2.1.299. Mods will need 2.1.287 or
 newer. Each plugin's README lists its own prerequisites.
 
 ## Layout

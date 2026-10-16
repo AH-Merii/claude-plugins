@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Type-check each plugin (ty for Python, tsc for TypeScript mods)"
-#MISE tools={ty="0.0.86", claude="2.1.289", node="24.21.0", "npm:typescript"="5.9.3"}
+#MISE tools={ty="0.0.86", claude="2.1.299", node="24.21.0", "npm:typescript"="5.9.3"}
 #MISE env={DISABLE_AUTOUPDATER="1"}
 #USAGE arg "[plugin]..." help="Plugin folders to check; default: every folder under plugins/"
 # ty checks unannotated function bodies too, which matters here: the plugins carry
@@ -9,23 +9,42 @@ set -euo pipefail
 source ci/each-plugin.sh
 
 # A mod's tsconfig.json extends the types Claude Code writes beside the mod each time it
-# loads it, so a fresh clone has none. A headless start writes them before it stops for
-# want of a login. It runs with an empty environment, HOME and config dir, so no
-# credentials can be found and nothing reaches the model; "Not logged in" is expected.
+# loads it, so a fresh clone has none. Only a session that hot-reloads the --plugin-dir
+# writes them, which `claude -p` never does (plugin-authoring reference.md, from 2.1.299).
+# So an interactive start runs under `script` for a terminal, with onboarding marked done
+# and this folder trusted so it goes straight to the prompt, and stops once the types
+# are written. It runs with an empty environment, HOME and config dir, so no credentials
+# can be found and no prompt is sent; "Not logged in" is expected.
+# The old types are removed first, so tsc reads only what this version wrote.
 # A mod that lists another under "dependencies" doesn't load without it, so each dependency
-# in plugins/ is loaded beside it.
+# in plugins/ is loaded beside it, and its contract is waited for too.
 mod_types() {
-  local home dep
-  local dirs=(--plugin-dir "$1")
+  local home dep pid i
+  local types=$1/.claude-plugin/types
+  local dirs=(--plugin-dir "$1") wanted=("$types/tsconfig.json" "$types/claude-code/index.d.ts")
   for dep in $(node -e 'for (const d of require(process.argv[1]).dependencies ?? []) console.log(typeof d === "string" ? d : d.name)' "$PWD/$1/.claude-plugin/plugin.json"); do
-    [ -d "plugins/$dep" ] && dirs+=(--plugin-dir "plugins/$dep")
+    if [ -d "plugins/$dep" ]; then
+      dirs+=(--plugin-dir "plugins/$dep")
+      [ -f "plugins/$dep/types/index.d.ts" ] && wanted+=("$types/$dep/index.d.ts")
+    fi
   done
+  rm -rf "$types"
   home=$(mktemp -d)
-  env -i PATH="$PATH" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" DISABLE_AUTOUPDATER=1 \
-    claude -p 'write the plugin types' "${dirs[@]}" >/dev/null 2>&1 || true
+  mkdir "$home/.claude"
+  node -e 'console.log(JSON.stringify({ hasCompletedOnboarding: true, theme: "dark", projects: { [process.argv[1]]: { hasTrustDialogAccepted: true } } }))' \
+    "$PWD" >"$home/.claude/.claude.json"
+  env -i PATH="$PATH" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" DISABLE_AUTOUPDATER=1 TERM=xterm-256color \
+    script -qec "claude $(printf '%q ' "${dirs[@]}")" /dev/null >/dev/null 2>&1 &
+  pid=$!
+  for ((i = 0; i < 60; i++)); do
+    ls "${wanted[@]}" >/dev/null 2>&1 && break
+    sleep 1
+  done
+  kill "$pid" 2>/dev/null || true
+  wait "$pid" 2>/dev/null || true
   rm -rf "$home"
-  if [ ! -f "$1/.claude-plugin/types/claude-code/index.d.ts" ]; then
-    echo "Claude Code wrote no types into $1/.claude-plugin/types, so tsc can't check it."
+  if ! ls "${wanted[@]}" >/dev/null 2>&1; then
+    echo "Claude Code wrote no types into $types within 60s, so tsc can't check it."
     return 1
   fi
 }
