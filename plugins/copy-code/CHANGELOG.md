@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/AH-Merii/claude-plugins/compare/copy-code-v0.3.1...copy-code-v0.4.0) (2026-10-16)
+
+
+### Features
+
+* **copy-code:** label copy in plain text without a Nerd Font ([#66](https://github.com/AH-Merii/claude-plugins/issues/66)) ([faad7d5](https://github.com/AH-Merii/claude-plugins/commit/faad7d501fea7f0e48a01ac8deee3d6babc7313c)), closes [#60](https://github.com/AH-Merii/claude-plugins/issues/60)
+
 ## [0.3.1](https://github.com/AH-Merii/claude-plugins/compare/copy-code-v0.3.0...copy-code-v0.3.1) (2026-10-16)
 
 
