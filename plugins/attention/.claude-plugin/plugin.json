@@ -1,7 +1,7 @@
 {
   "name": "attention",
   "displayName": "attention",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Colours what needs you at the end of Claude's replies (must-know, decide now, decide later, defaults, your actions) and pins open decisions above the prompt",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
@@ -10,6 +10,13 @@
   "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/attention",
   "repository": "https://github.com/AH-Merii/claude-plugins",
   "license": "MIT",
-  "keywords": ["mod", "skill", "terminal", "tui", "questions", "attention"],
+  "keywords": [
+    "mod",
+    "skill",
+    "terminal",
+    "tui",
+    "questions",
+    "attention"
+  ],
   "types": "./types/index.d.ts"
 }
