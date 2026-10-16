@@ -14,8 +14,9 @@ export type Category = {
   tint: boolean
 }
 
-// A pinned item still waiting on the user, with Claude's latest recommendation on it.
-export type OpenItem = { id: string; tag: string; text: string; suggestion?: string }
+// A pinned item still waiting on the user, with Claude's latest recommendation on it, and the message id of the
+// reply that first raised it, where the band's magnifier scrolls to.
+export type OpenItem = { id: string; tag: string; text: string; suggestion?: string; from?: string }
 
 declare module 'claude-code' {
   interface PluginState {

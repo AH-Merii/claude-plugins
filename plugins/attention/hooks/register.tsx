@@ -11,6 +11,8 @@ const categoriesState = atom({ plugin: 'attention', key: 'categories' } as const
 const openState = atom({ plugin: 'attention', key: 'open' } as const, [])
 
 const CONFIG = 'attention.json'
+// The jump button's label: Nerd Font's nf-md-magnify.
+const MAGNIFY = '\u{F0349}'
 // The reply's left gutter, as Claude Code draws it: the bullet on a reply's first block, else blank.
 const GUTTER = 2
 // How a settled item is drawn: a green label, its text a dimmer green, since it only confirms what the user said.
@@ -47,6 +49,10 @@ async function load($: Engine): Promise<Config & { path: string }> {
 // The config's errors last reported, so a broken file is named once, not on every request.
 let reported = ''
 
+// Where each item id was first written this turn: the message id of the reply block that holds it. A reply's
+// blocks are stored as the turn goes, before turn.complete, which carries no message ids.
+let raisedIn = new Map<string, string>()
+
 // Reads the config into the session's state and names what in it can't be used.
 async function refresh($: Engine) {
   const { path, categories, errors } = await load($)
@@ -64,7 +70,12 @@ async function refresh($: Engine) {
 
 // Pinned items as of a reply: new and restated ones added or updated by id, settled ones dropped, and each
 // suggestion attached to the open decision it names.
-function track(open: readonly OpenItem[], items: readonly Item[], categories: readonly Category[]): OpenItem[] {
+function track(
+  open: readonly OpenItem[],
+  items: readonly Item[],
+  categories: readonly Category[],
+  raised: ReadonlyMap<string, string>,
+): OpenItem[] {
   const pinned = new Set(categories.filter(c => c.pin).map(c => c.id))
   const next = [...open]
   for (const item of items) {
@@ -74,8 +85,9 @@ function track(open: readonly OpenItem[], items: readonly Item[], categories: re
       if (at >= 0) next.splice(at, 1)
     } else if (pinned.has(item.tag)) {
       const entry = { id: item.id, tag: item.tag, text: item.text }
+      // A restatement keeps where the item was first raised.
       if (at >= 0) next[at] = { ...next[at], ...entry }
-      else next.push(entry)
+      else next.push({ ...entry, from: raised.get(item.id) })
     }
   }
   // After the decisions, so a suggestion finds one raised in the same reply wherever it sits.
@@ -110,6 +122,19 @@ function plain(text: string) {
   return text.replace(/`([^`]*)`/g, '$1').replace(/\*\*([^*]*)\*\*/g, '$1')
 }
 
+// Scrolls the transcript to the reply that first raised an item, its top at the top of the screen; says so when
+// that reply is gone, as after a rewind summarizes it away. The item stays pinned either way.
+async function jump($: Engine, id: string) {
+  const from = (await read($, openState)).find(o => o.id === id)?.from
+  const { deny } =
+    from === undefined
+      ? { deny: 'not recorded' }
+      : await $.ui.scroll({ to: { requestId: from }, block: 'start' }).catch((err: unknown) => ({ deny: String(err) }))
+  if (deny !== undefined) {
+    $.ui.toast(`attention: the reply that raised ${id} is no longer in the transcript (${deny})`)
+  }
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await refresh($)
@@ -137,12 +162,25 @@ export const register: Register = on => {
     return next({ ...e, context: [...(e.context ?? []), reminder(open)] })
   })
 
+  on('session.append', { door: 'response' }, async ($, e, next) => {
+    if (e.agentId === undefined) {
+      const text = e.message.content.map(block => (block.type === 'text' ? block.text : '')).join('\n')
+      const categories = await read($, categoriesState)
+      for (const { id } of parse(text, new Set(categories.map(c => c.id))).items) {
+        if (id !== undefined && !raisedIn.has(id)) raisedIn.set(id, e.uuid)
+      }
+    }
+    return next(e)
+  })
+
   on('turn.complete', async ($, e, next) => {
-    if (e.agentId === undefined && e.answer !== '') {
+    if (e.agentId === undefined) {
+      const raised = raisedIn
+      raisedIn = new Map()
       const categories = await read($, categoriesState)
       const { items } = parse(e.answer, new Set(categories.map(c => c.id)))
       if (items.some(i => i.id !== undefined)) {
-        await update($, openState, open => track(open, items, categories))
+        await update($, openState, open => track(open, items, categories, raised))
       }
     }
     return next(e)
@@ -222,6 +260,13 @@ export const register: Register = on => {
                 <Box flexGrow={1} width={0}>
                   <Text wrap="truncate-end">{plain(o.text)}</Text>
                 </Box>
+                <Button
+                  key={`attention:jump:${o.id}`}
+                  label={` ${MAGNIFY} `}
+                  plain
+                  dimColor
+                  onPress={() => jump($, o.id)}
+                />
                 <Button
                   key={`attention:dismiss:${o.id}`}
                   label=" ✕ "

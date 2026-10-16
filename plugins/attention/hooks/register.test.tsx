@@ -1,5 +1,5 @@
 import type { On, RenderSurface } from 'claude-code'
-import { type Engine, expect, mock, test } from 'claude-code/testing'
+import { type Engine, expect, mock, type Plugin, test } from 'claude-code/testing'
 
 const HOME = '/home/ada'
 const CONFIG = `${HOME}/.claude/attention.json`
@@ -47,6 +47,20 @@ function finish($: Engine, answer: string, agentId?: string) {
     reason: 'answer',
     ...(agentId ? { agentId } : {}),
   } as never)
+}
+
+// A reply as a session handles it: each block, by message id, stored as a row of the conversation as the turn
+// goes, then the turn ends with the last one.
+async function respond($: Engine, ...blocks: [messageId: string, text: string][]) {
+  for (const [messageId, text] of blocks) {
+    await $.session.append({
+      message: { type: 'assistant', role: 'assistant', content: [{ type: 'text', text }] },
+      door: 'response',
+      origin: { kind: 'model', model: 'claude-haiku' },
+      uuid: messageId,
+    })
+  }
+  return finish($, blocks.at(-1)?.[1] ?? '')
 }
 
 function reply($: Engine, text: string) {
@@ -321,4 +335,83 @@ test('what the user types carries the open items to Claude; notifications and co
     expect.stringMatching(/D1 \[decide-now\] Merge #41 as is\? Your suggestion: Merge it as is\./),
   ])
   expect(context.slice(2)).toEqual([undefined, undefined])
+})
+
+// Another plugin, reading the open items as the mod's state contract publishes them, in a pane.
+const reader: Plugin = {
+  name: 'reader',
+  register(on) {
+    on('ui.render', { component: 'Pane' }, async ($, e) => {
+      const { Text } = $.ui.resolve(e)
+      const { value = [] } = await $.state.get({ plugin: 'attention', key: 'open' })
+      return <Text>{value.map(o => `${o.id} from ${o.from}`).join(', ')}</Text>
+    })
+  },
+}
+
+// The test kit cannot scroll a transcript, so where a jump lands is read from the item it scrolls by.
+test(
+  'a pinned item keeps the message id of the reply that first raised it, through restatements',
+  { plugins: [reader] },
+  async ($, on) => {
+    mock.env(on, { HOME })
+    files(on, {})
+    engineEnds(on)
+
+    await respond($, ['m1', 'Ready.\n> [!decide-now] D1: Merge #41 as is?'])
+    await respond(
+      $,
+      ['m2', 'Checking CI first.\n> [!decide-later] D2: Close #49?'],
+      ['m3', 'CI passed.\n> [!decide-now] D1: Merge #41 as is, now CI passed?\n> [!decide-later] D2: Close #49?'],
+    )
+    const ui = await $.ui.mount({
+      plugin: 'reader',
+      surface: 'terminal',
+      component: 'Pane',
+      requestId: 'open',
+      props: {} as never,
+    })
+    const shown = await ui.findAll({ type: 'Text' })
+    await ui.unmount()
+
+    expect(shown.map(t => t.text)).toEqual(['D1 from m1, D2 from m2'])
+  },
+)
+
+test('each pinned item has a jump button beside its dismiss', async ($, on) => {
+  mock.env(on, { HOME })
+  files(on, {})
+  engineEnds(on)
+
+  await finish($, '> [!decide-now] D1: Merge #41 as is?\n> [!decide-later] D2: Close #49?')
+  const ui = await band($)
+  const buttons = await ui.findAll({ type: 'Button' })
+  await ui.unmount()
+
+  expect(buttons.map(b => b.key)).toEqual([
+    'attention:jump:D1',
+    'attention:dismiss:D1',
+    'attention:jump:D2',
+    'attention:dismiss:D2',
+  ])
+})
+
+// The test kit cannot scroll a transcript, so every jump in a test is refused, as one to a compacted reply is.
+test('when the reply that raised an item cannot be shown, a toast says so and the item stays pinned', async ($, on) => {
+  mock.env(on, { HOME })
+  files(on, {})
+  engineEnds(on)
+  const toasts: string[] = []
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+
+  await respond($, ['m1', 'Ready.\n> [!decide-now] D1: Merge #41 as is?'])
+  const ui = await band($)
+  await ui.press({ key: 'attention:jump:D1' })
+  await ui.unmount()
+
+  expect(toasts).toEqual([expect.stringMatching(/D1.*no longer in the transcript/)])
+  expect(await pinned($)).toEqual(['D1'])
 })
