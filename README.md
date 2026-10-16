@@ -11,6 +11,7 @@ My Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
 | [copy-code](plugins/copy-code) | mod | you copy code from Claude's replies: each code block gets a box with its language and a copy button (terminal only) |
 | [attention](plugins/attention) | mod, skill | you skim Claude's replies: what needs you (must-know, decisions, defaults, your actions) is coloured at the end of each reply, and open decisions stay pinned above the prompt (terminal only) |
 | [vim-ux](plugins/vim-ux) | mod | you use Claude Code's vim mode: a bar cursor in INSERT and a block in NORMAL and VISUAL, and a Ctrl+C that only clears the prompt (terminal only) |
+| [nerd-font](plugins/nerd-font) | mod | a mod you use draws Nerd Font icons (`attention`, `copy-code`): works out once whether a Nerd Font is installed, with a `/config` setting to force it on or off, so those mods fall back to plain characters without one |
 | [interview-detective](https://github.com/AH-Merii/interview-detective) | skill | you have a job interview coming up: researches the company's public GitHub, candidates' prep and the web, scrapes related Glassdoor reviews, and writes a sourced report with practice questions (its own repo; run its setup wizard after installing) |
 
 ## Install

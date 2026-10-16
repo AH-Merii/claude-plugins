@@ -47,6 +47,12 @@
       "tags": ["mod", "skill", "terminal", "tui", "questions", "attention"]
     },
     {
+      "name": "nerd-font",
+      "source": "./plugins/nerd-font",
+      "category": "development",
+      "tags": ["mod", "terminal", "tui", "nerd-font", "glyphs"]
+    },
+    {
       "name": "interview-detective",
       "source": { "source": "github", "repo": "AH-Merii/interview-detective" },
       "category": "productivity",
