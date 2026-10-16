@@ -415,3 +415,68 @@ test('when the reply that raised an item cannot be shown, a toast says so and th
   expect(toasts).toEqual([expect.stringMatching(/D1.*no longer in the transcript/)])
   expect(await pinned($)).toEqual(['D1'])
 })
+
+// nf-md-magnify, U+F0349, from a Nerd Font.
+const NERD_FONT_JUMP = ' \u{F0349} '
+const PLAIN_JUMP = ' 🔍 '
+
+// Stand-ins for the nerd-font mod, each giving its answer once the session starts. Each is self-contained: an
+// inline plugin closes over nothing of the test file.
+const hasNerdFont: Plugin = {
+  name: 'nerd-font',
+  register(on) {
+    on('session.start', async ($, e, next) => {
+      await $.state.set({ plugin: 'nerd-font', key: 'enabled' }, true)
+      return next(e)
+    })
+  },
+}
+
+const noNerdFont: Plugin = {
+  name: 'nerd-font',
+  register(on) {
+    on('session.start', async ($, e, next) => {
+      await $.state.set({ plugin: 'nerd-font', key: 'enabled' }, false)
+      return next(e)
+    })
+  },
+}
+
+// The jump buttons' labels in the band.
+async function jumpLabels($: Engine) {
+  const ui = await band($)
+  const labels = (await ui.findAll({ type: 'Button' })).filter(b => b.key?.startsWith('attention:jump:'))
+  await ui.unmount()
+  return labels.map(b => b.props.label)
+}
+
+for (const c of [
+  { answer: 'there is a Nerd Font', nerdFont: hasNerdFont, shows: 'the Nerd Font magnifier', label: NERD_FONT_JUMP },
+  { answer: 'there is no Nerd Font', nerdFont: noNerdFont, shows: 'the 🔍 emoji', label: PLAIN_JUMP },
+] as const) {
+  test(
+    `when nerd-font says ${c.answer}, the jump button shows ${c.shows}`,
+    { plugins: [c.nerdFont] },
+    async ($, on) => {
+      mock.env(on, { HOME })
+      files(on, {})
+      engineEnds(on)
+      await start($)
+
+      await finish($, '> [!decide-now] D1: Merge #41 as is?')
+
+      expect(await jumpLabels($)).toEqual([c.label])
+    },
+  )
+}
+
+test('before nerd-font has answered the jump button shows 🔍', async ($, on) => {
+  mock.env(on, { HOME })
+  files(on, {})
+  engineEnds(on)
+  await start($)
+
+  await finish($, '> [!decide-now] D1: Merge #41 as is?')
+
+  expect(await jumpLabels($)).toEqual([PLAIN_JUMP])
+})

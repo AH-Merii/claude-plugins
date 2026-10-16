@@ -11,8 +11,11 @@ const categoriesState = atom({ plugin: 'attention', key: 'categories' } as const
 const openState = atom({ plugin: 'attention', key: 'open' } as const, [])
 
 const CONFIG = 'attention.json'
-// The jump button's label: Nerd Font's nf-md-magnify.
+// The jump button's label: nf-md-magnify when the nerd-font mod says the terminal has a Nerd Font, else the emoji.
 const MAGNIFY = '\u{F0349}'
+const PLAIN_MAGNIFY = '🔍'
+// nerd-font's answer: true, false, or undefined until its check has run. Only true means glyphs.
+const nerdFont = { plugin: 'nerd-font', key: 'enabled' } as const
 // The reply's left gutter, as Claude Code draws it: the bullet on a reply's first block, else blank.
 const GUTTER = 2
 // How a settled item is drawn: a green label, its text a dimmer green, since it only confirms what the user said.
@@ -246,6 +249,9 @@ export const register: Register = on => {
     }
     const categories = await read($, categoriesState)
     const suggest = categories.find(c => c.id === SUGGEST)
+    // Read while drawing, so the band redraws when nerd-font answers or its setting changes.
+    const { value: hasNerdFont } = await $.state.get(nerdFont)
+    const magnify = hasNerdFont === true ? MAGNIFY : PLAIN_MAGNIFY
     const { Box, Button, Text } = $.ui.resolve(e)
 
     return (
@@ -262,7 +268,7 @@ export const register: Register = on => {
                 </Box>
                 <Button
                   key={`attention:jump:${o.id}`}
-                  label={` ${MAGNIFY} `}
+                  label={` ${magnify} `}
                   plain
                   dimColor
                   onPress={() => jump($, o.id)}
