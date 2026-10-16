@@ -3,7 +3,21 @@ import { type Engine, expect, type MockClock, mock, test } from 'claude-code/tes
 
 const REPLY = 'Run this:\n\n```sh\nls -la\n```\n\nand this:\n\n```py\nprint(1)\n```'
 
+// Stands in for Claude Code's own drawing of the prose it is handed: the bullet on a reply's first block.
+function engineDraws(on: On) {
+  on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
+    const { Box, Text } = $.ui.resolve(e)
+    return (
+      <Box flexDirection="row">
+        <Box width={2}>{e.props.isFirstOfReply && <Text>●</Text>}</Box>
+        <Text>{e.props.text}</Text>
+      </Box>
+    )
+  })
+}
+
 test('each code block gets a copy row that copies its code', async ($, on) => {
+  engineDraws(on)
   mock.clock(on)
   mock.env(on, {})
   const copied: string[] = []
@@ -29,6 +43,7 @@ test('each code block gets a copy row that copies its code', async ($, on) => {
 })
 
 test('an empty block draws no copy button', async ($, on) => {
+  engineDraws(on)
   on('ui.copy', () => ({ value: { isCopied: true } }))
   on('ui.toast', () => ({ value: undefined }))
 
@@ -45,7 +60,8 @@ test('an empty block draws no copy button', async ($, on) => {
   expect(buttons.map(b => b.key)).toEqual(['m1:copy:5'])
 })
 
-test('at 40 columns a long language name is drawn beside copy', async $ => {
+test('at 40 columns a long language name is drawn beside copy', async ($, on) => {
+  engineDraws(on)
   const ui = await $.ui.mount({
     plugin: 'copy-code',
     surface: 'terminal',
@@ -63,6 +79,7 @@ test('at 40 columns a long language name is drawn beside copy', async $ => {
 })
 
 test('quick presses all copy, and a toast repeats only once it has gone', async ($, on) => {
+  engineDraws(on)
   const clock = mock.clock(on)
   mock.env(on, {})
   const copied: string[] = []
@@ -96,6 +113,7 @@ test('quick presses all copy, and a toast repeats only once it has gone', async 
 })
 
 test('a failed copy is announced even while "Copied" shows', async ($, on) => {
+  engineDraws(on)
   mock.clock(on)
   mock.env(on, {})
   let isCopied = true
@@ -121,17 +139,20 @@ test('a failed copy is announced even while "Copied" shows', async ($, on) => {
   expect(toasts).toEqual(['Copied', 'Copy failed: no-clipboard'])
 })
 
-test('the block opening a reply draws the bullet, and a later block does not', async $ => {
-  for (const isFirstOfReply of [true, false]) {
-    const ui = await $.ui.mount({
-      plugin: 'copy-code',
-      surface: 'terminal',
-      component: 'AssistantMessage',
-      props: { text: REPLY, isFirstOfReply },
-    })
-    const bullets = await ui.findAll({ type: 'Text', text: '●' })
-    await ui.unmount()
-    expect(bullets).toHaveLength(isFirstOfReply ? 1 : 0)
+test('the block opening a reply draws one bullet, whether it opens with prose or code, and a later block none', async ($, on) => {
+  engineDraws(on)
+  for (const text of [REPLY, '```sh\nls -la\n```\n\nlists every file.']) {
+    for (const isFirstOfReply of [true, false]) {
+      const ui = await $.ui.mount({
+        plugin: 'copy-code',
+        surface: 'terminal',
+        component: 'AssistantMessage',
+        props: { text, isFirstOfReply },
+      })
+      const bullets = await ui.findAll({ type: 'Text', text: '●' })
+      await ui.unmount()
+      expect(bullets).toHaveLength(isFirstOfReply ? 1 : 0)
+    }
   }
 })
 
@@ -140,6 +161,7 @@ const RAN = { stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncate
 // Answers the clipboard paths with the environment and wl-copy given, and logs what reached each, in order.
 // On Wayland Claude Code's copy returns before its own wl-copy has written, which lands up to 30 ms later.
 function clipboard(on: On, env: Record<string, string>, wlCopy: () => number) {
+  engineDraws(on)
   const clock = mock.clock(on)
   mock.env(on, env)
   const seen = { clock, log: [] as string[], commands: [] as string[], toasts: [] as string[] }

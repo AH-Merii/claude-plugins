@@ -17,6 +17,11 @@ async function fencesOf(ui: Awaited<ReturnType<typeof mount>>) {
 }
 
 test('code holding a markdown fence is drawn only as one fenced block it cannot close, and copies as written', async ($, on) => {
+  // Stands in for Claude Code's own drawing of the prose it is handed.
+  on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>{e.props.text}</Text>
+  })
   mock.clock(on)
   mock.env(on, {})
   const copied: string[] = []
@@ -63,6 +68,28 @@ test('a fence names the language Claude Code highlights it by, plain text when i
       expect(fence?.[2]?.toLowerCase()).toBe(info)
     }
   }
+})
+
+test("the prose around code is handed to the plugins beneath, and only the reply's first block opens it", async ($, on) => {
+  // Stands in for a plugin beneath, such as one drawing tagged lines of the reply in colour.
+  on('ui.render', { component: 'AssistantMessage' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>{`beneath${e.props.isFirstOfReply ? ' (opens the reply)' : ''}: ${e.props.text.trim()}`}</Text>
+  })
+
+  const ui = await mount(
+    $,
+    'Run this:\n\n```sh\nls -la\n```\n\nIt lists hidden files too.\n\n> [!optional] O1: Want me to add a `--sort` flag?',
+  )
+  const beneath = await ui.findAll({ type: 'Text', text: /^beneath/ })
+  const buttons = await ui.findAll({ type: 'Button' })
+  await ui.unmount()
+
+  expect(beneath.map(b => b.text)).toEqual([
+    'beneath (opens the reply): Run this:',
+    'beneath: It lists hidden files too.\n\n> [!optional] O1: Want me to add a `--sort` flag?',
+  ])
+  expect(buttons.map(b => b.key)).toEqual(['m1:copy:1'])
 })
 
 test('a reply with code too long for Claude Code to draw as markdown is left to Claude Code', async ($, on) => {
