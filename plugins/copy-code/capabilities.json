@@ -1,1 +1,1 @@
-["$.clock.now", "$.clock.sleep", "$.env.get", "$.process.run", "on prompt.compose"]
+["$.clock.now", "$.clock.sleep", "$.env.get", "$.process.run", "$.state.get", "on prompt.compose"]

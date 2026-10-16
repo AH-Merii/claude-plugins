@@ -16,5 +16,8 @@
     "tui",
     "code-block",
     "clipboard"
+  ],
+  "dependencies": [
+    "nerd-font"
   ]
 }

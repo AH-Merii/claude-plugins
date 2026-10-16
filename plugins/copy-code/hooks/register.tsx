@@ -6,11 +6,12 @@ import { split } from './split'
 
 const MAX = 10000
 
-// nf-fa-copy, from a Nerd Font.
-const ICON = '\uF0C5'
-const LABEL = ` ${ICON} copy `
-// The cells right of the language name: the corner, the copy label and a gap.
-const RIGHT = 2 + LABEL.length + 1
+// The copy label: with nf-fa-copy when the nerd-font mod says the terminal has a Nerd Font, else plain text, which
+// any font draws. Without one the icon would show as an empty box.
+const NERD_FONT_LABEL = ' \uF0C5 copy '
+const PLAIN_LABEL = ' copy '
+// nerd-font's answer: true, false, or undefined until its check has run. Only true means glyphs.
+const nerdFont = { plugin: 'nerd-font', key: 'enabled' } as const
 // With fewer cells than this a name says nothing, so it is left out.
 const MIN_NAME = 4
 // The reply's left gutter, as Claude Code draws it on the block opening a reply, the bullet in it. A block that
@@ -63,6 +64,12 @@ export const register: Register = on => {
 
     const { Box, Button, Markdown, Text } = $.ui.resolve(e)
 
+    // Read while drawing, so the reply redraws when nerd-font answers or its setting changes.
+    const { value: hasNerdFont } = await $.state.get(nerdFont)
+    const label = hasNerdFont === true ? NERD_FONT_LABEL : PLAIN_LABEL
+    // The cells right of the language name: the corner, the copy label and a gap.
+    const right = 2 + label.length + 1
+
     // After Claude Code's copy, on Wayland and not over SSH (where wl-copy would reach the remote desktop),
     // wl-copy puts the code back on the clipboard typed as text. When wl-copy fails or is missing, Claude Code's
     // copy stands.
@@ -113,7 +120,7 @@ export const register: Register = on => {
           // Not the wrapper's key: a keyed Box is a scope of its own, and hovering the code would join it.
           const scope = `${e.requestId}:${i}:lit`
           // The name's cells: the box less its left corner, the right side and a space either side.
-          const room = columns === undefined ? Infinity : columns - gutter - (s.indent ?? 0) - 2 - RIGHT - 2
+          const room = columns === undefined ? Infinity : columns - gutter - (s.indent ?? 0) - 2 - right - 2
           const name = s.language !== undefined && room >= MIN_NAME ? languageName(s.language) : undefined
 
           // The overlay redraws the whole box lit, so hovering the code lights nothing. The top row (name and copy)
@@ -155,7 +162,7 @@ export const register: Register = on => {
                   {s.code !== '' && (
                     <Button
                       key={`${e.requestId}:copy:${i}`}
-                      label={LABEL}
+                      label={label}
                       plain
                       dimColor
                       hover={{ scope, dimColor: false, inverse: false, backgroundColor: 'userMessageBackground' }}

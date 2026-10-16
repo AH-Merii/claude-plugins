@@ -11,6 +11,8 @@ A Claude Code mod that frames every code block in Claude's replies in a rounded 
 
 Hovering the button lights the whole block. Clicking it copies the code without the fences.
 
+The button shows a copy icon when your terminal has a [Nerd Font](https://www.nerdfonts.com/), and plain `copy` when it doesn't. The [nerd-font](../nerd-font) mod decides which, and its **Nerd Font glyphs** setting in `/config` can force either.
+
 ## Terminal only
 
 This mod is for Claude Code running in a terminal. In the Desktop app, VS Code or the web it does nothing, and code blocks keep Claude Code's own look.
@@ -18,13 +20,13 @@ This mod is for Claude Code running in a terminal. In the Desktop app, VS Code o
 ## Requirements
 
 - Claude Code 2.1.287 or newer.
-- A [Nerd Font](https://www.nerdfonts.com/) in your terminal, for the copy icon.
+- The [nerd-font](../nerd-font) mod, which `/plugin install` adds with this one. It tells copy-code whether to draw the copy icon. Without a Nerd Font the button reads plain `copy`.
 - Mouse support for hover and click. The fullscreen layout (`"tui": "fullscreen"`) has it.
 
 ## Try it
 
 ```sh
-claude --plugin-dir path/to/copy-code
+claude --plugin-dir path/to/copy-code --plugin-dir path/to/nerd-font
 ```
 
 ## Notes
