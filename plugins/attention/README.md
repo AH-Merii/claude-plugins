@@ -65,10 +65,6 @@ The fields are `label`, `color`, `meaning`, `pin`, `dim`, `tint` (the item's tex
 
 The colours and the band are drawn in the terminal. In print mode, the Desktop app or VS Code, Claude isn't asked for the tags, so replies read as before.
 
-## With copy-code
-
-Both mods draw replies. With `attention` outside `copy-code`, code boxes and coloured lines show together. If the order is reversed, a reply that holds code shows its attention lines as plain quotes. The band works either way.
-
 ## Install
 
 ```text
