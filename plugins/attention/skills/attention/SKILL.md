@@ -21,7 +21,7 @@ With no file, the defaults apply. The file holds only what differs from them, so
 
 Each key under `categories` is a category id: lowercase letters, digits and dashes (`resolved` is taken).
 
-- **A default's id** changes only the fields given. The defaults are `must-know`, `decide-now`, `decide-later`, `default`, `your-action` and `optional`; their meanings are the tags listed in the attention section of your system prompt.
+- **A default's id** changes only the fields given. The defaults are `must-know`, `decide-now`, `decide-later`, `suggest`, `default`, `your-action` and `optional`; their meanings are the tags listed in the attention section of your system prompt.
 - **`"enabled": false`** turns a category off. Claude stops using its tag.
 - **A new id** adds a category after the defaults. It needs `label`, `color` and `meaning`.
 
@@ -32,7 +32,7 @@ The fields:
 | `label` | string | The word drawn beside each line, e.g. `DECIDE NOW`. |
 | `color` | string | A colour name (`red`, `cyan`), a hex colour (`#ff8700`), or a Claude Code theme key that follows the user's theme (`error`, `warning`, `success`, `suggestion`, `inactive`, `subtle`). |
 | `meaning` | string | When Claude uses the tag. It is read as "the tag is for …", so write it as a noun phrase: "a choice you need before you can finish the current task". |
-| `pin` | boolean | Keep the item in the band above the prompt until Claude marks it settled. Defaults pin `decide-now` and `decide-later`. |
+| `pin` | boolean | Keep the item in the band above the prompt until Claude marks it settled. Defaults pin `decide-now` and `decide-later`. `suggest` items are never pinned on their own: each shows under the open decision it names. |
 | `dim` | boolean | Draw the line dim, for items the user may skip. |
 | `tint` | boolean | Draw the item's text in a dimmer shade of the category's colour, with code spans bold in the full colour. Needs a colour name or hex; with a theme key the text is drawn grey. Named colours are shaded from the values Claude Code's dark theme draws them in. On by default; set `false` to draw a category's text plain. |
 | `enabled` | boolean | `false` turns the category off. |

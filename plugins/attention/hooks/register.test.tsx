@@ -206,6 +206,52 @@ test('decisions stay pinned above the prompt until Claude settles them; other it
   expect(restated).toHaveLength(1)
 })
 
+test("a suggestion is drawn with its decision's id, marked S", async ($, on) => {
+  mock.env(on, { HOME })
+  files(on, {})
+  engineDraws(on)
+
+  const ui = await reply(
+    $,
+    'Here is my view.\n> [!suggest] D6: Act on a settled hand-back; only record an unsettled one.',
+  )
+  const labels = await ui.findAll({ type: 'Text', text: /SUGGEST/ })
+  const ids = await ui.findAll({ type: 'Text', text: /^D6S $/ })
+  await ui.unmount()
+
+  expect(labels.map(t => [String(t.text).trim(), t.props.color])).toEqual([['SUGGEST', 'cyan']])
+  expect(ids).toHaveLength(1)
+})
+
+test('the band shows the latest suggestion under its open decision, and drops it with the decision', async ($, on) => {
+  mock.env(on, { HOME })
+  files(on, {})
+  engineEnds(on)
+  const suggestions = async () => {
+    const ui = await band($)
+    const shown = await ui.findAll({ type: 'Text', text: /^( D\d+S |Merge it as is\.|Clean up first\.|Close #49\.)$/ })
+    await ui.unmount()
+    return shown.map(t => String(t.text).trim())
+  }
+
+  // The suggestion may come before the decision it names in the same reply.
+  await finish($, '> [!suggest] D1: Merge it as is.\n> [!decide-now] D1: Merge #41 as is, or clean up first?')
+  const first = await suggestions()
+  await finish($, 'On reflection.\n> [!suggest] D1: Clean up first.')
+  const second = await suggestions()
+  await finish($, 'Unrelated.\n> [!suggest] D9: Close #49.')
+  const unrelated = await pinned($)
+  const third = await suggestions()
+  await finish($, 'Merging.\n> [!resolved] D1: merge as is')
+  const settled = await suggestions()
+
+  expect(first).toEqual(['D1S', 'Merge it as is.'])
+  expect(second).toEqual(['D1S', 'Clean up first.'])
+  expect(unrelated).toEqual(['D1'])
+  expect(third).toEqual(['D1S', 'Clean up first.'])
+  expect(settled).toEqual([])
+})
+
 test("a subagent's report pins nothing", async ($, on) => {
   mock.env(on, { HOME })
   files(on, {})
@@ -241,12 +287,14 @@ test('what the user types carries the open items to Claude; notifications and co
   const submit = (text: string, kind: string) => $.prompt.submit({ text, wait: false, origin: { kind } } as never)
 
   await submit('hello', 'composer')
-  await finish($, '> [!decide-now] D1: Merge #41 as is?')
+  await finish($, '> [!decide-now] D1: Merge #41 as is?\n> [!suggest] D1: Merge it as is.')
   await submit('D1: what does cleanup involve?', 'composer')
   await submit('task finished', 'task-notification')
   await submit('/compact', 'composer')
 
   expect(context[0]).toBeUndefined()
-  expect(context[1]).toEqual([expect.stringMatching(/D1 \[decide-now\] Merge #41 as is\?/)])
+  expect(context[1]).toEqual([
+    expect.stringMatching(/D1 \[decide-now\] Merge #41 as is\? Your suggestion: Merge it as is\./),
+  ])
   expect(context.slice(2)).toEqual([undefined, undefined])
 })

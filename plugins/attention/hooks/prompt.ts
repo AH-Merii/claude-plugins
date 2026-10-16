@@ -37,7 +37,7 @@ export function instructions(categories: readonly Category[]): string {
 export function reminder(open: readonly OpenItem[]): string {
   return [
     'attention: these items are still open, pinned above the prompt:',
-    ...open.map(o => `- ${o.id} [${o.tag}] ${o.text}`),
+    ...open.map(o => `- ${o.id} [${o.tag}] ${o.text}${o.suggestion ? ` Your suggestion: ${o.suggestion}` : ''}`),
     `If this message settles one, end your reply with \`> [!${RESOLVED}] <id>: <what was decided>\` for it.`,
   ].join('\n')
 }
