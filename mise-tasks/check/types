@@ -12,11 +12,17 @@ source ci/each-plugin.sh
 # loads it, so a fresh clone has none. A headless start writes them before it stops for
 # want of a login. It runs with an empty environment, HOME and config dir, so no
 # credentials can be found and nothing reaches the model; "Not logged in" is expected.
+# A mod that lists another under "dependencies" doesn't load without it, so each dependency
+# in plugins/ is loaded beside it.
 mod_types() {
-  local home
+  local home dep
+  local dirs=(--plugin-dir "$1")
+  for dep in $(node -e 'for (const d of require(process.argv[1]).dependencies ?? []) console.log(typeof d === "string" ? d : d.name)' "$PWD/$1/.claude-plugin/plugin.json"); do
+    [ -d "plugins/$dep" ] && dirs+=(--plugin-dir "plugins/$dep")
+  done
   home=$(mktemp -d)
   env -i PATH="$PATH" HOME="$home" CLAUDE_CONFIG_DIR="$home/.claude" DISABLE_AUTOUPDATER=1 \
-    claude -p 'write the plugin types' --plugin-dir "$1" >/dev/null 2>&1 || true
+    claude -p 'write the plugin types' "${dirs[@]}" >/dev/null 2>&1 || true
   rm -rf "$home"
   if [ ! -f "$1/.claude-plugin/types/claude-code/index.d.ts" ]; then
     echo "Claude Code wrote no types into $1/.claude-plugin/types, so tsc can't check it."
