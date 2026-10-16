@@ -2,7 +2,7 @@ import type { On, RenderSurface } from 'claude-code'
 import { type Engine, expect, mock, type Plugin, test } from 'claude-code/testing'
 
 const HOME = '/home/ada'
-const CONFIG = `${HOME}/.claude/attention.json`
+const CONFIG = `${HOME}/.claude/attention-is-all-i-need.json`
 
 // Stands in for the files the mod reads: only its config.
 function files(on: On, contents: Record<string, string>) {
@@ -65,7 +65,7 @@ async function respond($: Engine, ...blocks: [messageId: string, text: string][]
 
 function reply($: Engine, text: string) {
   return $.ui.mount({
-    plugin: 'attention',
+    plugin: 'attention-is-all-i-need',
     surface: 'terminal',
     component: 'AssistantMessage',
     requestId: 'm1',
@@ -75,7 +75,7 @@ function reply($: Engine, text: string) {
 
 function band($: Engine) {
   return $.ui.mount({
-    plugin: 'attention',
+    plugin: 'attention-is-all-i-need',
     surface: 'terminal',
     component: 'AbovePrompt',
     requestId: 'band',
@@ -126,7 +126,7 @@ test('a config the mod cannot read is named in a toast, once, and the defaults a
   await start($)
   const { sections } = await compose($, ['terminal'])
 
-  expect(toasts).toEqual([expect.stringMatching(/attention\.json: not valid JSON/)])
+  expect(toasts).toEqual([expect.stringMatching(/attention-is-all-i-need\.json: not valid JSON/)])
   expect(sections[0]?.text).toContain('`decide-now`: ')
 })
 
@@ -199,7 +199,7 @@ test("a block that doesn't open the reply draws its items without the reply's gu
   // The width of each item row's leading gutter, for a block that opens the reply and one that doesn't.
   const gutters = async (isFirstOfReply: boolean) => {
     const ui = await $.ui.mount({
-      plugin: 'attention',
+      plugin: 'attention-is-all-i-need',
       surface: 'terminal',
       component: 'AssistantMessage',
       requestId: 'm1',
@@ -343,7 +343,7 @@ const reader: Plugin = {
   register(on) {
     on('ui.render', { component: 'Pane' }, async ($, e) => {
       const { Text } = $.ui.resolve(e)
-      const { value = [] } = await $.state.get({ plugin: 'attention', key: 'open' })
+      const { value = [] } = await $.state.get({ plugin: 'attention-is-all-i-need', key: 'open' })
       return <Text>{value.map(o => `${o.id} from ${o.from}`).join(', ')}</Text>
     })
   },

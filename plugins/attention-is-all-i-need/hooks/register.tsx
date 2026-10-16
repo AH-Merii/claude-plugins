@@ -7,10 +7,10 @@ import { type Item, parse } from './parse'
 import { instructions, reminder } from './prompt'
 import { shade } from './shade'
 
-const categoriesState = atom({ plugin: 'attention', key: 'categories' } as const, [...DEFAULTS])
-const openState = atom({ plugin: 'attention', key: 'open' } as const, [])
+const categoriesState = atom({ plugin: 'attention-is-all-i-need', key: 'categories' } as const, [...DEFAULTS])
+const openState = atom({ plugin: 'attention-is-all-i-need', key: 'open' } as const, [])
 
-const CONFIG = 'attention.json'
+const CONFIG = 'attention-is-all-i-need.json'
 // The jump button's label: nf-md-magnify when the nerd-font mod says the terminal has a Nerd Font, else the emoji.
 const MAGNIFY = '\u{F0349}'
 const PLAIN_MAGNIFY = '🔍'
@@ -65,7 +65,7 @@ async function refresh($: Engine) {
   }
   const report = errors.join('; ')
   if (report !== '' && report !== reported) {
-    $.ui.toast(`attention: ${path}: ${report}`)
+    $.ui.toast(`attention-is-all-i-need: ${path}: ${report}`)
   }
   reported = report
   return categories
@@ -134,7 +134,7 @@ async function jump($: Engine, id: string) {
       ? { deny: 'not recorded' }
       : await $.ui.scroll({ to: { requestId: from }, block: 'start' }).catch((err: unknown) => ({ deny: String(err) }))
   if (deny !== undefined) {
-    $.ui.toast(`attention: the reply that raised ${id} is no longer in the transcript (${deny})`)
+    $.ui.toast(`attention-is-all-i-need: the reply that raised ${id} is no longer in the transcript (${deny})`)
   }
 }
 

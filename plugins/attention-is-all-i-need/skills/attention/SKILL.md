@@ -5,7 +5,7 @@ description: Configure the attention mod, which colours the lines at the end of 
 
 # Configuring attention
 
-The config is one JSON file, `attention.json`, in Claude Code's config directory: `$CLAUDE_CONFIG_DIR/attention.json`, or `~/.claude/attention.json` when that variable is unset. Find the directory with `echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`.
+The config is one JSON file, `attention-is-all-i-need.json`, in Claude Code's config directory: `$CLAUDE_CONFIG_DIR/attention-is-all-i-need.json`, or `~/.claude/attention-is-all-i-need.json` when that variable is unset. Find the directory with `echo "${CLAUDE_CONFIG_DIR:-$HOME/.claude}"`.
 
 With no file, the defaults apply. The file holds only what differs from them, so write the smallest change that does what the user asked:
 

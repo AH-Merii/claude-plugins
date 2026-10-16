@@ -33,7 +33,7 @@ const reader: Plugin = {
   },
 }
 
-// A mod that depends on nerd-font, drawing attention's magnifying glass or its fallback.
+// A mod that depends on nerd-font, drawing attention-is-all-i-need's magnifying glass or its fallback.
 const magnifier: Plugin = {
   name: 'magnifier',
   register(on) {

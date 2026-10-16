@@ -1,4 +1,6 @@
-# attention
+![attention-is-all-i-need: what needs you in a reply, highlighted](assets/banner.svg)
+
+# attention-is-all-i-need
 
 A Claude Code mod for people who skim replies. Claude ends each reply with one tagged line for each thing that needs you, and the mod draws those lines in colour. Decisions stay pinned above the prompt until they're settled.
 
@@ -31,7 +33,7 @@ So the mod asks Claude for these things:
 
 When Claude's reply weighs in on an open decision, the recommendation goes in a `suggestion` line as well as in the prose, so it isn't lost in a paragraph. The band shows the latest one under its decision until the decision is settled.
 
-Pinned items carry over to Claude with each message you type, so a `/compact` doesn't lose them. Each one stays above the prompt until Claude marks it settled, or until you dismiss it with its `✕`. The 󰍉 beside it scrolls back to the reply that first raised it. If that reply is no longer in the transcript, a toast says so and the item stays pinned. Without a Nerd Font the button is drawn as 🔍; the [`nerd-font`](../nerd-font) mod, which `attention` depends on, decides which.
+Pinned items carry over to Claude with each message you type, so a `/compact` doesn't lose them. Each one stays above the prompt until Claude marks it settled, or until you dismiss it with its `✕`. The 󰍉 beside it scrolls back to the reply that first raised it. If that reply is no longer in the transcript, a toast says so and the item stays pinned. Without a Nerd Font the button is drawn as 🔍; the [`nerd-font`](../nerd-font) mod, which `attention-is-all-i-need` depends on, decides which.
 
 ## Categories
 
@@ -47,7 +49,7 @@ Pinned items carry over to Claude with each message you type, so a `/compact` do
 
 ## Configuring
 
-Ask Claude to change it, e.g. "make decide-now red" or "add a category for failed CI checks". The `attention` skill edits `attention.json` in Claude Code's config directory (`$CLAUDE_CONFIG_DIR`, or `~/.claude`). The file holds only what differs from the defaults:
+Ask Claude to change it, e.g. "make decide-now red" or "add a category for failed CI checks". The `attention` skill edits `attention-is-all-i-need.json` in Claude Code's config directory (`$CLAUDE_CONFIG_DIR`, or `~/.claude`). The file holds only what differs from the defaults:
 
 ```json
 {
@@ -68,5 +70,5 @@ The colours and the band are drawn in the terminal. In print mode, the Desktop a
 ## Install
 
 ```text
-/plugin install attention --marketplace AH-Merii/claude-plugins
+/plugin install attention-is-all-i-need --marketplace AH-Merii/claude-plugins
 ```
