@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.6.0](https://github.com/AH-Merii/claude-plugins/compare/attention-is-all-i-need-v0.5.0...attention-is-all-i-need-v0.6.0) (2026-10-16)
+
+
+### ⚠ BREAKING CHANGES
+
+* **attention-is-all-i-need:** rename the attention plugin to attention-is-all-i-need ([#76](https://github.com/AH-Merii/claude-plugins/issues/76))
+
+### Features
+
+* **attention-is-all-i-need:** rename the attention plugin to attention-is-all-i-need ([#76](https://github.com/AH-Merii/claude-plugins/issues/76)) ([8059615](https://github.com/AH-Merii/claude-plugins/commit/805961576eb3400416fe5361934f1375fa446093))
+
 ## [0.5.0](https://github.com/AH-Merii/claude-plugins/compare/attention-v0.4.0...attention-v0.5.0) (2026-10-16)
 
 
