@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/AH-Merii/claude-plugins/compare/attention-v0.3.1...attention-v0.4.0) (2026-10-16)
+
+
+### Features
+
+* **attention:** jump from a pinned item to the reply that raised it ([#72](https://github.com/AH-Merii/claude-plugins/issues/72)) ([fef45a0](https://github.com/AH-Merii/claude-plugins/commit/fef45a031c86de3384e7d125c10ed7ecbb608074)), closes [#57](https://github.com/AH-Merii/claude-plugins/issues/57)
+
 ## [0.3.1](https://github.com/AH-Merii/claude-plugins/compare/attention-v0.3.0...attention-v0.3.1) (2026-10-16)
 
 
