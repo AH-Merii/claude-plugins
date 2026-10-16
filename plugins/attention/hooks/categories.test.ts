@@ -2,7 +2,15 @@ import { expect, test } from 'claude-code/testing'
 
 import { configure } from './categories'
 
-const DEFAULT_IDS = ['must-know', 'decide-now', 'decide-later', 'suggest', 'default', 'your-action', 'optional']
+const DEFAULT_IDS = [
+  'must-know',
+  'decide-now',
+  'decide-later',
+  'suggestion',
+  'proceeding-with',
+  'your-action',
+  'optional',
+]
 
 test('with no config the default categories apply, decisions pinned', () => {
   const { categories, errors } = configure(undefined)
@@ -23,6 +31,16 @@ test('a default is changed only in the fields given, and can be turned off', () 
     ...defaults.find(c => c.id === 'decide-now'),
     color: '#ff0000',
   })
+  expect(errors).toEqual([])
+})
+
+test('a config keyed by the old ids suggest and default still changes the renamed categories', () => {
+  const { categories, errors } = configure({
+    categories: { suggest: { color: 'blue' }, default: { enabled: false } },
+  })
+
+  expect(categories.map(c => c.id)).toEqual(DEFAULT_IDS.filter(id => id !== 'proceeding-with'))
+  expect(categories.find(c => c.id === 'suggestion')?.color).toBe('blue')
   expect(errors).toEqual([])
 })
 
