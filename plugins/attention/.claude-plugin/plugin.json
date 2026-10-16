@@ -1,7 +1,7 @@
 {
   "name": "attention",
   "displayName": "attention",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Colours what needs you at the end of Claude's replies (must-know, decide now, decide later, defaults, your actions) and pins open decisions above the prompt",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
