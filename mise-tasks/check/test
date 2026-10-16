@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Run each plugin's tests: unittest under coverage with a floor, and claude plugin test for mods"
-#MISE tools={python="3.14", uv="0.13.0", "pipx:coverage"="7.16.2", claude="2.1.289"}
+#MISE tools={python="3.14", uv="0.13.0", "pipx:coverage"="7.16.2", claude="2.1.299"}
 #MISE env={DISABLE_AUTOUPDATER="1"}
 #USAGE arg "[plugin]..." help="Plugin folders to check; default: every folder under plugins/"
 # A mod's *.test.ts(x) files run under `claude plugin test`, offline and without

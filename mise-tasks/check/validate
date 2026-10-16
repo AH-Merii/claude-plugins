@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #MISE description="Strictly validate the marketplace manifest and each plugin"
-#MISE tools={claude="2.1.289"}
+#MISE tools={claude="2.1.299"}
 #MISE env={DISABLE_AUTOUPDATER="1"}
 #USAGE arg "[plugin]..." help="Plugin or marketplace folders; default: the repo root and every folder under plugins/"
 set -euo pipefail
