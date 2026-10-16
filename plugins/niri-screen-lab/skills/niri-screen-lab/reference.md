@@ -20,8 +20,12 @@
 Preflight also prints `MemAvailable` and what labs typically cost; see Memory below.
 
 With two or more outputs, the window rule is the one user-specific part. The output name
-belongs to their setup. Preflight prints the exact block to add when it is missing, for
-example:
+belongs to their setup. It goes in `~/.config/niri/cfg/agents.kdl`, the file for rules made
+for agents, included from `config.kdl` with `include "./cfg/agents.kdl"`. Preflight finds it
+there, or in any file niri reads: includes are followed, and a relative include resolves
+against the directory of the path that named it, as niri does, even when that path is a
+symlink into a dotfiles repo. Preflight prints the exact block to add when it is missing,
+for example:
 
 ```kdl
 window-rule {

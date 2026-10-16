@@ -29,7 +29,9 @@ choosers back and never uses your profile or keyring.
 - Ghostty, gdbus, GStreamer (`gst-launch-1.0` with the PipeWire and VA plugins) and ffmpeg
   on `PATH`, and python3 with PyGObject. Chromium too, for the browser lab.
 - With two or more screens, a niri window rule that opens lab windows on the spare output,
-  unfocused. Preflight prints the exact block for your setup, for example:
+  unfocused. Put it in `~/.config/niri/cfg/agents.kdl`, the file for rules made for agents,
+  included from `config.kdl` with `include "./cfg/agents.kdl"`. Preflight prints the exact
+  block for your setup, for example:
 
   ```kdl
   window-rule {

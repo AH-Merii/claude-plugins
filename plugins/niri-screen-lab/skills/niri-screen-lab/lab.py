@@ -189,11 +189,12 @@ def strip_comments(text):
 
 
 def config_files(path, seen=None):
+    """Each niri config file and its code, includes followed. Like niri, a relative include resolves against
+    the directory of the path that named the file, not of its symlink target."""
     seen = set() if seen is None else seen
-    path = path.resolve()
-    if path in seen or not path.is_file():
+    if path.resolve() in seen or not path.is_file():
         return
-    seen.add(path)
+    seen.add(path.resolve())
     code, _ = strip_comments(path.read_text())
     yield path, code
     for m in re.finditer(r"^\s*include\s+(" + STRING + ")", code, re.MULTILINE):
@@ -255,8 +256,10 @@ def rule_for(output):
         got = f"open-on-output {on_output!r}, open-focused {focused}"
         raise Refuse(
             f"no niri window rule sends app-id {APP_ID} to {output} unfocused (found: {got}). "
-            f"Ask the user to add this to their niri config (the output name is specific to their setup; "
-            f"niri reloads it on save, check with `niri validate`):\n{snippet}"
+            f"Ask the user to add this to ~/.config/niri/cfg/agents.kdl, the file for niri rules made for agents "
+            f'(create it if needed, and add `include "./cfg/agents.kdl"` to config.kdl if it isn\'t there yet). '
+            f"The output name is specific to their setup; niri reloads the config on save, check it with "
+            f"`niri validate`:\n{snippet}"
         )
     return f"app-id {APP_ID} -> {on_output}, open-focused false"
 
