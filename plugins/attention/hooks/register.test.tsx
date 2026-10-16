@@ -106,7 +106,7 @@ test('Claude is told the tags only where a terminal draws them, configured categ
 
   expect(elsewhere.sections.map(s => s.id)).toEqual(['intro'])
   expect(inTerminal.sections.map(s => s.id)).toEqual(['intro', 'attention:tags'])
-  for (const tag of ['must-know', 'decide-now', 'decide-later', 'default', 'your-action', 'ci-red']) {
+  for (const tag of ['must-know', 'decide-now', 'decide-later', 'proceeding-with', 'your-action', 'ci-red']) {
     expect(told).toContain(`\`${tag}\`: `)
   }
   expect(told).not.toContain('`optional`')
@@ -227,7 +227,7 @@ test('decisions stay pinned above the prompt until Claude settles them; other it
       'Done.',
       '> [!decide-now] D1: Merge #41 as is?',
       '> [!decide-later] D2: Go past slice 15? (after D1)',
-      '> [!default] D3: Classify only when asked.',
+      '> [!proceeding-with] D3: Classify only when asked.',
       '> [!must-know] The wizard never ran live.',
     ].join('\n'),
   )
@@ -251,13 +251,13 @@ test("a suggestion is drawn with its decision's id, marked S", async ($, on) => 
 
   const ui = await reply(
     $,
-    'Here is my view.\n> [!suggest] D6: Act on a settled hand-back; only record an unsettled one.',
+    'Here is my view.\n> [!suggestion] D6: Act on a settled hand-back; only record an unsettled one.',
   )
-  const labels = await ui.findAll({ type: 'Text', text: /SUGGEST/ })
+  const labels = await ui.findAll({ type: 'Text', text: /SUGGESTION/ })
   const ids = await ui.findAll({ type: 'Text', text: /^D6S $/ })
   await ui.unmount()
 
-  expect(labels.map(t => [String(t.text).trim(), t.props.color])).toEqual([['SUGGEST', 'cyan']])
+  expect(labels.map(t => [String(t.text).trim(), t.props.color])).toEqual([['SUGGESTION', 'cyan']])
   expect(ids).toHaveLength(1)
 })
 
@@ -273,11 +273,11 @@ test('the band shows the latest suggestion under its open decision, and drops it
   }
 
   // The suggestion may come before the decision it names in the same reply.
-  await finish($, '> [!suggest] D1: Merge it as is.\n> [!decide-now] D1: Merge #41 as is, or clean up first?')
+  await finish($, '> [!suggestion] D1: Merge it as is.\n> [!decide-now] D1: Merge #41 as is, or clean up first?')
   const first = await suggestions()
-  await finish($, 'On reflection.\n> [!suggest] D1: Clean up first.')
+  await finish($, 'On reflection.\n> [!suggestion] D1: Clean up first.')
   const second = await suggestions()
-  await finish($, 'Unrelated.\n> [!suggest] D9: Close #49.')
+  await finish($, 'Unrelated.\n> [!suggestion] D9: Close #49.')
   const unrelated = await pinned($)
   const third = await suggestions()
   await finish($, 'Merging.\n> [!resolved] D1: merge as is')
@@ -325,7 +325,7 @@ test('what the user types carries the open items to Claude; notifications and co
   const submit = (text: string, kind: string) => $.prompt.submit({ text, wait: false, origin: { kind } } as never)
 
   await submit('hello', 'composer')
-  await finish($, '> [!decide-now] D1: Merge #41 as is?\n> [!suggest] D1: Merge it as is.')
+  await finish($, '> [!decide-now] D1: Merge #41 as is?\n> [!suggestion] D1: Merge it as is.')
   await submit('D1: what does cleanup involve?', 'composer')
   await submit('task finished', 'task-notification')
   await submit('/compact', 'composer')

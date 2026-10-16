@@ -5,13 +5,13 @@ A Claude Code mod for people who skim replies. Claude ends each reply with one t
 ```text
 ● Merged #72; CI is green. Next I start on slice 16.
 
-  ▌ MUST KNOW    The Outlook wizard never ran against a real account.
-  ▌ DECIDE NOW   D4 File both issues as drafted?
-  ▌ DECIDE LATER D5 Go past slice 15? (after D4)
-  ▌ SUGGEST      D5S Stop at 15 until the wizard has run live.
-  ▌ DEFAULT      D6 Classifying runs only when asked. Say so to turn it on in the background.
-  ▌ YOUR ACTION  Run ! rm -rf ~/.azure
-  ▌ OPTIONAL     Want me to close the stale issues?
+  ▌ MUST KNOW       The Outlook wizard never ran against a real account.
+  ▌ DECIDE NOW      D4 File both issues as drafted?
+  ▌ DECIDE LATER    D5 Go past slice 15? (after D4)
+  ▌ SUGGESTION      D5S Stop at 15 until the wizard has run live.
+  ▌ PROCEEDING WITH D6 Classifying runs only when asked. Say so to turn it on in the background.
+  ▌ YOUR ACTION     Run ! rm -rf ~/.azure
+  ▌ OPTIONAL        Want me to close the stale issues?
 ```
 
 ## Why
@@ -29,7 +29,7 @@ So the mod asks Claude for these things:
 - Ask each choice as a question.
 - Give every item you may answer an id, such as `D4`. You can then reply "D4: why not X?" in prose and ask about an item before you answer it.
 
-When Claude's reply weighs in on an open decision, the recommendation goes in a `suggest` line as well as in the prose, so it isn't lost in a paragraph. The band shows the latest one under its decision until the decision is settled.
+When Claude's reply weighs in on an open decision, the recommendation goes in a `suggestion` line as well as in the prose, so it isn't lost in a paragraph. The band shows the latest one under its decision until the decision is settled.
 
 Pinned items carry over to Claude with each message you type, so a `/compact` doesn't lose them. Each one stays above the prompt until Claude marks it settled, or until you dismiss it with its `✕`. The 󰍉 beside it scrolls back to the reply that first raised it. If that reply is no longer in the transcript, a toast says so and the item stays pinned. Without a Nerd Font the button is drawn as 🔍; the [`nerd-font`](../nerd-font) mod, which `attention` depends on, decides which.
 
@@ -40,8 +40,8 @@ Pinned items carry over to Claude with each message you type, so a `/compact` do
 | `must-know` | red | | A risk, a surprise, a change you didn't ask for, or work that was skipped, unverified or failed |
 | `decide-now` | orange | yes | A choice the current task needs |
 | `decide-later` | yellow | yes | A choice a later task needs |
-| `suggest` | cyan | under its decision | Claude's recommendation on an open decision, drawn with the decision's id and an `S`, such as `D5S` |
-| `default` | magenta | | A choice Claude made and acts on unless you overrule it |
+| `suggestion` | cyan | under its decision | Claude's recommendation on an open decision, drawn with the decision's id and an `S`, such as `D5S` |
+| `proceeding-with` | magenta | | A choice Claude made and is acting on, with the words that overrule it |
 | `your-action` | cyan | | Something only you can do: run a command, sign in, restart something |
 | `optional` | dim | | An offer or a nice-to-know you can skip |
 

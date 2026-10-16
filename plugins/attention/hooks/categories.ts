@@ -32,8 +32,8 @@ export const DEFAULTS: readonly Category[] = [
     tint: true,
   },
   {
-    id: 'suggest',
-    label: 'SUGGEST',
+    id: 'suggestion',
+    label: 'SUGGESTION',
     color: 'cyan',
     meaning:
       'your recommendation on a decision still open, under the id of that decision (`D6: …`); whenever the reply ' +
@@ -43,10 +43,10 @@ export const DEFAULTS: readonly Category[] = [
     tint: true,
   },
   {
-    id: 'default',
-    label: 'DEFAULT',
+    id: 'proceeding-with',
+    label: 'PROCEEDING WITH',
     color: 'magenta',
-    meaning: 'a choice you made yourself and are acting on unless the user says otherwise',
+    meaning: 'a choice you made yourself and are acting on; say what you chose and the words that overrule it',
     pin: false,
     dim: false,
     tint: true,
@@ -74,7 +74,9 @@ export const DEFAULTS: readonly Category[] = [
 // The tag that closes a pinned item; not a category of its own.
 export const RESOLVED = 'resolved'
 // The category whose items attach to a pinned decision, by its id, instead of standing alone.
-export const SUGGEST = 'suggest'
+export const SUGGEST = 'suggestion'
+// Ids the categories had before they were renamed, so an older attention.json still reaches them.
+const RENAMED: Record<string, string> = { suggest: 'suggestion', default: 'proceeding-with' }
 
 const ID = /^[a-z][a-z0-9-]*$/
 const FIELDS = ['label', 'color', 'meaning', 'pin', 'dim', 'tint', 'enabled'] as const
@@ -96,10 +98,11 @@ export function configure(raw: unknown): Config {
   }
 
   const dropped = new Set<string>()
-  for (const [id, entry] of Object.entries(overrides ?? {})) {
+  for (const [key, entry] of Object.entries(overrides ?? {})) {
+    const id = RENAMED[key] ?? key
     const error = check(id, entry, categories)
     if (error !== undefined) {
-      errors.push(`${id}: ${error}`)
+      errors.push(`${key}: ${error}`)
       continue
     }
     const fields = entry as Partial<Category> & { enabled?: boolean }
