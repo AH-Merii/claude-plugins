@@ -1,8 +1,8 @@
 {
-  "plugins/attention-is-all-i-need": "0.5.0",
+  "plugins/attention-is-all-i-need": "0.6.0",
   "plugins/copy-code": "0.4.0",
   "plugins/gitbutler-guard": "0.1.0",
-  "plugins/nerd-font": "0.2.1",
+  "plugins/nerd-font": "0.3.0",
   "plugins/niri-screen-lab": "0.4.1",
   "plugins/pr-threads": "0.1.0",
   "plugins/shoop": "0.2.0",
