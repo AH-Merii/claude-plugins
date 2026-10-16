@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/AH-Merii/claude-plugins/compare/niri-screen-lab-v0.4.0...niri-screen-lab-v0.4.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* **niri-screen-lab:** find the window rule where niri reads it, in cfg/agents.kdl ([#51](https://github.com/AH-Merii/claude-plugins/issues/51)) ([3795b3a](https://github.com/AH-Merii/claude-plugins/commit/3795b3ad4f174d7c4d9df847b7fe12bf9c19fc65))
+
 ## [0.4.0](https://github.com/AH-Merii/claude-plugins/compare/niri-screen-lab-v0.3.0...niri-screen-lab-v0.4.0) (2026-10-13)
 
 
