@@ -178,6 +178,30 @@ test('a reply with no tagged lines is left to Claude Code', async ($, on) => {
   expect(drawn.map(t => t.text)).toEqual([`engine: ${text}`])
 })
 
+test("a block that doesn't open the reply draws its items without the reply's gutter, as Claude Code draws such a block", async ($, on) => {
+  mock.env(on, { HOME })
+  files(on, {})
+  engineDraws(on)
+  // The width of each item row's leading gutter, for a block that opens the reply and one that doesn't.
+  const gutters = async (isFirstOfReply: boolean) => {
+    const ui = await $.ui.mount({
+      plugin: 'attention',
+      surface: 'terminal',
+      component: 'AssistantMessage',
+      requestId: 'm1',
+      props: { text: 'It lists hidden files too.\n> [!decide-now] D1: Add a --sort flag?', isFirstOfReply },
+    })
+    const rows = await ui.findAll({ type: 'Box', props: { flexDirection: 'row' } })
+    await ui.unmount()
+    return rows
+      .map(r => (r.children?.[0] as { props?: { width?: number } } | undefined)?.props?.width)
+      .filter(width => width !== undefined)
+  }
+
+  expect(await gutters(true)).toEqual([2])
+  expect(await gutters(false)).toEqual([0])
+})
+
 test('decisions stay pinned above the prompt until Claude settles them; other items are not pinned', async ($, on) => {
   mock.env(on, { HOME })
   files(on, {})
