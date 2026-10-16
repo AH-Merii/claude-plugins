@@ -15,7 +15,7 @@ import threading
 import unittest
 from pathlib import Path
 
-from labtest import ACTIVATION, SPARE, DeskTest, started, wait_for
+from labtest import ACTIVATION, RULE, SPARE, DeskTest, started, wait_for
 
 FLASH = "holds keyboard focus for about 50 ms"
 
@@ -130,10 +130,70 @@ class TwoScreensWithoutRuleTest(DeskTest):
                 r = self.run_lab(*argv)
                 self.assertEqual(r.returncode, 1)
                 self.assertIn("window-rule", r.stderr)
+                self.assertIn('include "./cfg/agents.kdl"', r.stderr, "the rule's home isn't named")
         self.assertEqual(self.desk.launches, [], "a lab was launched without the rule")
 
     def test_a_headless_browser_needs_no_rule(self):
         self.browse()
+
+
+class IncludedRuleTest(DeskTest):
+    """The rule counts where niri reads it: in files included from config.kdl, each include resolved
+    against the directory of the path that named it, not of its symlink target. niri 26.04 run as
+    `niri validate -c link/config.kdl` reads `link/./cfg/agents.kdl` when link/config.kdl is a symlink."""
+
+    rule = False
+    INCLUDE = 'include "./cfg/agents.kdl"\n'
+
+    def output_line(self, how, files, links=()):
+        """Lay out `files` ({path: text}) and `links` ((link, target) pairs) under a folder named `how`,
+        run preflight on its niri/config.kdl, and return preflight's output line."""
+        root = self.tmp / re.sub(r"\W+", "-", how)
+        for name, text in files.items():
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / name).write_text(text)
+        for link, target in links:
+            (root / link).parent.mkdir(parents=True, exist_ok=True)
+            (root / link).symlink_to(root / target)
+        self.env["NIRI_CONFIG"] = str(root / "niri/config.kdl")
+        out = self.run_lab("preflight").stdout
+        lines = [x for x in out.splitlines() if " output: " in x]
+        self.assertEqual(len(lines), 1, out)
+        return lines[0]
+
+    def test_a_rule_in_an_included_file_is_found(self):
+        layouts = {
+            "in cfg/agents.kdl": ({"niri/config.kdl": self.INCLUDE, "niri/cfg/agents.kdl": RULE}, ()),
+            "cfg/agents.kdl a symlink into dotfiles": (
+                {"niri/config.kdl": self.INCLUDE, "dots/agents.kdl": RULE},
+                [("niri/cfg/agents.kdl", "dots/agents.kdl")],
+            ),
+            "config.kdl a symlink, agents.kdl only beside the link": (
+                {"dots/config.kdl": self.INCLUDE, "niri/cfg/agents.kdl": RULE},
+                [("niri/config.kdl", "dots/config.kdl")],
+            ),
+            "both symlinks into dotfiles": (
+                {"dots/config.kdl": self.INCLUDE, "dots/cfg/agents.kdl": RULE},
+                [("niri/config.kdl", "dots/config.kdl"), ("niri/cfg/agents.kdl", "dots/cfg/agents.kdl")],
+            ),
+        }
+        for how, (files, links) in layouts.items():
+            with self.subTest(layout=how):
+                line = self.output_line(how, files, links)
+                self.assertTrue(line.startswith(f"ok    output: {SPARE}, with its window rule"), line)
+
+    def test_a_rule_niri_would_not_read_is_not_counted(self):
+        layouts = {
+            "the include commented out": ({"niri/config.kdl": "//" + self.INCLUDE, "niri/cfg/agents.kdl": RULE}, ()),
+            "the rule only beside the symlink's target": (
+                {"dots/config.kdl": self.INCLUDE, "dots/cfg/agents.kdl": RULE, "niri/cfg/agents.kdl": ""},
+                [("niri/config.kdl", "dots/config.kdl")],
+            ),
+        }
+        for how, (files, links) in layouts.items():
+            with self.subTest(layout=how):
+                line = self.output_line(how, files, links)
+                self.assertTrue(line.startswith("FAIL  output:"), line)
 
 
 class SingleScreenTest(DeskTest):
