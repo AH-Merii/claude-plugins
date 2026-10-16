@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.0](https://github.com/AH-Merii/claude-plugins/compare/attention-v0.4.0...attention-v0.5.0) (2026-10-16)
+
+
+### Features
+
+* **attention:** rename the suggest and default tags to suggestion and proceeding-with ([#73](https://github.com/AH-Merii/claude-plugins/issues/73)) ([247713c](https://github.com/AH-Merii/claude-plugins/commit/247713c2c54099a4ebcdbe0424ff17a9fcde9404))
+
+
+### Bug Fixes
+
+* **ci:** a comma inside (via …) no longer splits a capability ([#74](https://github.com/AH-Merii/claude-plugins/issues/74)) ([7367d3e](https://github.com/AH-Merii/claude-plugins/commit/7367d3e3e56dd94223507c1e01169a4d84b9f1ad))
+
 ## [0.4.0](https://github.com/AH-Merii/claude-plugins/compare/attention-v0.3.1...attention-v0.4.0) (2026-10-16)
 
 
