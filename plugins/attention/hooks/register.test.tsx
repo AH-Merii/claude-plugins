@@ -191,7 +191,7 @@ test("a block that doesn't open the reply draws its items without the reply's gu
       requestId: 'm1',
       props: { text: 'It lists hidden files too.\n> [!decide-now] D1: Add a --sort flag?', isFirstOfReply },
     })
-    const rows = await ui.findAll({ type: 'Box', props: { flexDirection: 'row' } })
+    const rows = await ui.findAll({ type: 'Box' })
     await ui.unmount()
     return rows
       .map(r => (r.children?.[0] as { props?: { width?: number } } | undefined)?.props?.width)
