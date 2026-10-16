@@ -1,4 +1,5 @@
 {
+  "plugins/attention": "0.1.0",
   "plugins/copy-code": "0.3.0",
   "plugins/gitbutler-guard": "0.1.0",
   "plugins/niri-screen-lab": "0.4.0",

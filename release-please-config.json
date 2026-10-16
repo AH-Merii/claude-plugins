@@ -5,6 +5,16 @@
   "include-component-in-tag": true,
   "bootstrap-sha": "73c1e7e36d5c57c5fe8ce947db2f7bac4bde91cc",
   "packages": {
+    "plugins/attention": {
+      "component": "attention",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": ".claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
     "plugins/copy-code": {
       "component": "copy-code",
       "extra-files": [
