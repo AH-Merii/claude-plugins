@@ -165,7 +165,7 @@ export const register: Register = on => {
         {body}
         {styled.map(({ item, category }, i) => (
           <Box key={`${e.requestId}:attention:${i}`} flexDirection="row" marginTop={i === 0 && body ? 1 : 0}>
-            <Box width={GUTTER} flexShrink={0}>
+            <Box width={e.props.isFirstOfReply ? GUTTER : 0} flexShrink={0}>
               {i === 0 && !body && e.props.isFirstOfReply && <Text color="text">●</Text>}
             </Box>
             <Box flexShrink={0}>

@@ -13,7 +13,8 @@ const LABEL = ` ${ICON} copy `
 const RIGHT = 2 + LABEL.length + 1
 // With fewer cells than this a name says nothing, so it is left out.
 const MIN_NAME = 4
-// The reply's left gutter, as Claude Code draws it: the bullet on a reply's first block, else blank.
+// The reply's left gutter, as Claude Code draws it on the block opening a reply, the bullet in it. A block that
+// doesn't open one it draws with no gutter.
 const GUTTER = 2
 // Narrower than this a box can't hold its corners and copy, so Claude Code draws the reply.
 const MIN_COLUMNS = 12
@@ -48,7 +49,7 @@ export const register: Register = on => {
   // The toast showing, if any. Raising another relays out the transcript, which can drop a press in flight.
   let toast = { text: '', until: 0 }
 
-  on('ui.render', { component: 'AssistantMessage', surface: 'terminal' }, ($, e, next) => {
+  on('ui.render', { component: 'AssistantMessage', surface: 'terminal' }, async ($, e, next) => {
     const segments = split(e.props.text).map(s => ({
       ...s,
       drawn: s.kind === 'code' ? fence(s.code, s.language) : s.text,
@@ -72,53 +73,59 @@ export const register: Register = on => {
       }
     }
 
+    // The prose goes to the plugins beneath and then Claude Code, as a block of its own each, so a plugin that
+    // draws from the reply's text still sees it. Only the first can open the reply: Claude Code draws it with the
+    // gutter and bullet, the later ones with no gutter, so they get one here.
+    const gutter = e.props.isFirstOfReply ? GUTTER : 0
+    const prose = await Promise.all(
+      segments.map((s, i) =>
+        s.kind === 'prose'
+          ? next({ ...e, props: { ...e.props, text: s.text, isFirstOfReply: e.props.isFirstOfReply && i === 0 } })
+          : undefined,
+      ),
+    )
+
     return (
-      <Box flexDirection="row">
-        <Box width={GUTTER} flexShrink={0}>
-          {e.props.isFirstOfReply && <Text color="text">●</Text>}
-        </Box>
-        <Box flexDirection="column" flexGrow={1}>
-          {segments.map((s, i) => {
-            // One blank row between segments, none after the last, as Claude Code spaces them.
-            const gap = i > 0 ? 1 : 0
-            if (s.kind === 'prose') {
-              return (
-                <Box key={`${e.requestId}:${i}`} marginTop={gap}>
-                  <Markdown text={s.text} />
-                </Box>
-              )
-            }
-
-            // Claude Code copies first: its own wl-copy, the primary selection, a tmux buffer and the terminal's
-            // OSC 52. Its result is what the toast says, so the toast shows before the retype.
-            const copy = async () => {
-              const result = await $.ui.copy({ text: s.code, surface: 'terminal' })
-              const text = result.isCopied ? 'Copied' : `Copy failed: ${result.reason}`
-              const now = await $.clock.now()
-              if (text !== toast.text || now >= toast.until) {
-                toast = { text, until: now + TOAST_MS }
-                $.ui.toast(text, { timeoutMs: TOAST_MS })
-              }
-              await retype(s.code)
-            }
-
-            // Not the wrapper's key: a keyed Box is a scope of its own, and hovering the code would join it.
-            const scope = `${e.requestId}:${i}:lit`
-            // The name's cells: the box less its left corner, the right side and a space either side.
-            const room = columns === undefined ? Infinity : columns - GUTTER - (s.indent ?? 0) - 2 - RIGHT - 2
-            const name = s.language !== undefined && room >= MIN_NAME ? languageName(s.language) : undefined
-
-            // The overlay redraws the whole box lit, so hovering the code lights nothing. The top row (name and copy)
-            // lies over the top border in the flow, so it scrolls away with the block: absolute, it was pinned to the
-            // viewport's top row once the block scrolled off. Column-reverse lays it out first but draws it last,
-            // over the overlay, so the name stays unlit: under the overlay it kept the lit background afterwards.
+      <Box flexDirection="column">
+        {segments.map((s, i) => {
+          // Claude Code draws a blank row above each block, so a prose segment brings its own and a box adds one.
+          if (s.kind === 'prose') {
             return (
-              <Box
-                key={`${e.requestId}:${i}`}
-                flexDirection="column-reverse"
-                marginTop={gap}
-                marginLeft={s.indent ?? 0}
-              >
+              <Box key={`${e.requestId}:${i}`} marginLeft={i === 0 ? 0 : gutter}>
+                {prose[i]}
+              </Box>
+            )
+          }
+
+          // Claude Code copies first: its own wl-copy, the primary selection, a tmux buffer and the terminal's
+          // OSC 52. Its result is what the toast says, so the toast shows before the retype.
+          const copy = async () => {
+            const result = await $.ui.copy({ text: s.code, surface: 'terminal' })
+            const text = result.isCopied ? 'Copied' : `Copy failed: ${result.reason}`
+            const now = await $.clock.now()
+            if (text !== toast.text || now >= toast.until) {
+              toast = { text, until: now + TOAST_MS }
+              $.ui.toast(text, { timeoutMs: TOAST_MS })
+            }
+            await retype(s.code)
+          }
+
+          // Not the wrapper's key: a keyed Box is a scope of its own, and hovering the code would join it.
+          const scope = `${e.requestId}:${i}:lit`
+          // The name's cells: the box less its left corner, the right side and a space either side.
+          const room = columns === undefined ? Infinity : columns - gutter - (s.indent ?? 0) - 2 - RIGHT - 2
+          const name = s.language !== undefined && room >= MIN_NAME ? languageName(s.language) : undefined
+
+          // The overlay redraws the whole box lit, so hovering the code lights nothing. The top row (name and copy)
+          // lies over the top border in the flow, so it scrolls away with the block: absolute, it was pinned to the
+          // viewport's top row once the block scrolled off. Column-reverse lays it out first but draws it last,
+          // over the overlay, so the name stays unlit: under the overlay it kept the lit background afterwards.
+          return (
+            <Box key={`${e.requestId}:${i}`} flexDirection="row" marginTop={1}>
+              <Box width={gutter} flexShrink={0}>
+                {e.props.isFirstOfReply && i === 0 && <Text color="text">●</Text>}
+              </Box>
+              <Box flexDirection="column-reverse" flexGrow={1} marginLeft={s.indent ?? 0}>
                 <Box borderStyle="round" borderDimColor paddingX={1}>
                   <Markdown text={s.drawn} />
                 </Box>
@@ -157,9 +164,9 @@ export const register: Register = on => {
                   )}
                 </Box>
               </Box>
-            )
-          })}
-        </Box>
+            </Box>
+          )
+        })}
       </Box>
     )
   })
