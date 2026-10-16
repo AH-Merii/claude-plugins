@@ -32,6 +32,17 @@ export const DEFAULTS: readonly Category[] = [
     tint: true,
   },
   {
+    id: 'suggest',
+    label: 'SUGGEST',
+    color: 'cyan',
+    meaning:
+      'your recommendation on a decision still open, under the id of that decision (`D6: …`); whenever the reply ' +
+      'weighs in on an open decision, the recommendation goes here as well as in the prose',
+    pin: false,
+    dim: false,
+    tint: true,
+  },
+  {
     id: 'default',
     label: 'DEFAULT',
     color: 'magenta',
@@ -62,6 +73,8 @@ export const DEFAULTS: readonly Category[] = [
 
 // The tag that closes a pinned item; not a category of its own.
 export const RESOLVED = 'resolved'
+// The category whose items attach to a pinned decision, by its id, instead of standing alone.
+export const SUGGEST = 'suggest'
 
 const ID = /^[a-z][a-z0-9-]*$/
 const FIELDS = ['label', 'color', 'meaning', 'pin', 'dim', 'tint', 'enabled'] as const

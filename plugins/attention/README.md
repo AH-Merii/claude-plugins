@@ -8,6 +8,7 @@ A Claude Code mod for people who skim replies. Claude ends each reply with one t
   ▌ MUST KNOW    The Outlook wizard never ran against a real account.
   ▌ DECIDE NOW   D4 File both issues as drafted?
   ▌ DECIDE LATER D5 Go past slice 15? (after D4)
+  ▌ SUGGEST      D5S Stop at 15 until the wizard has run live.
   ▌ DEFAULT      D6 Classifying runs only when asked. Say so to turn it on in the background.
   ▌ YOUR ACTION  Run ! rm -rf ~/.azure
   ▌ OPTIONAL     Want me to close the stale issues?
@@ -28,6 +29,8 @@ So the mod asks Claude for these things:
 - Ask each choice as a question.
 - Give every item you may answer an id, such as `D4`. You can then reply "D4: why not X?" in prose and ask about an item before you answer it.
 
+When Claude's reply weighs in on an open decision, the recommendation goes in a `suggest` line as well as in the prose, so it isn't lost in a paragraph. The band shows the latest one under its decision until the decision is settled.
+
 Pinned items carry over to Claude with each message you type, so a `/compact` doesn't lose them. Each one stays above the prompt until Claude marks it settled, or until you dismiss it with its `✕`.
 
 ## Categories
@@ -37,6 +40,7 @@ Pinned items carry over to Claude with each message you type, so a `/compact` do
 | `must-know` | red | | A risk, a surprise, a change you didn't ask for, or work that was skipped, unverified or failed |
 | `decide-now` | orange | yes | A choice the current task needs |
 | `decide-later` | yellow | yes | A choice a later task needs |
+| `suggest` | cyan | under its decision | Claude's recommendation on an open decision, drawn with the decision's id and an `S`, such as `D5S` |
 | `default` | magenta | | A choice Claude made and acts on unless you overrule it |
 | `your-action` | cyan | | Something only you can do: run a command, sign in, restart something |
 | `optional` | dim | | An offer or a nice-to-know you can skip |

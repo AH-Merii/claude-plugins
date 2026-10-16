@@ -2,7 +2,7 @@ import type { EngineInterface as Engine, Register } from 'claude-code'
 import { atom, read, update } from 'claude-code'
 
 import type { Category, OpenItem } from '../types'
-import { type Config, configure, DEFAULTS, RESOLVED } from './categories'
+import { type Config, configure, DEFAULTS, RESOLVED, SUGGEST } from './categories'
 import { type Item, parse } from './parse'
 import { instructions, reminder } from './prompt'
 import { shade } from './shade'
@@ -62,22 +62,34 @@ async function refresh($: Engine) {
   return categories
 }
 
-// Pinned items as of a reply: new and restated ones added or updated by id, settled ones dropped.
+// Pinned items as of a reply: new and restated ones added or updated by id, settled ones dropped, and each
+// suggestion attached to the open decision it names.
 function track(open: readonly OpenItem[], items: readonly Item[], categories: readonly Category[]): OpenItem[] {
   const pinned = new Set(categories.filter(c => c.pin).map(c => c.id))
   const next = [...open]
   for (const item of items) {
-    if (item.id === undefined) continue
+    if (item.id === undefined || item.tag === SUGGEST) continue
     const at = next.findIndex(o => o.id === item.id)
     if (item.tag === RESOLVED) {
       if (at >= 0) next.splice(at, 1)
     } else if (pinned.has(item.tag)) {
       const entry = { id: item.id, tag: item.tag, text: item.text }
-      if (at >= 0) next[at] = entry
+      if (at >= 0) next[at] = { ...next[at], ...entry }
       else next.push(entry)
     }
   }
+  // After the decisions, so a suggestion finds one raised in the same reply wherever it sits.
+  for (const item of items) {
+    const at = item.tag === SUGGEST ? next.findIndex(o => o.id === item.id) : -1
+    const decision = next[at]
+    if (decision) next[at] = { ...decision, suggestion: item.text }
+  }
   return next
+}
+
+// The id an item is drawn with: a suggestion's is its decision's, marked S.
+function shownId(item: Item) {
+  return item.id && (item.tag === SUGGEST ? `${item.id}S` : item.id)
 }
 
 // An item's text as Text can draw it: code spans kept apart so they can stand out, emphasis marks dropped.
@@ -168,7 +180,7 @@ export const register: Register = on => {
               {category.tint ? (
                 // Markdown takes no colour, so a tinted item is drawn as Text in a shade of its category's colour.
                 <Text {...(shade(category.color) ? { color: shade(category.color) } : { dimColor: true })}>
-                  {item.id && <Text color={category.color} bold>{`${item.id} `}</Text>}
+                  {item.id && <Text color={category.color} bold>{`${shownId(item)} `}</Text>}
                   {spans(item.text).map(s =>
                     s.isCode ? (
                       <Text color={category.color} bold>
@@ -180,7 +192,7 @@ export const register: Register = on => {
                   )}
                 </Text>
               ) : (
-                <Markdown text={item.id ? `**${item.id}** ${item.text}` : item.text} dimColor={category.dim} />
+                <Markdown text={item.id ? `**${shownId(item)}** ${item.text}` : item.text} dimColor={category.dim} />
               )}
             </Box>
           </Box>
@@ -195,27 +207,40 @@ export const register: Register = on => {
       return next(e)
     }
     const categories = await read($, categoriesState)
+    const suggest = categories.find(c => c.id === SUGGEST)
     const { Box, Button, Text } = $.ui.resolve(e)
 
     return (
       <Box flexDirection="column">
         {open.map(o => {
-          const category = categories.find(c => c.id === o.tag)
-          const color = category?.color ?? 'text'
+          const color = categories.find(c => c.id === o.tag)?.color ?? 'text'
           return (
-            <Box key={`attention:open:${o.id}`} flexDirection="row">
-              <Text color={color}>▌</Text>
-              <Text color={color} bold>{` ${o.id} `}</Text>
-              <Box flexGrow={1} width={0}>
-                <Text wrap="truncate-end">{plain(o.text)}</Text>
+            <Box key={`attention:open:${o.id}`} flexDirection="column">
+              <Box flexDirection="row">
+                <Text color={color}>▌</Text>
+                <Text color={color} bold>{` ${o.id} `}</Text>
+                <Box flexGrow={1} width={0}>
+                  <Text wrap="truncate-end">{plain(o.text)}</Text>
+                </Box>
+                <Button
+                  key={`attention:dismiss:${o.id}`}
+                  label=" ✕ "
+                  plain
+                  dimColor
+                  onPress={() => update($, openState, list => list.filter(x => x.id !== o.id))}
+                />
               </Box>
-              <Button
-                key={`attention:dismiss:${o.id}`}
-                label=" ✕ "
-                plain
-                dimColor
-                onPress={() => update($, openState, list => list.filter(x => x.id !== o.id))}
-              />
+              {suggest && o.suggestion !== undefined && (
+                <Box flexDirection="row">
+                  <Text color={suggest.color}>▌</Text>
+                  <Text color={suggest.color} bold>{` ${o.id}S `}</Text>
+                  <Box flexGrow={1} width={0}>
+                    <Text wrap="truncate-end" {...(shade(suggest.color) ? { color: shade(suggest.color) } : {})}>
+                      {plain(o.suggestion)}
+                    </Text>
+                  </Box>
+                </Box>
+              )}
             </Box>
           )
         })}

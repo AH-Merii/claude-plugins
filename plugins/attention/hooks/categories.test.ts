@@ -2,9 +2,9 @@ import { expect, test } from 'claude-code/testing'
 
 import { configure } from './categories'
 
-const DEFAULT_IDS = ['must-know', 'decide-now', 'decide-later', 'default', 'your-action', 'optional']
+const DEFAULT_IDS = ['must-know', 'decide-now', 'decide-later', 'suggest', 'default', 'your-action', 'optional']
 
-test('with no config the six default categories apply, decisions pinned', () => {
+test('with no config the default categories apply, decisions pinned', () => {
   const { categories, errors } = configure(undefined)
 
   expect(categories.map(c => c.id)).toEqual(DEFAULT_IDS)
