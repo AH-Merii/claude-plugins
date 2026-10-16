@@ -1,0 +1,1 @@
+["$.env.get (via configPath)", "$.fs.exists (via load)", "$.fs.read (via load)", "$.state.get", "$.state.set", "on prompt.compose", "on prompt.submit", "on session.start", "on turn.complete"]

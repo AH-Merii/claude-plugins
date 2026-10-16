@@ -41,6 +41,12 @@
       "tags": ["mod", "terminal", "tui", "vim", "cursor"]
     },
     {
+      "name": "attention",
+      "source": "./plugins/attention",
+      "category": "productivity",
+      "tags": ["mod", "skill", "terminal", "tui", "questions", "attention"]
+    },
+    {
       "name": "interview-detective",
       "source": { "source": "github", "repo": "AH-Merii/interview-detective" },
       "category": "productivity",
