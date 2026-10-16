@@ -15,10 +15,23 @@ async function installed($: Engine) {
 }
 
 export const register: Register = (on, options) => {
+  // The answer as last worked out; fonts don't change within a process, so it is checked once per load.
+  let answer: boolean | undefined
+
   // Once a session, and again when the module reloads, as it does when the setting changes in /config.
   on('session.start', async ($, e, next) => {
-    const value = options.glyphs === 'on' || (options.glyphs !== 'off' && (await installed($)))
-    await $.state.set(enabled, value)
+    answer = options.glyphs === 'on' || (options.glyphs !== 'off' && (await installed($)))
+    await $.state.set(enabled, answer)
     return next(e)
+  })
+
+  // A /clear starts a new session whose state starts empty, and no session.start fires for it; the settings-style
+  // SessionStart does, with source "clear", inside the new session.
+  on('classic.SessionStart', async ($, e, next) => {
+    const result = await next(e)
+    if (e.source === 'clear' && answer !== undefined) {
+      await $.state.set(enabled, answer)
+    }
+    return result
   })
 }
