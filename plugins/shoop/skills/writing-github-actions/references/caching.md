@@ -28,6 +28,9 @@ From the same page:
 
 So write caches from the default branch and let pull requests read them. nvim-config writes its image cache only on main (`cache-to: ${{ github.ref == 'refs/heads/main' && 'type=gha,mode=max' || '' }}`), because the `mode=max` write takes about 3 minutes and a pull request's copy would serve only its own re-runs ([test.yml](https://github.com/AH-Merii/nvim-config/blob/main/.github/workflows/test.yml)).
 
+- **A pull request opened right after a merge races main's cache write.** The layers that main's build hasn't exported yet are missing from the cache, so the pull request rebuilds them. In nvim-config, release-please opened a release PR as soon as a feature merged. The PR's build (run 39286919053) started at 16:38:57 and ran the image's plugins stage uncached. Main's run 39286873140 finished exporting to the Actions cache only at 16:42:11 (`#39 exporting to GitHub Actions Cache … DONE 23.1s`). The release PR's build took 179 s for layers main was about to cache (`gh run view <id> --repo AH-Merii/nvim-config --json jobs` and `--log`).
+- **Skipping the job avoids the race.** A release PR that changes no input never builds. nvim-config's changed-inputs skip ([D148](https://github.com/AH-Merii/nvim-config/blob/main/docs/test-image-decisions.md#d148-ci-skips-what-it-doesnt-need-2026-10-19), see [required-checks.md](required-checks.md)) now spares its release PRs the build entirely.
+
 ## Dependency caches
 
 - **Prefer the setup action's own cache** when there is one, e.g. `actions/setup-python` with `cache: pip`. It keys on a hash of `requirements.txt` or `pyproject.toml` by default. Set `cache-dependency-path` when the dependencies live in other files, such as `requirements-dev.txt` ([setup-python README](https://github.com/actions/setup-python#caching-packages-dependencies)).
