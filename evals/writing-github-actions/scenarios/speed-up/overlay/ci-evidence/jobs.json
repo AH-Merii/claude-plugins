@@ -1,0 +1,86 @@
+{
+  "jobs": [
+    {
+      "name": "test",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-10-12T09:14:02Z",
+      "completedAt": "2026-10-12T09:22:00Z",
+      "steps": [
+        {
+          "name": "Set up job",
+          "number": 1,
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-12T09:14:02Z",
+          "completedAt": "2026-10-12T09:14:05Z"
+        },
+        {
+          "name": "Run actions/checkout@v4",
+          "number": 2,
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-12T09:14:05Z",
+          "completedAt": "2026-10-12T09:14:07Z"
+        },
+        {
+          "name": "Free disk space",
+          "number": 3,
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-12T09:14:07Z",
+          "completedAt": "2026-10-12T09:15:51Z"
+        },
+        {
+          "name": "Run actions/setup-python@v5",
+          "number": 4,
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-12T09:15:51Z",
+          "completedAt": "2026-10-12T09:15:55Z"
+        },
+        {
+          "name": "Install dependencies",
+          "number": 5,
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-12T09:15:55Z",
+          "completedAt": "2026-10-12T09:17:31Z"
+        },
+        {
+          "name": "Run tests",
+          "number": 6,
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-12T09:17:31Z",
+          "completedAt": "2026-10-12T09:21:57Z"
+        },
+        {
+          "name": "Post Run actions/setup-python@v5",
+          "number": 7,
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-12T09:21:57Z",
+          "completedAt": "2026-10-12T09:21:58Z"
+        },
+        {
+          "name": "Post Run actions/checkout@v4",
+          "number": 8,
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-12T09:21:58Z",
+          "completedAt": "2026-10-12T09:21:59Z"
+        },
+        {
+          "name": "Complete job",
+          "number": 9,
+          "status": "completed",
+          "conclusion": "success",
+          "startedAt": "2026-10-12T09:21:59Z",
+          "completedAt": "2026-10-12T09:22:00Z"
+        }
+      ],
+      "url": "https://github.com/example/wordstat/actions/runs/4410022917/job/11873310221"
+    }
+  ]
+}

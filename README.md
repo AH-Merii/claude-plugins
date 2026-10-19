@@ -62,6 +62,8 @@ plugins/<name>/
 └── README.md                    # what it does, prerequisites, caveats, a GIF for UI
 ```
 
+A skill's evals live in `evals/<skill>/`, outside its plugin so they don't ship with it.
+
 Add each plugin to `.claude-plugin/marketplace.json` with `"source": "./plugins/<name>"`
 and tags naming its components. The generated `.claude-plugin/types/` is gitignored.
 

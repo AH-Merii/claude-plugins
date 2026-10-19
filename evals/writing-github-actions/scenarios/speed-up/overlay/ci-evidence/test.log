@@ -1,0 +1,18 @@
+test	Free disk space	2026-10-12T09:14:07.1031144Z ##[group]Run df -h /
+test	Free disk space	2026-10-12T09:14:07.1702210Z Filesystem      Size  Used Avail Use% Mounted on
+test	Free disk space	2026-10-12T09:14:07.1703118Z /dev/root       145G   59G   86G  41% /
+test	Free disk space	2026-10-12T09:15:51.0219932Z Filesystem      Size  Used Avail Use% Mounted on
+test	Free disk space	2026-10-12T09:15:51.0220714Z /dev/root       145G   47G   98G  33% /
+test	Install dependencies	2026-10-12T09:15:55.4410311Z Collecting numpy==2.3.4 (from -r requirements.txt (line 1))
+test	Install dependencies	2026-10-12T09:15:55.9921842Z   Downloading numpy-2.3.4-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl (16.6 MB)
+test	Install dependencies	2026-10-12T09:15:57.1012230Z Collecting pyarrow==21.0.0 (from -r requirements.txt (line 3))
+test	Install dependencies	2026-10-12T09:15:58.2210041Z   Downloading pyarrow-21.0.0-cp312-cp312-manylinux_2_28_x86_64.whl (42.8 MB)
+test	Install dependencies	2026-10-12T09:17:31.0091220Z Successfully installed numpy-2.3.4 pandas-2.3.3 pyarrow-21.0.0 pytest-8.4.2 ...
+test	Run tests	2026-10-12T09:21:57.3312020Z ============================= slowest 5 durations ==============================
+test	Run tests	2026-10-12T09:21:57.3312811Z 148.02s call     tests/test_report.py::test_full_report_matches_golden
+test	Run tests	2026-10-12T09:21:57.3313442Z 61.40s call     tests/test_report.py::test_report_handles_unicode
+test	Run tests	2026-10-12T09:21:57.3314001Z 38.77s call     tests/test_report.py::test_report_parquet_roundtrip
+test	Run tests	2026-10-12T09:21:57.3314560Z 9.12s call     tests/test_count.py::test_counts_case_insensitively
+test	Run tests	2026-10-12T09:21:57.3315100Z 0.31s call     tests/test_cli.py::test_prints_counts_tab_separated
+test	Run tests	2026-10-12T09:21:57.3316002Z ======================== 6 passed in 265.83s (0:04:25) =========================
+test	Post Run actions/checkout@v4	2026-10-12T09:21:59.1102031Z Cleaning up orphan processes

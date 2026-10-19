@@ -1,0 +1,19 @@
+[project]
+name = "wordstat"
+version = "0.3.1"
+description = "Count words and report the most common ones"
+requires-python = ">=3.11"
+
+[project.scripts]
+wordstat = "wordstat.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
