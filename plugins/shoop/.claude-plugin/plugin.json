@@ -2,7 +2,7 @@
   "name": "shoop",
   "displayName": "shoop",
   "version": "0.2.0",
-  "description": "Skills for shipping work: write and review tests, file issues and record decisions on them, write conventional commit messages, and describe pull requests",
+  "description": "Skills for shipping work: write and review tests, file issues and record decisions on them, write conventional commit messages, describe pull requests, and set up and maintain GitHub Actions CI",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
     "url": "https://github.com/AH-Merii"
@@ -17,6 +17,8 @@
     "issues",
     "commits",
     "conventional-commits",
-    "pull-request"
+    "pull-request",
+    "github-actions",
+    "ci"
   ]
 }

@@ -1,0 +1,126 @@
+# Copy into .github/workflows/ and set BUILD_WORKFLOW and BRANCH: the workflow whose BuildKit build
+# writes the cache (docker/build-push-action with cache-to: type=gha), and the branch it writes from.
+#
+# Deletes the BuildKit type=gha cache entries on that branch that its newest build no longer
+# uses, so the repository stays under GitHub's 10 GB Actions cache limit instead of leaving the
+# choice to its last-access eviction. It fails closed: it deletes nothing while a build is queued or
+# running, or when it can't read the newest index, or when that index lists no blob in the cache.
+# The index is read through the runner's cache service, which is not a documented API.
+#
+# From AH-Merii/nvim-config .github/workflows/cache-prune.yml (docs/test-image-decisions.md, D149).
+name: cache-prune
+
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: List what would be deleted, delete nothing
+        type: boolean
+        default: false
+  # A change to this file runs it as a dry run on its pull request. Not a required check, so a path
+  # filter is fine here.
+  pull_request:
+    paths: [.github/workflows/cache-prune.yml]
+
+permissions: {}
+
+concurrency:
+  group: cache-prune
+  cancel-in-progress: false
+
+jobs:
+  prune:
+    name: prune
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write # list and delete cache entries, list the build workflow's runs
+    steps:
+      # BuildKit keeps one blob entry per layer (buildkit-blob-1-<digest>) and, per build that exports, an index
+      # (index-buildkit-1-<scope>#<n>) listing every layer that build's cache holds; a build reads the newest index
+      # only (github.com/moby/buildkit cache/remotecache/gha/gha.go). Kept: every blob the newest index lists, the
+      # newest index, and anything younger than 6 hours (a build's blobs go up before its index). The index is read
+      # through the runner's cache service, as BuildKit does (github.com/tonistiigi/go-actions-cache cache_v2.go);
+      # any failure to read it stops the run before anything is deleted.
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BUILD_WORKFLOW: test.yml
+          BRANCH: main
+          DRY_RUN: ${{ github.event_name == 'pull_request' || inputs.dry-run }}
+        with:
+          script: |
+            const dry = process.env.DRY_RUN === 'true';
+            const { owner, repo } = context.repo;
+            const ref = `refs/heads/${process.env.BRANCH}`;
+            const workflow = process.env.BUILD_WORKFLOW;
+            const graceMs = 6 * 3600 * 1000;
+            const gb = (es) => (es.reduce((n, e) => n + e.size_in_bytes, 0) / 1e9).toFixed(2) + ' GB';
+
+            // A build that is running may have blobs up that no index lists yet
+            for (const status of ['queued', 'in_progress']) {
+              const { data } = await github.rest.actions.listWorkflowRuns({
+                owner, repo, workflow_id: workflow, branch: ref.slice('refs/heads/'.length), status, per_page: 1,
+              });
+              if (data.total_count > 0 && !dry) {
+                core.notice(`${workflow} has a ${status} run on ${ref}; nothing deleted`);
+                return;
+              }
+            }
+
+            const entries = await github.paginate(github.rest.actions.getActionsCacheList, {
+              owner, repo, ref, per_page: 100,
+            });
+            const isBlob = (k) => k.startsWith('buildkit-blob-1-');
+            const indexRe = /^(index-buildkit-1-[0-9a-f]{8}(?:-sig)?)#(\d+)$/;
+
+            // The newest index of each scope
+            const newest = new Map();
+            for (const e of entries) {
+              const m = indexRe.exec(e.key);
+              if (m && (!newest.has(m[1]) || Number(m[2]) > newest.get(m[1]).n)) newest.set(m[1], { n: Number(m[2]), e });
+            }
+            if (newest.size === 0) throw new Error(`no BuildKit index on ${ref}; nothing deleted`);
+
+            const results = process.env.ACTIONS_RESULTS_URL;
+            const runtime = process.env.ACTIONS_RUNTIME_TOKEN;
+            if (!results || !runtime) throw new Error('no cache service in this job; nothing deleted');
+            const keep = new Set();
+            for (const { e } of newest.values()) {
+              const res = await fetch(
+                results.replace(/\/$/, '') + '/twirp/github.actions.results.api.v1.CacheService/GetCacheEntryDownloadURL',
+                {
+                  method: 'POST',
+                  headers: { Authorization: `Bearer ${runtime}`, 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ key: e.key, restore_keys: [], version: e.version }),
+                },
+              );
+              if (!res.ok) throw new Error(`cache service: ${res.status} for ${e.key}; nothing deleted`);
+              const url = await res.json();
+              if (!url.ok || url.matched_key !== e.key) throw new Error(`cache service did not return ${e.key}; nothing deleted`);
+              const dl = await fetch(url.signed_download_url);
+              if (!dl.ok) throw new Error(`download of ${e.key}: ${dl.status}; nothing deleted`);
+              const layers = (await dl.json()).layers ?? [];
+              const listed = layers.map((l) => `buildkit-blob-1-${l.blob}`);
+              const present = listed.filter((k) => entries.some((x) => x.key === k));
+              core.info(`${e.key}: ${listed.length} layers, ${present.length} of them in the cache`);
+              if (present.length === 0) throw new Error(`${e.key} lists no blob in the cache; nothing deleted`);
+              for (const k of listed) keep.add(k);
+              keep.add(e.key);
+            }
+
+            const now = Date.now();
+            const stale = entries.filter(
+              (e) => (isBlob(e.key) || indexRe.test(e.key)) && !keep.has(e.key) && now - Date.parse(e.created_at) > graceMs,
+            );
+            const kept = entries.filter((e) => !stale.includes(e));
+            core.info(`${entries.length} entries on ${ref}, ${gb(entries)}; keeping ${kept.length}, ${gb(kept)}`);
+            core.info(`${dry ? 'would delete' : 'deleting'} ${stale.length} entries, ${gb(stale)}:`);
+            for (const e of stale) {
+              core.info(`  ${e.key}  ${(e.size_in_bytes / 1e6).toFixed(1)} MB, last used ${e.last_accessed_at}`);
+              if (!dry) await github.rest.actions.deleteActionsCacheById({ owner, repo, cache_id: e.id });
+            }
+            await core.summary
+              .addRaw(`${dry ? 'Dry run: would delete' : 'Deleted'} ${stale.length} of ${entries.length} cache entries on ${ref} (${gb(stale)}); kept ${kept.length} (${gb(kept)}).`)
+              .write();

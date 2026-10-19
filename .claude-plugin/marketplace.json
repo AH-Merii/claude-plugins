@@ -26,7 +26,7 @@
       "name": "shoop",
       "source": "./plugins/shoop",
       "category": "development",
-      "tags": ["skill", "testing", "github", "issues", "conventional-commits", "pull-request"]
+      "tags": ["skill", "testing", "github", "issues", "conventional-commits", "pull-request", "github-actions", "ci"]
     },
     {
       "name": "copy-code",

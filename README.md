@@ -7,7 +7,7 @@ My Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
 | [niri-screen-lab](plugins/niri-screen-lab) | skill | an agent needs to see what a terminal app really renders: screenshots, GIFs, hover and click tests in Ghostty or Chromium, on hidden niri workspaces |
 | [gitbutler-guard](plugins/gitbutler-guard) | hooks | an agent works in a GitButler workspace: blocks git write commands in favour of `but`, and keeps the GitButler skill in step with your `but` CLI |
 | [pr-threads](plugins/pr-threads) | skill, hooks, bin | agents review PRs or act on reviews: comments pinned to local `path:line`, one review per round from a reviewer bot, open threads only, suggestions applied locally |
-| [shoop](plugins/shoop) | skill | an agent writes or reviews tests, files an issue or records a decision on one, writes a commit message, or describes a PR |
+| [shoop](plugins/shoop) | skill | an agent writes or reviews tests, files an issue or records a decision on one, writes a commit message, describes a PR, or sets up, fixes or speeds up GitHub Actions CI |
 | [copy-code](plugins/copy-code) | mod | you copy code from Claude's replies: each code block gets a box with its language and a copy button (terminal only) |
 | [attention-is-all-i-need](plugins/attention-is-all-i-need) | mod, skill | you skim Claude's replies: what needs you (must-know, decisions, defaults, your actions) is coloured at the end of each reply, and open decisions stay pinned above the prompt (terminal only) |
 | [vim-ux](plugins/vim-ux) | mod | you use Claude Code's vim mode: a bar cursor in INSERT and a block in NORMAL and VISUAL, and a Ctrl+C that only clears the prompt (terminal only) |
