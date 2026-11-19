@@ -25,6 +25,16 @@
         }
       ]
     },
+    "plugins/field-notes": {
+      "component": "field-notes",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": ".claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
     "plugins/gitbutler-guard": {
       "component": "gitbutler-guard",
       "extra-files": [

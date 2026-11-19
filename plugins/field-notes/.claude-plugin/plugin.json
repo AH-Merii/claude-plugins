@@ -1,0 +1,11 @@
+{
+  "name": "field-notes",
+  "displayName": "Field Notes",
+  "version": "0.1.0",
+  "description": "Draw icons and illustrations in the Field Notes style, hand-drawn urban-sketch line and wash in 2D and 3D, with the inkwash toolkit that renders them to SVG",
+  "author": { "name": "AH-Merii (AbdulHamid Merii)", "url": "https://github.com/AH-Merii" },
+  "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/field-notes",
+  "repository": "https://github.com/AH-Merii/claude-plugins",
+  "license": "MIT",
+  "keywords": ["skill", "illustration", "icons", "svg", "watercolour", "sketch", "line-and-wash"]
+}
