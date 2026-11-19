@@ -46,28 +46,31 @@ follow that.
 
 ## 3. The built-in set
 
-[`icons/`](../icons/) holds 29 generic icons that cover most architecture and DDD
-diagrams: systems and infrastructure (datastore, service, API, queue, event bus, gateway,
-cloud, cache, screen, mobile), people and external parties (person, team, external org,
-external system), devices (sensor, controller), flow and time (decision, document, clock,
-timer, alert, message) and DDD (domain event, command, policy, aggregate, bounded context,
-read model, hotspot). [`icons/manifest.json`](../icons/manifest.json) lists each with its
-`key`, `label`, `category`, `source` and `file`; the DDD ones also give their default
-`color`.
+[`icons/`](../icons/) holds 104 vendor-neutral, colour-filled icons: systems and
+infrastructure, people, flow and time, DDD and EventStorming in the standard colours,
+generic cloud services, and status icons. [`icons/CATALOGUE.md`](../icons/CATALOGUE.md)
+lists them by group; read it first.
 
-Each SVG draws with `stroke="currentColor"`, so one file serves every background. A
-drawing tool that places an SVG as a standalone image does not inherit a colour, so it
-would render black: before placing an icon, replace `currentColor` in its text with the
-theme's colour for that element type (the light stroke on a dark background, the dark one
-on a light background, or the DDD colour). Place it as a file or as a
-`data:image/svg+xml;base64,` URL of the recoloured text.
+They are native Excalidraw shapes, so they recolour and restyle with the diagram:
 
-They are Lucide icons under the ISC licence ([`icons/LICENSE`](../icons/LICENSE)).
+- [`icons/manifest.json`](../icons/manifest.json) has one line per icon with its `key`,
+  `label`, `category`, `bbox`, `center` and `labelAt` on a 100 x 100 grid. Read only the
+  lines for the icons you place, for example with `grep '"key": "queue"'`.
+- The shapes are the item with id `libc-<key>` in
+  [`icons/architecture-generic-colorful.excalidrawlib`](../icons/architecture-generic-colorful.excalidrawlib).
+  Extract only that item, for example
+  `jq '.libraryItems[] | select(.id == "libc-queue") | .elements' <file>`, never the
+  whole file.
+- Place it as the manifest format above says: translate so `center` lands where the icon
+  belongs, scale if needed, give the elements fresh ids and one shared new `groupIds`
+  value, and put the label at `labelAt`.
+
+A tool that cannot take native Excalidraw shapes skips this set and goes to the download.
 
 ## 4. Download
 
-For a concept the built-in set does not cover: Lucide (ISC) or Tabler (MIT), through
-Iconify, coloured to the theme:
+For a concept the built-in set does not cover, or a tool that cannot use it: Lucide (ISC)
+or Tabler (MIT), through Iconify, coloured to the theme:
 
 `https://api.iconify.design/lucide/<name>.svg?color=%23<hex>&height=96`
 
