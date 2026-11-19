@@ -11,7 +11,7 @@ style, checks it, and puts it where people will read it.
 
 It assumes no project, drawing tool or icon set. Those come from the project settings (below)
 and the adapters in `references/`. Without any of them it still works: default theme, a
-downloaded icon set, and Mermaid if there is no drawing tool.
+the built-in generic icons, and Mermaid if there is no drawing tool.
 
 ## Before the first diagram
 
@@ -27,7 +27,8 @@ downloaded icon set, and Mermaid if there is no drawing tool.
      anything it cannot do (curved connectors, grouped icons, links on shapes);
    - none: Mermaid ([`references/mermaid.md`](references/mermaid.md)).
 3. **Pick the icon source**, as [`references/icon-sets.md`](references/icon-sets.md)
-   describes: the project's icon set, then a download, then plain shapes.
+   describes: custom icons, the project's icon set, the built-in generic set in
+   [`icons/`](icons/), a download, then plain shapes.
 4. **Fix the theme.** Take the project settings' values, or the defaults in [Theme](#theme), and
    reuse them exactly in every diagram of the project. If the project keeps a page or file
    of conventions, record them there with the first diagram.

@@ -34,6 +34,7 @@ connector's at the time of writing; if a name has changed, match the tool by wha
   entry's elements with `edit_scene_content`, translated so the entry's centre lands where
   the icon belongs and scaled if needed, all sharing one new `groupIds` value.
 - **Image icons** (SVG files, data URLs, or an Iconify URL): place them with `add_image`.
+  Recolour a `currentColor` SVG first and pass it as a data URL, as `icon-sets.md` says.
 - The connector cannot copy elements between scenes or import a `.excalidrawlib`. People
   editing by hand can add the icon set to their own Excalidraw library from its
   `.excalidrawlib` files; an agent does that only with browser tools and the user's yes.

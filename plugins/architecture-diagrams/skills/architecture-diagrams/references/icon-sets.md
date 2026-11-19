@@ -44,16 +44,37 @@ its main mass, the same way every time.
 A project whose icons use another format can describe its own fields in the catalogue;
 follow that.
 
-## 3. Download
+## 3. The built-in set
 
-Lucide (ISC) or Tabler (MIT), through Iconify, coloured to the theme:
+[`icons/`](../icons/) holds 29 generic icons that cover most architecture and DDD
+diagrams: systems and infrastructure (datastore, service, API, queue, event bus, gateway,
+cloud, cache, screen, mobile), people and external parties (person, team, external org,
+external system), devices (sensor, controller), flow and time (decision, document, clock,
+timer, alert, message) and DDD (domain event, command, policy, aggregate, bounded context,
+read model, hotspot). [`icons/manifest.json`](../icons/manifest.json) lists each with its
+`key`, `label`, `category`, `source` and `file`; the DDD ones also give their default
+`color`.
+
+Each SVG draws with `stroke="currentColor"`, so one file serves every background. A
+drawing tool that places an SVG as a standalone image does not inherit a colour, so it
+would render black: before placing an icon, replace `currentColor` in its text with the
+theme's colour for that element type (the light stroke on a dark background, the dark one
+on a light background, or the DDD colour). Place it as a file or as a
+`data:image/svg+xml;base64,` URL of the recoloured text.
+
+They are Lucide icons under the ISC licence ([`icons/LICENSE`](../icons/LICENSE)).
+
+## 4. Download
+
+For a concept the built-in set does not cover: Lucide (ISC) or Tabler (MIT), through
+Iconify, coloured to the theme:
 
 `https://api.iconify.design/lucide/<name>.svg?color=%23<hex>&height=96`
 
 Use a light stroke on a dark background (for example `e9ecef`) and a dark one on a light
 background (`1e1e1e`).
 
-## 4. Shapes only
+## 5. Shapes only
 
 Cylinder, diamond, ellipse, cloud and the like, with a label.
 

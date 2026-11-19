@@ -1,0 +1,211 @@
+[
+  {
+    "key": "datastore",
+    "label": "Datastore",
+    "category": "Systems and infrastructure",
+    "source": "lucide:database",
+    "file": "datastore.svg"
+  },
+  {
+    "key": "service",
+    "label": "Service / server",
+    "category": "Systems and infrastructure",
+    "source": "lucide:server",
+    "file": "service.svg"
+  },
+  {
+    "key": "api",
+    "label": "API",
+    "category": "Systems and infrastructure",
+    "source": "lucide:plug",
+    "file": "api.svg"
+  },
+  {
+    "key": "queue",
+    "label": "Queue",
+    "category": "Systems and infrastructure",
+    "source": "lucide:rows-3",
+    "file": "queue.svg"
+  },
+  {
+    "key": "event-bus",
+    "label": "Event bus",
+    "category": "Systems and infrastructure",
+    "source": "lucide:radio-tower",
+    "file": "event-bus.svg"
+  },
+  {
+    "key": "gateway",
+    "label": "Gateway",
+    "category": "Systems and infrastructure",
+    "source": "lucide:router",
+    "file": "gateway.svg"
+  },
+  {
+    "key": "cloud",
+    "label": "Cloud",
+    "category": "Systems and infrastructure",
+    "source": "lucide:cloud",
+    "file": "cloud.svg"
+  },
+  {
+    "key": "cache",
+    "label": "Cache",
+    "category": "Systems and infrastructure",
+    "source": "lucide:database-zap",
+    "file": "cache.svg"
+  },
+  {
+    "key": "ui-screen",
+    "label": "UI / screen",
+    "category": "Systems and infrastructure",
+    "source": "lucide:monitor",
+    "file": "ui-screen.svg"
+  },
+  {
+    "key": "mobile-device",
+    "label": "Mobile device",
+    "category": "Systems and infrastructure",
+    "source": "lucide:smartphone",
+    "file": "mobile-device.svg"
+  },
+  {
+    "key": "person",
+    "label": "Person / role",
+    "category": "People and external parties",
+    "source": "lucide:user",
+    "file": "person.svg"
+  },
+  {
+    "key": "team",
+    "label": "Team",
+    "category": "People and external parties",
+    "source": "lucide:users",
+    "file": "team.svg"
+  },
+  {
+    "key": "external-org",
+    "label": "External org",
+    "category": "People and external parties",
+    "source": "lucide:building-2",
+    "file": "external-org.svg"
+  },
+  {
+    "key": "external-system",
+    "label": "External system",
+    "category": "People and external parties",
+    "source": "lucide:square-arrow-out-up-right",
+    "file": "external-system.svg"
+  },
+  {
+    "key": "sensor",
+    "label": "Sensor",
+    "category": "Devices",
+    "source": "lucide:radar",
+    "file": "sensor.svg"
+  },
+  {
+    "key": "controller",
+    "label": "Controller / device",
+    "category": "Devices",
+    "source": "lucide:cpu",
+    "file": "controller.svg"
+  },
+  {
+    "key": "decision",
+    "label": "Decision",
+    "category": "Flow and time",
+    "source": "lucide:split",
+    "file": "decision.svg"
+  },
+  {
+    "key": "document",
+    "label": "Document",
+    "category": "Flow and time",
+    "source": "lucide:file-text",
+    "file": "document.svg"
+  },
+  {
+    "key": "clock",
+    "label": "Clock",
+    "category": "Flow and time",
+    "source": "lucide:clock",
+    "file": "clock.svg"
+  },
+  {
+    "key": "timer",
+    "label": "Timer",
+    "category": "Flow and time",
+    "source": "lucide:timer",
+    "file": "timer.svg"
+  },
+  {
+    "key": "alert",
+    "label": "Alert",
+    "category": "Flow and time",
+    "source": "lucide:triangle-alert",
+    "file": "alert.svg"
+  },
+  {
+    "key": "message",
+    "label": "Message",
+    "category": "Flow and time",
+    "source": "lucide:mail",
+    "file": "message.svg"
+  },
+  {
+    "key": "domain-event",
+    "label": "Domain event",
+    "category": "DDD and EventStorming",
+    "source": "lucide:zap",
+    "file": "domain-event.svg",
+    "color": "#e8590c"
+  },
+  {
+    "key": "command",
+    "label": "Command",
+    "category": "DDD and EventStorming",
+    "source": "lucide:terminal",
+    "file": "command.svg",
+    "color": "#1971c2"
+  },
+  {
+    "key": "policy",
+    "label": "Policy",
+    "category": "DDD and EventStorming",
+    "source": "lucide:scroll-text",
+    "file": "policy.svg",
+    "color": "#6741d9"
+  },
+  {
+    "key": "aggregate",
+    "label": "Aggregate",
+    "category": "DDD and EventStorming",
+    "source": "lucide:boxes",
+    "file": "aggregate.svg",
+    "color": "#f08c00"
+  },
+  {
+    "key": "bounded-context",
+    "label": "Bounded context",
+    "category": "DDD and EventStorming",
+    "source": "lucide:square-dashed",
+    "file": "bounded-context.svg"
+  },
+  {
+    "key": "read-model",
+    "label": "Read model",
+    "category": "DDD and EventStorming",
+    "source": "lucide:eye",
+    "file": "read-model.svg",
+    "color": "#2f9e44"
+  },
+  {
+    "key": "hotspot",
+    "label": "Hotspot",
+    "category": "DDD and EventStorming",
+    "source": "lucide:flame",
+    "file": "hotspot.svg",
+    "color": "#e03131"
+  }
+]
