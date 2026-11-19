@@ -1,0 +1,22 @@
+{
+  "name": "architecture-diagrams",
+  "displayName": "architecture-diagrams",
+  "version": "0.1.0",
+  "description": "Choose, draw, review and publish architecture and DDD diagrams in one consistent icon-first style, with pluggable drawing tools and icon sets and a Mermaid fallback",
+  "author": {
+    "name": "AH-Merii (AbdulHamid Merii)",
+    "url": "https://github.com/AH-Merii"
+  },
+  "homepage": "https://github.com/AH-Merii/claude-plugins/tree/main/plugins/architecture-diagrams",
+  "repository": "https://github.com/AH-Merii/claude-plugins",
+  "license": "MIT",
+  "keywords": [
+    "skill",
+    "diagrams",
+    "architecture",
+    "ddd",
+    "event-storming",
+    "excalidraw",
+    "mermaid"
+  ]
+}

@@ -53,6 +53,12 @@
       "tags": ["mod", "terminal", "tui", "nerd-font", "glyphs"]
     },
     {
+      "name": "architecture-diagrams",
+      "source": "./plugins/architecture-diagrams",
+      "category": "productivity",
+      "tags": ["skill", "diagrams", "architecture", "ddd", "excalidraw", "mermaid"]
+    },
+    {
       "name": "interview-detective",
       "source": { "source": "github", "repo": "AH-Merii/interview-detective" },
       "category": "productivity",
