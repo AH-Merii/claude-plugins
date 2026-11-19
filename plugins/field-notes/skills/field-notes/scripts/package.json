@@ -1,0 +1,11 @@
+{
+  "name": "field-notes-inkwash",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Node packages for the Field Notes inkwash renderer: stroke outlines and browser previews",
+  "license": "MIT",
+  "dependencies": {
+    "perfect-freehand": "1.2.2",
+    "playwright": "1.63.0"
+  }
+}

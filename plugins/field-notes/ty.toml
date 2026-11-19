@@ -1,0 +1,3 @@
+# Body files and tests import kit.py the way inkwash.py runs them: from the skill's scripts folder.
+[environment]
+extra-paths = ["skills/field-notes/scripts"]

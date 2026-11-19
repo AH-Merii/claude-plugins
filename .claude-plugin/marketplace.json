@@ -59,6 +59,12 @@
       "tags": ["skill", "diagrams", "architecture", "ddd", "excalidraw", "mermaid"]
     },
     {
+      "name": "field-notes",
+      "source": "./plugins/field-notes",
+      "category": "design",
+      "tags": ["skill", "illustration", "icons", "svg", "watercolour", "sketch"]
+    },
+    {
       "name": "interview-detective",
       "source": { "source": "github", "repo": "AH-Merii/interview-detective" },
       "category": "productivity",

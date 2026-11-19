@@ -13,6 +13,7 @@ My Claude Code skills and mods, as one plugin marketplace (`ah-merii`).
 | [vim-ux](plugins/vim-ux) | mod | you use Claude Code's vim mode: a bar cursor in INSERT and a block in NORMAL and VISUAL, and a Ctrl+C that only clears the prompt (terminal only) |
 | [nerd-font](plugins/nerd-font) | mod | a mod you use draws Nerd Font icons (`attention-is-all-i-need`, `copy-code`): works out once whether a Nerd Font is installed, with a `/config` setting to force it on or off, so those mods fall back to plain characters without one |
 | [architecture-diagrams](plugins/architecture-diagrams) | skill | an agent draws or reviews architecture or DDD diagrams (system context, event storming, context maps, sequences, timelines…): picks the form, draws it icon-first in one theme, gets it reviewed and publishes a linked snapshot; any drawing tool or icon set, Mermaid without one |
+| [field-notes](plugins/field-notes) | skill | an agent draws icons or illustrations in the Field Notes style, hand-drawn line and wash in 2D and 3D, or converts an icon or a reference photo to it: the style rules, a part-by-part check, and the inkwash toolkit that renders SVG and PNG |
 | [interview-detective](https://github.com/AH-Merii/interview-detective) | skill | you have a job interview coming up: researches the company's public GitHub, candidates' prep and the web, scrapes related Glassdoor reviews, and writes a sourced report with practice questions (its own repo; run its setup wizard after installing) |
 
 ## Install
