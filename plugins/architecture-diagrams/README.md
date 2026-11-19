@@ -21,7 +21,7 @@ Nothing in it is tied to one project, drawing tool or icon set:
 | Piece | Default | How to change it |
 | --- | --- | --- |
 | Drawing tool | Excalidraw+ connector if present, else any canvas tool, else Mermaid | `references/excalidraw.md` is one adapter; add another beside it |
-| Icons | The project's icon set, then Lucide or Tabler via Iconify, then plain shapes | Point the project profile at an icon set that follows `references/icon-sets.md` |
+| Icons | The project's icon set, then Lucide or Tabler via Iconify, then plain shapes | Point the project settings at an icon set that follows `references/icon-sets.md` |
 | Theme, examples, where diagrams and snapshots go | See SKILL.md | A "Diagrams" section in the project's CLAUDE.md, or a `diagrams.md` |
 
 ## Install
@@ -38,16 +38,3 @@ asked to draw or review a diagram like these; you can also call it directly with
 
 None. A drawing tool connector (such as Excalidraw+) and subagents make the results
 better; without them it draws in Mermaid and reviews its own work.
-
-## Project profile example
-
-```markdown
-## Diagrams
-
-- Drawing tool: Excalidraw+, collection "Architecture" (shared with the platform team)
-- Icon set: `design/icon-set/`, libraries Machines and Parts only
-- Theme: dark background, Excalidraw hand-drawn font, colours from the icon set README
-- Examples: `design/approved-diagrams/*.png`
-- Publish to: Notion, snapshots only
-- Links: Notion Questions, Findings and Decisions
-```

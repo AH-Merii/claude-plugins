@@ -5,7 +5,7 @@ connector's at the time of writing; if a name has changed, match the tool by wha
 
 ## Where diagrams go
 
-- **Draw every diagram as a new scene,** in the collection the project profile names, or
+- **Draw every diagram as a new scene,** in the collection the project settings name, or
   the user's private collection by default. A new collection can be visible to the whole
   team: make one only when the user asks, and say who will see it.
 - **Draw only on scenes you created.** Scenes the user points to are sources: read them

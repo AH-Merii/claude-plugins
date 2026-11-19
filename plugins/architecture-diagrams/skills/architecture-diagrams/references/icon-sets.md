@@ -5,17 +5,17 @@ across all diagrams, and put each icon's label as separate text under it.
 
 ## 1. Custom icons
 
-Icons the user supplied for this project's own concepts (its product, its equipment, its
-people) are used first for whatever they cover.
+Icons the user supplied for concepts that no general set covers are used first for
+whatever they cover.
 
 ## 2. The project's icon set
 
-Where the project profile names one, or the user points to one. An icon set is a folder
+Where the project settings name one, or the user points to one. An icon set is a folder
 with:
 
 - **A catalogue** (`CATALOGUE.md` by default): which libraries exist and when to use each,
-  plus any project conventions, such as "draw every ERP with the `erp` icon". Read it
-  first. Use only the libraries the user named, or all of them if none.
+  plus any conventions for using them. Read it first. Use only the libraries the user named, or
+  all of them if none.
 - **A manifest** (`manifest.json` by default): one entry per icon. Search it for every
   element before drawing, and read only the entries for the icons you place, never the
   whole file.

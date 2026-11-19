@@ -1,8 +1,8 @@
 # Publishing a diagram on a page
 
 The drawing tool's file is the single source of truth. A page, document or issue shows a
-snapshot of it that links back. This holds whatever the page tool is (Notion, Confluence,
-a wiki, a Markdown file in a repository).
+snapshot of it that links back. This holds whatever the page tool is: a wiki, a
+document, an issue, or a Markdown file in a repository.
 
 ## Every time
 
@@ -22,11 +22,6 @@ a wiki, a Markdown file in a repository).
 Add a live embed instead of, or beside, the snapshot only when the diagram and the page are
 both visible to the same people, and the user confirms it renders for them. An embed that
 only its author can open shows everyone else an error.
-
-## Notion
-
-Upload the SVG with Notion's file upload and put it in an image block; the caption carries
-the link. A Notion image cannot itself be a link.
 
 ## Markdown in a repository
 

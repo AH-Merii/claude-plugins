@@ -9,15 +9,15 @@ A diagram earns its place when it shows one idea a reader can take in at a glanc
 against its sources. This skill decides which form to draw, draws it in one consistent
 style, checks it, and puts it where people will read it.
 
-It assumes no project, drawing tool or icon set. Those come from the project profile (below)
+It assumes no project, drawing tool or icon set. Those come from the project settings (below)
 and the adapters in `references/`. Without any of them it still works: default theme, a
 downloaded icon set, and Mermaid if there is no drawing tool.
 
 ## Before the first diagram
 
-1. **Read the project profile, if there is one.** Look for a "Diagrams" section in the
-   project's CLAUDE.md, or a `diagrams.md` file at the project root or in its docs. It can
-   set any of the keys in [Project profile](#project-profile). Anything it leaves out takes
+1. **Read the project settings, if there are any.** Look for a "Diagrams" section in the
+   project's CLAUDE.md, or a `diagrams.md` file at the project root or in its docs. They can
+   set any of the items in [Project settings](#project-settings). Anything they leave out takes
    the default here.
 2. **Pick the drawing tool.** Use the first that is available and say once which one is in
    use:
@@ -28,7 +28,7 @@ downloaded icon set, and Mermaid if there is no drawing tool.
    - none: Mermaid ([`references/mermaid.md`](references/mermaid.md)).
 3. **Pick the icon source**, as [`references/icon-sets.md`](references/icon-sets.md)
    describes: the project's icon set, then a download, then plain shapes.
-4. **Fix the theme.** Take the profile's values, or the defaults in [Theme](#theme), and
+4. **Fix the theme.** Take the project settings' values, or the defaults in [Theme](#theme), and
    reuse them exactly in every diagram of the project. If the project keeps a page or file
    of conventions, record them there with the first diagram.
 
@@ -86,7 +86,7 @@ one and drop the other.
 - **Label an arrow with what happens on it,** as a short verb (triggers, raises). No filler
   such as "then"; an arrow with nothing to say has no label.
 - **One link per element.** Anything on a diagram that has its own page or record (a
-  question, a finding, a decision, a glossary term, a ticket) links to it; never write a
+  decision, a requirement, a glossary term, a ticket) links to it; never write a
   bare ID. Set each link once, on the shape (for an icon, on one of its elements), never
   also on its label, so every linked element shows exactly one link marker. Leave room for
   the marker at the top right. Linking is optional: draw without links when there is
@@ -104,7 +104,7 @@ one and drop the other.
 ## Theme
 
 Every diagram in a project uses one theme. Never mix styles. The default matches a
-hand-drawn icon set; the project profile can change any value.
+hand-drawn icon set; the project settings can change any value.
 
 - **Shapes:** rounded corners on every shape, never hard squares; hand-drawn (rough)
   strokes of one width; the hand-drawn font throughout.
@@ -113,7 +113,7 @@ hand-drawn icon set; the project profile can change any value.
   the DDD defaults below. Pick values that read on the chosen background.
 - **Fill:** none, or a hachure in the outline's colour; the same choice for the same element
   type.
-- **Background:** dark by default; light when the profile says so.
+- **Background:** dark by default; light when the project settings say so.
 - **Alignment:** an icon sits over its caption, and arrows meet it, at its visual centre,
   not the middle of its bounding box. Take the centre from the icon set's manifest where
   it gives one; otherwise centre on the icon's main mass and use the same offset every time.
@@ -124,7 +124,7 @@ aggregate yellow, read model green, hotspot red; a bounded context is neutral.
 ## Check before publishing
 
 Render the diagram and compare it with the theme, the craft rules and the project's
-approved examples, if the profile names any. Then, where the session can start subagents,
+approved examples, if the project settings name any. Then, where the session can start subagents,
 two fresh ones that did not draw it review it separately, as
 [`references/review.md`](references/review.md) describes:
 
@@ -146,27 +146,21 @@ snapshot and link replaced together in every edit.
 
 ## Privacy
 
-- **New diagrams are private** unless the profile or the user names a shared place. Say
+- **New diagrams are private** unless the project settings or the user name a shared place. Say
   where each one was saved.
 - **Never create a public or share link on your own.** Make one only when the user asks for
   that diagram to be public, and note it where the diagram is published.
 - **Draw only on diagrams you created.** Never edit a source diagram; copy it instead.
 - **Brand and vendor icons** are for internal diagrams only.
 
-## Project profile
+## Project settings
 
-A project sets any of these in the "Diagrams" section of its CLAUDE.md or in `diagrams.md`.
-Each is optional.
+A project can set any of these in a "Diagrams" section of its CLAUDE.md or in a
+`diagrams.md`; each is optional, and anything left out takes the default above:
 
-| Key | What it sets | Default |
-| --- | --- | --- |
-| Drawing tool | The tool to use, and where new diagrams go (a collection, folder or board) | First available, private location |
-| Icon set | Path or link to the icon set, and which of its libraries to use | Download (see icon-sets) |
-| Custom icons | Icons for the project's own concepts, used before anything else for what they cover | None |
-| Theme | Background, font, stroke style, colours per element type, icon sizes | The defaults above |
-| Examples | Approved diagrams to match, as images or tool files | None |
-| Publish to | Where snapshots go, and whether live embeds are allowed | Ask |
-| Links | The record types diagrams link to (questions, decisions, tickets) | None |
-
-Keep project-specific conventions (for example "an operator is drawn as a person and a
-robot arm side by side") in the profile or the icon set's catalogue, never in this skill.
+- the drawing tool and where new diagrams go;
+- the icon set, and which of its libraries to use;
+- theme values (background, font, stroke style, colours, icon sizes);
+- approved example diagrams to match;
+- where snapshots are published;
+- what kinds of records diagram elements link to.
