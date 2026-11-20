@@ -1,3 +1,11 @@
 # Body files and tests import kit.py the way inkwash.py runs them: from the skill's scripts folder.
 [environment]
 extra-paths = ["skills/field-notes/scripts"]
+
+# paint_trace.py imports OpenCV and numpy inside the functions that use them: they come from `uv run --with`, so the
+# tests and CI run without them.
+[[overrides]]
+include = ["**/paint_trace.py"]
+
+[overrides.rules]
+unresolved-import = "ignore"

@@ -13,6 +13,7 @@ directory):
 - `scripts/kit.py`, the drawing kit. A body file imports its marks and draws with them.
 - `scripts/inkwash.py`, the build script: body file → sketch JSON → SVG → PNG preview, plus
   previews side by side and zoomed crops.
+- `scripts/paint_trace.py`, the paint-then-trace step for portraits and busy photo scenes (below).
 - `scripts/render.js`, `prev.js` and `crop.js`, the Node steps it runs. They use perfect-freehand
   for the pen strokes, SVG filters for the watercolour, and Playwright's Chromium for the PNGs.
 - `examples/`, the example set and the worked examples, and `references/kit.md`, the kit's full
@@ -64,7 +65,8 @@ also installs the packages by itself when they are missing or out of date.
 ## Source of truth, in this order
 
 1. **The reference photo**, when there is one. Draw the thing in the photo: its parts, their
-   shapes, proportions and placement. Crop and enlarge the photo to read each part.
+   shapes, proportions and placement. Crop and enlarge the photo to read each part. A portrait or
+   a busy photo scene goes through **Complex images** below instead.
 2. **Look the real thing up** (WebSearch, WebFetch) for anything the photo doesn't show clearly,
    or when there is no photo: what the parts really are, how they attach, what a screen shows,
    what the controls are. Real details make it believable.
@@ -77,6 +79,34 @@ also installs the packages by itself when they are missing or out of date.
 **Don't invent parts.** No extra machines or sub-parts (stack lights, light curtains, motors on
 top) unless the photo shows them; invented parts were rejected in review. Where the photo clearly
 shows a part, draw only what it shows.
+
+## Complex images: paint, then trace
+
+Portraits, people and busy photo scenes lose their likeness when built from hand-placed marks, and
+a direct trace of the photo picks up its texture. Paint the photo flat as ink and wash first, then
+trace that painting into kit marks. Machines, parts and icons stay hand-drawn from the source of
+truth, and library symbols keep their own rule (**Library shapes only guide symbols**).
+
+1. **Mark each face** as an ellipse in photo pixels, `CX,CY,RX,RY` (centre, then radii). Ink inside
+   it keeps the photo's own eyes, nose and mouth; everywhere else the ink follows the flat colour
+   edges.
+2. **Paint and trace.** It needs `uv`; OpenCV and numpy come in through `--with`:
+
+   ```sh
+   uv run --no-project --with opencv-contrib-python-headless --with numpy \
+     python <skill-dir>/scripts/paint_trace.py photo.png --out out --face 305,515,95,95 --face 750,500,130,150
+   ```
+
+   It writes `out/painted.png`, the flat ink-and-wash painting, and `out/trace.json`: wash regions
+   light to dark and pen paths longest first, in world units of photo px / 10.
+3. **Look at `out/painted.png`.** The drawing can't read better than the painting: a face that is
+   off here stays off, so move or resize its ellipse and rerun.
+4. **Build the traced body:**
+   `TRACE=out/trace.json python3 <skill-dir>/scripts/inkwash.py build <skill-dir>/examples/traced_photo.py --out out`.
+   It lays the ink as untapered strokes and the washes light to dark, with greys lightened so the
+   paper shows. To tune it or add hand-drawn marks on top, copy it into your working folder first.
+
+Then verify as for any drawing, part by part against the photo.
 
 ## Style rules
 
