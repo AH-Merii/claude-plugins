@@ -1,16 +1,59 @@
-# field-notes
+<p align="center">
+  <img src="docs/logo.svg" width="168" alt="Field Notes logo: a sketchbook and a watercolour brush, drawn in ink and wash">
+</p>
+
+<h1 align="center">field-notes</h1>
+
+<p align="center">
+  <em>Urban-sketch ink and watercolour for Claude Code.<br>
+  Hand it a photo, a machine or an icon, and it draws it back as a page from a sketchbook.</em>
+</p>
+
+---
 
 A skill for drawing icons and illustrations in the **Field Notes** style: urban-sketch line and
 wash, with loose ink and watercolour for big forms, careful hand-drawn precision for small
-mechanical parts, and line weight that follows light from the upper left. Every subject comes in
-two views, a 2D front elevation and a 3D oblique.
+mechanical parts, and line weight that follows light from the upper left. Machines and icons come
+in two views, a 2D front elevation and a 3D oblique; busy photo scenes are painted flat first and
+then traced into ink and wash.
 
-![A stator winding machine in the Field Notes style](skills/field-notes/examples/winding_machine.jpg)
+## From photo to field notes
 
-![A benchtop press in 2D and 3D](skills/field-notes/examples/press.jpg)
+Each drawing below is the skill's own output from the photo beside it, rendered by inkwash as an
+SVG.
+
+<table>
+  <tr>
+    <th width="50%">Photo</th>
+    <th width="50%">Field Notes</th>
+  </tr>
+  <tr>
+    <td><img src="docs/examples/skyline-photo.jpg" alt="Photo of the Abu Dhabi skyline from the water"></td>
+    <td><img src="docs/examples/skyline.svg" alt="The Abu Dhabi skyline in ink and wash"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><sub><b>A city skyline</b>, a busy scene: painted flat, traced, then the towers, sails and flag redrawn by hand.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/examples/gripper-photo.jpg" alt="Photo of a robot arm's gripper lifting a blue towel"></td>
+    <td><img src="docs/examples/gripper.svg" alt="The robot arm and gripper in ink and wash"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><sub><b>A robot arm at work</b>: the gripper drawn precisely, the background left loose, the cropped arm completed from reference photos.</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/examples/humanoid-photo.jpg" alt="Photo of a black humanoid robot on an orange backdrop"></td>
+    <td><img src="docs/examples/humanoid.svg" alt="The humanoid robot in ink and wash"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><sub><b>A humanoid robot</b>, hand-drawn part by part from the photo with the kit.</sub></td>
+  </tr>
+</table>
+
+## What it does
 
 The agent picks it up when it draws in this style or converts something to it, for example "draw
-this machine in the Field Notes style", "convert this icon to line and wash" or "make the 3D
+this machine in the Field Notes style", "turn this photo into line and wash" or "make the 3D
 version". The skill brings the rules that came out of review: what to take from a reference photo,
 the real thing and the original icon, where to be loose and where to be precise, how 2D gets depth
 without receding faces, how to keep parts in front of the ink behind them, and a part-by-part
@@ -21,7 +64,7 @@ that uses the marks in `kit.py`. `inkwash.py build` turns it into a sketch, rend
 with pressure-sensitive strokes ([perfect-freehand](https://github.com/steveruizok/perfect-freehand))
 and watercolour SVG filters, and saves a PNG preview through Playwright's Chromium. It also renders
 before-vs-after sheets and zoomed crops for checking parts. The SVGs are self-contained, so they
-can go straight into a page, a design tool or Excalidraw.
+can go straight into a page, a design tool or Excalidraw, or a README like this one.
 
 ## Prerequisites
 
@@ -42,15 +85,12 @@ claude plugin marketplace add AH-Merii/claude-plugins && claude plugin install f
 The skill appears as `field-notes:field-notes`. Claude loads it when a task matches; you can also
 call it directly with `/field-notes:field-notes`.
 
-## Examples
+## Building an example
 
-`skills/field-notes/examples/before-after/` holds the example set the agent samples from: each
-image shows an original next to its approved Field Notes version (a winding machine, a relay
-array, a copper coil, a lock, a cloud and a person), plus a press drawn from a photo and a
-database. The relay array is the paint target. `skills/field-notes/examples/` also holds the
-body files for the winding machine and the press, and `traced_photo.py`, which draws a portrait
-or busy photo scene from the output of `scripts/paint_trace.py` (the skill's "Complex images"
-section). To build one:
+`skills/field-notes/examples/` holds the set the agent samples from: approved before-and-after
+pairs, the body files for a winding machine and a press, and `traced_photo.py`, which draws a
+portrait or busy photo scene from the output of `scripts/paint_trace.py` (the skill's "Complex
+images" section). To build one:
 
 ```sh
 python3 plugins/field-notes/skills/field-notes/scripts/inkwash.py build \
