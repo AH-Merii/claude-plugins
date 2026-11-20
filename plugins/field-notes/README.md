@@ -1,38 +1,40 @@
-# field-notes
+<p align="center">
+  <img src="docs/logo.svg" width="168" alt="Field Notes logo: a sketchbook and a watercolour brush, drawn in ink and wash">
+</p>
 
-A skill for drawing icons and illustrations in the **Field Notes** style: urban-sketch line and
-wash, with loose ink and watercolour for big forms, careful hand-drawn precision for small
-mechanical parts, and line weight that follows light from the upper left. Every subject comes in
-two views, a 2D front elevation and a 3D oblique.
+<h1 align="center">field-notes</h1>
 
-![A stator winding machine in the Field Notes style](skills/field-notes/examples/winding_machine.jpg)
+<p align="center">
+  A Claude Code skill that redraws photos, machines and icons as hand-drawn<br>
+  urban-sketch ink and watercolour, and renders them to SVG.
+</p>
 
-![A benchtop press in 2D and 3D](skills/field-notes/examples/press.jpg)
+## Examples
 
-The agent picks it up when it draws in this style or converts something to it, for example "draw
-this machine in the Field Notes style", "convert this icon to line and wash" or "make the 3D
-version". The skill brings the rules that came out of review: what to take from a reference photo,
-the real thing and the original icon, where to be loose and where to be precise, how 2D gets depth
-without receding faces, how to keep parts in front of the ink behind them, and a part-by-part
-check before handing a drawing over.
-
-It also ships **inkwash**, the toolkit that draws the style. A drawing is a small Python body file
-that uses the marks in `kit.py`. `inkwash.py build` turns it into a sketch, renders that to an SVG
-with pressure-sensitive strokes ([perfect-freehand](https://github.com/steveruizok/perfect-freehand))
-and watercolour SVG filters, and saves a PNG preview through Playwright's Chromium. It also renders
-before-vs-after sheets and zoomed crops for checking parts. The SVGs are self-contained, so they
-can go straight into a page, a design tool or Excalidraw.
+<table>
+  <tr>
+    <th width="50%">Photo</th>
+    <th width="50%">Field Notes</th>
+  </tr>
+  <tr>
+    <td><img src="docs/examples/skyline-photo.jpg" alt="Photo of the Abu Dhabi skyline from the water"></td>
+    <td><img src="docs/examples/skyline.svg" alt="The Abu Dhabi skyline in ink and wash"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/examples/gripper-photo.jpg" alt="Photo of a robot arm's gripper lifting a blue towel"></td>
+    <td><img src="docs/examples/gripper.svg" alt="The robot arm and gripper in ink and wash"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/examples/humanoid-photo.jpg" alt="Photo of a black humanoid robot on an orange backdrop"></td>
+    <td><img src="docs/examples/humanoid.svg" alt="The humanoid robot in ink and wash"></td>
+  </tr>
+</table>
 
 ## Batch runs
 
-A second skill, `field-notes:field-notes-batch`, draws a whole library at once: dozens to hundreds
-of items, each in its own headless session. One base session reads the field-notes skill, its
-examples and the inspiration images and runs the tools once; every item is then drawn by a fork of
-that base with identical flags, so it starts with the skill already read and on a warm prompt
-cache. A governor starts forks while RAM allows, a contact sheet collects finished items for
-review, and a redo is a fresh fork of the base that carries written notes on what was wrong. The
-runner scripts and prompt templates ship in `skills/field-notes-batch/`; its SKILL.md has the
-steps. It needs bash, `jq` and Linux (the governor reads `/proc/meminfo`).
+A second skill, `field-notes:field-notes-batch`, draws a whole library at once, each item in its
+own headless session forked from one base session. It needs bash, `jq` and Linux; its SKILL.md
+has the steps.
 
 ## Prerequisites
 
@@ -53,31 +55,10 @@ claude plugin marketplace add AH-Merii/claude-plugins && claude plugin install f
 The skill appears as `field-notes:field-notes`. Claude loads it when a task matches; you can also
 call it directly with `/field-notes:field-notes`.
 
-## Examples
-
-`skills/field-notes/examples/before-after/` holds the example set the agent samples from: each
-image shows an original next to its approved Field Notes version (a winding machine, a relay
-array, a copper coil, a lock, a cloud and a person), plus a press drawn from a photo and a
-database. The relay array is the paint target. `skills/field-notes/examples/` also holds the
-body files for the winding machine and the press, and `traced_photo.py`, which draws a portrait
-or busy photo scene from the output of `scripts/paint_trace.py` (the skill's "Complex images"
-section). To build one:
-
-```sh
-python3 plugins/field-notes/skills/field-notes/scripts/inkwash.py build \
-  plugins/field-notes/skills/field-notes/examples/winding_machine.py --out /tmp/field-notes
-```
-
 ## Tests
 
 ```sh
 python3 -m unittest discover -s plugins/field-notes/tests
 ```
 
-They need only Python, plus bash and `jq` for the batch runner: Node, npm and claude are fakes
-that log their calls. They check that every example builds the same sketch for a seed, that the kit
-marks what the renderer layers, that line weight follows the light, and that the Node steps run
-with the cached packages. For the batch runner they check that every fork uses the base's flags,
-that claims and approvals stop an item being drawn twice, that the governor keeps within its limits
-and survives a killed fork, and what the contact sheet shows. The real renderer is checked by
-building an example as above, and the real cache hit with `batch.sh probe`.
+They need only Python, plus bash and `jq` for the batch runner: Node, npm and claude are faked.
