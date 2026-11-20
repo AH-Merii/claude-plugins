@@ -15,14 +15,34 @@ directory):
   previews side by side and zoomed crops.
 - `scripts/render.js`, `prev.js` and `crop.js`, the Node steps it runs. They use perfect-freehand
   for the pen strokes, SVG filters for the watercolour, and Playwright's Chromium for the PNGs.
-- `examples/`, worked examples with their images, and `references/kit.md`, the kit's full API.
+- `examples/`, the example set and the worked examples, and `references/kit.md`, the kit's full
+  API.
 
-Read this whole file before drawing. Then study the examples:
+Read this whole file before drawing. Then open and look at every image in the example set below.
 
-- `examples/winding_machine.py` is the approved reference: 3D oblique and very detailed. Its
-  image is `examples/winding_machine.jpg`. Match its overall finish.
-- `examples/press_3d.py` and `examples/press_2d.py` show one machine converted from a reference
-  photo, in 3D and in 2D. Their image is `examples/press.jpg`.
+## The example set: sample from these
+
+These are the approved results. Each image in `examples/before-after/` shows the original on the
+left and the approved Field Notes version on the right. Sample your look from these and nothing
+else: not from older versions, and not from your own earlier drawings.
+
+| Image | What it teaches |
+|-------|-----------------|
+| `winding-machine.jpg` | A rough 3D icon → the approved 3D reference: very detailed, the overall finish to match |
+| `relay-array.jpg` | **The paint target.** Mostly paper, one light wash per material, darker colour only as shadow pooled to the lower right |
+| `copper-coil.jpg` | Painting in parts: separate turns, each with its own tone |
+| `lock.jpg` | A flat library symbol drawn freehand, its paint laid as visible strokes |
+| `cloud.jpg` | An angular library outline turned into a soft freehand shape with light washes |
+| `person.jpg` | A symbol given round form with layered washes and a few hatches |
+| `press.jpg` | No original icon: a reference photo → 2D and 3D |
+| `database.jpg` | No before: round form, value bands, hand-drawn details |
+
+`examples/winding_machine.py`, `examples/press_3d.py` and `examples/press_2d.py` are the body
+files behind the winding machine and the press, so you can see how the kit draws them.
+
+**Check against the set before you hand anything over.** Put your drawing next to the closest
+example and next to the relay array, and compare paint, ink and finish. If yours is heavier,
+greyer, flatter or more polished than they are, redraw it.
 
 ## Setup
 
@@ -37,9 +57,9 @@ also installs the packages by itself when they are missing or out of date.
 2. **Draw** one body file per view, in a working folder of your own, never in `<skill-dir>`.
    Build, look at the preview, and redraw until it reads.
 3. **Verify** part by part (below) before you hand anything over.
-4. **Draw both views.** Every subject gets a 2D front elevation and a 3D oblique view. Keep the
-   original icon's view and add the missing one. Flat graphic subjects (markers, drawings,
-   screens) get a 3D version as the sheet or screen seen obliquely.
+4. **Draw both views** when asked for them. A machine or part gets a 2D front elevation and a 3D
+   oblique view: keep the original icon's view and add the missing one. Flat graphic subjects
+   (markers, drawings, analysis plots) and library symbols stay in their original single view.
 
 ## Source of truth, in this order
 
@@ -96,6 +116,18 @@ Each of these came from review feedback.
 - **Loads look like production.** Parts in ovens, trays and racks sit in neat, evenly spaced grids,
   all the same size and orientation; vary only light and finish. Put in a machine only what really
   goes in it at that process step.
+- **Paint like the relay array.** Mostly paper: one light wash per material, paper left bare on
+  the lit upper left, and darker colour only as pooled shadow under and to the lower right of
+  parts. Never washed out: true colours and values still read, and black stays black. The lit side
+  lifts gradually, never bleached by one hard diagonal.
+- **Light comes from varied strokes, not faded fills.** Lay washes as several visible brush
+  strokes that follow the form and vary in tone, width and where they stop, with small paper gaps
+  between them. A light area reads light because its strokes are fewer, paler and broken. Use two
+  or three tones of the subject's own colour. Keep this subtle on small solid parts, where heavy
+  strokes turn grungy.
+- **Library shapes only guide symbols.** When you convert a library icon (a lock, a cloud, a
+  person), draw the symbol freehand in its spirit. Never trace its exact geometry, and soften shapes
+  that are too angular. Keep its layout and bounding box so it still drops into diagrams.
 - **Add character:** cast shadows (falling right and down, and back in 3D), a ground shadow,
   wet-in-wet blooms, granulation, a little splatter outside the drawing, white-gel highlights on
   lit edges, and a few loose flicks.
@@ -185,5 +217,20 @@ Mistakes slipped through here, so do every step:
    exist is drawn.
 4. **Style test.** Line weights vary with light, repeats are varied, small parts are precise, big
    forms are loose and accents are quiet.
-5. **Finish.** Compare with `examples/winding_machine.jpg` for overall finish, and check that both
-   views exist and match.
+5. **Against the example set.** Open the closest image in `examples/before-after/` and
+   `relay-array.jpg`, and put your drawing next to them. Match their paint, ink and finish. Check
+   that every view you were asked for exists and that the views match.
+6. **Show the original next to it.** Every review sheet puts the original (or the photo) beside the
+   new drawing, so the reviewer can judge the change.
+
+## Running many drawings
+
+When an orchestrator hands drawings to helper agents:
+
+- **One subject per agent.** When a drawing is done, the next one goes to a brand new agent.
+- **A redo goes to a new agent** that gets only the original and the written feedback, never the
+  rejected version. An agent that has seen its own earlier attempts drifts toward them.
+- **Same opening for every agent, for the prompt cache.** First send this skill alone and ask for a
+  one-word acknowledgement. Then send the subject. Every agent's opening is then the same, so it is
+  read from the cache after the first one.
+- Agents work in parallel and don't see each other's work.
