@@ -39,7 +39,7 @@ SVG.
     <td><img src="docs/examples/gripper.svg" alt="The robot arm and gripper in ink and wash"></td>
   </tr>
   <tr>
-    <td colspan="2" align="center"><sub><b>A robot arm at work</b>: the gripper drawn precisely, the background left loose, the cropped arm completed from reference photos.</sub></td>
+    <td colspan="2" align="center"><sub><b>A robot arm at work</b>: the gripper drawn precisely, the background left loose, the elbow the photo crops off completed above the frame.</sub></td>
   </tr>
   <tr>
     <td><img src="docs/examples/humanoid-photo.jpg" alt="Photo of a black humanoid robot on an orange backdrop"></td>
