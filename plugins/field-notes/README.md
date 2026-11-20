@@ -23,6 +23,17 @@ and watercolour SVG filters, and saves a PNG preview through Playwright's Chromi
 before-vs-after sheets and zoomed crops for checking parts. The SVGs are self-contained, so they
 can go straight into a page, a design tool or Excalidraw.
 
+## Batch runs
+
+A second skill, `field-notes:field-notes-batch`, draws a whole library at once: dozens to hundreds
+of items, each in its own headless session. One base session reads the field-notes skill, its
+examples and the inspiration images and runs the tools once; every item is then drawn by a fork of
+that base with identical flags, so it starts with the skill already read and on a warm prompt
+cache. A governor starts forks while RAM allows, a contact sheet collects finished items for
+review, and a redo is a fresh fork of the base that carries written notes on what was wrong. The
+runner scripts and prompt templates ship in `skills/field-notes-batch/`; its SKILL.md has the
+steps. It needs bash, `jq` and Linux (the governor reads `/proc/meminfo`).
+
 ## Prerequisites
 
 - Python 3.10 or newer.
@@ -63,7 +74,10 @@ python3 plugins/field-notes/skills/field-notes/scripts/inkwash.py build \
 python3 -m unittest discover -s plugins/field-notes/tests
 ```
 
-They need only Python: Node and npm are fakes that log their calls. They check that every example
-builds the same sketch for a seed, that the kit marks what the renderer layers, that line weight
-follows the light, and that the Node steps run with the cached packages. The real renderer is
-checked by building an example as above.
+They need only Python, plus bash and `jq` for the batch runner: Node, npm and claude are fakes
+that log their calls. They check that every example builds the same sketch for a seed, that the kit
+marks what the renderer layers, that line weight follows the light, and that the Node steps run
+with the cached packages. For the batch runner they check that every fork uses the base's flags,
+that claims and approvals stop an item being drawn twice, that the governor keeps within its limits
+and survives a killed fork, and what the contact sheet shows. The real renderer is checked by
+building an example as above, and the real cache hit with `batch.sh probe`.
