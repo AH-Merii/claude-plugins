@@ -1,6 +1,7 @@
 ---
 name: field-notes
 description: Draw or convert icons and illustrations in the Field Notes style, a hand-drawn urban-sketch "line and wash" look. It uses loose ink and watercolour for big forms, careful hand-drawn precision for small mechanical parts, and line weight that follows light from the upper left. Each subject comes in a 2D front elevation and a 3D oblique view. Use it whenever you draw a new icon or illustration in this style, redraw an existing icon or a reference photo in it, or add the missing 2D or 3D view of a subject. Typical asks are "draw this machine in the Field Notes style", "convert this icon to line and wash", "make the 3D version", "make it look hand-drawn, ink and watercolour", and "match the winding machine". It ships its own toolkit, inkwash, which builds the SVG and a PNG preview.
+argument-hint: "[inspiration-dir]"
 ---
 
 # Field Notes
@@ -44,6 +45,24 @@ files behind the winding machine and the press, so you can see how the kit draws
 **Check against the set before you hand anything over.** Put your drawing next to the closest
 example and next to the relay array, and compare paint, ink and finish. If yours is heavier,
 greyer, flatter or more polished than they are, redraw it.
+
+## Optional inspiration folder
+
+Inspiration folder for this run (empty when none was given): `$ARGUMENTS`
+
+The skill takes an optional folder of extra inspiration images, such as urban-sketching drawings
+of buildings in line and wash: `/field-notes <dir>`. When one is given, open every image in it
+before drawing. They set the mood and the hand of the style; the example set above still sets the
+finish. Take these from them, and nothing that contradicts the style rules below:
+
+- **Ink that flows.** Lines wobble, overshoot corners, double up and break; no ruler-straight,
+  machine edges anywhere.
+- **Real watercolour, not marker.** Washes bleed past the ink, pool darker at the bottom and
+  shadow side, leave paper showing in the light, and fade out loosely instead of stopping at a
+  hard edge. Marker is only for the dark accents.
+- **Detail where it counts.** Small parts are drawn with care; big surfaces stay loose and mostly
+  paper.
+- **Life around the form:** a few splatter specks, drips and loose hatches, never tidy fills.
 
 ## Setup
 
