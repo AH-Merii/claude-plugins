@@ -30,6 +30,12 @@
   </tr>
 </table>
 
+## Batch runs
+
+A second skill, `field-notes:field-notes-batch`, draws a whole library at once, each item in its
+own headless session forked from one base session. It needs bash, `jq` and Linux; its SKILL.md
+has the steps.
+
 ## Prerequisites
 
 - Python 3.10 or newer.
@@ -55,4 +61,4 @@ call it directly with `/field-notes:field-notes`.
 python3 -m unittest discover -s plugins/field-notes/tests
 ```
 
-They need only Python: Node and npm are faked.
+They need only Python, plus bash and `jq` for the batch runner: Node, npm and claude are faked.
