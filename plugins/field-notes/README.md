@@ -42,8 +42,11 @@ call it directly with `/field-notes:field-notes`.
 
 ## Examples
 
-`skills/field-notes/examples/` holds the approved reference, a very detailed stator winding
-machine in 3D, and a benchtop press converted from a reference photo in both views. To build one:
+`skills/field-notes/examples/before-after/` holds the example set the agent samples from: each
+image shows an original next to its approved Field Notes version (a winding machine, a relay
+array, a copper coil, a lock, a cloud and a person), plus a press drawn from a photo and a
+database. The relay array is the paint target. `skills/field-notes/examples/` also holds the
+body files for the winding machine and the press. To build one:
 
 ```sh
 python3 plugins/field-notes/skills/field-notes/scripts/inkwash.py build \
