@@ -30,6 +30,8 @@ can go straight into a page, a design tool or Excalidraw.
   `python3 <skill-dir>/scripts/inkwash.py setup` installs perfect-freehand and Playwright with its
   Chromium into `~/.cache/field-notes/node`, or `$FIELD_NOTES_NODE_DIR`; a build does it by itself
   when they are missing.
+- For portraits and busy photo scenes only, [uv](https://docs.astral.sh/uv/): `paint_trace.py`
+  runs with OpenCV and numpy that `uv run --with` brings in.
 
 ## Install
 
@@ -46,7 +48,9 @@ call it directly with `/field-notes:field-notes`.
 image shows an original next to its approved Field Notes version (a winding machine, a relay
 array, a copper coil, a lock, a cloud and a person), plus a press drawn from a photo and a
 database. The relay array is the paint target. `skills/field-notes/examples/` also holds the
-body files for the winding machine and the press. To build one:
+body files for the winding machine and the press, and `traced_photo.py`, which draws a portrait
+or busy photo scene from the output of `scripts/paint_trace.py` (the skill's "Complex images"
+section). To build one:
 
 ```sh
 python3 plugins/field-notes/skills/field-notes/scripts/inkwash.py build \
