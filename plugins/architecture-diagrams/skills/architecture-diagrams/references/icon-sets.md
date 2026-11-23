@@ -46,8 +46,8 @@ follow that.
 
 ## 3. The built-in set
 
-[`icons/`](../icons/) holds 104 vendor-neutral, colour-filled icons: systems and
-infrastructure, people, flow and time, DDD and EventStorming in the standard colours,
+[`icons/`](../icons/) holds 108 vendor-neutral, hand-drawn icons in the Field Notes style: systems and
+infrastructure, people, robotics, flow and time, DDD and EventStorming in the standard colours,
 generic cloud services, and status icons. [`icons/CATALOGUE.md`](../icons/CATALOGUE.md)
 lists them by group; read it first.
 
@@ -56,10 +56,10 @@ They are native Excalidraw shapes, so they recolour and restyle with the diagram
 - [`icons/manifest.json`](../icons/manifest.json) has one line per icon with its `key`,
   `label`, `category`, `bbox`, `center` and `labelAt` on a 100 x 100 grid. Read only the
   lines for the icons you place, for example with `grep '"key": "queue"'`.
-- The shapes are the item with id `libc-<key>` in
-  [`icons/architecture-generic-colorful.excalidrawlib`](../icons/architecture-generic-colorful.excalidrawlib).
+- The shapes are the item with id `lib-<key>` in
+  [`icons/architecture-generic-hand-drawn.excalidrawlib`](../icons/architecture-generic-hand-drawn.excalidrawlib).
   Extract only that item, for example
-  `jq '.libraryItems[] | select(.id == "libc-queue") | .elements' <file>`, never the
+  `jq '.libraryItems[] | select(.id == "lib-queue") | .elements' <file>`, never the
   whole file.
 - Place it as the manifest format above says: translate so `center` lands where the icon
   belongs, scale if needed, give the elements fresh ids and one shared new `groupIds`

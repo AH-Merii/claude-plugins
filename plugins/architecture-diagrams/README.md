@@ -21,7 +21,7 @@ Nothing in it is tied to one project, drawing tool or icon set:
 | Piece | Default | How to change it |
 | --- | --- | --- |
 | Drawing tool | Excalidraw+ connector if present, else any canvas tool, else Mermaid | `references/excalidraw.md` is one adapter; add another beside it |
-| Icons | The project's icon set, then 104 built-in generic colour-filled Excalidraw icons, then Lucide or Tabler via Iconify, then plain shapes | Point the project settings at an icon set that follows `references/icon-sets.md` |
+| Icons | The project's icon set, then 108 built-in generic hand-drawn (Field Notes) Excalidraw icons, then Lucide or Tabler via Iconify, then plain shapes | Point the project settings at an icon set that follows `references/icon-sets.md` |
 | Theme, examples, where diagrams and snapshots go | See SKILL.md | A "Diagrams" section in the project's CLAUDE.md, or a `diagrams.md` |
 
 ## Install

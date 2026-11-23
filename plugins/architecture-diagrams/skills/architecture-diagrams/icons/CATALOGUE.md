@@ -1,9 +1,9 @@
 # Built-in icons
 
-104 vendor-neutral icons, colour-filled and hand-drawn, each one grouped item of native
+108 vendor-neutral hand-drawn icons in the Field Notes style, each one grouped item of native
 Excalidraw shapes on a 100 x 100 grid. Use them for any architecture, DDD or operations
 diagram. Look an icon up by key in `manifest.json`; its shapes are the item with id
-`libc-<key>` in `architecture-generic-colorful.excalidrawlib`.
+`lib-<key>` in `architecture-generic-hand-drawn.excalidrawlib`.
 
 - **Systems and infrastructure:** `datastore`, `service`, `api`, `queue`, `event-bus`,
   `gateway`, `cloud`, `cache`, `ui-screen`, `mobile-device`.
@@ -13,6 +13,7 @@ diagram. Look an icon up by key in `manifest.json`; its shapes are the item with
   `cad-3d`, `question-mark`, `reinforcement-learning`, `sim-to-real`.
 - **People and external parties:** `person`, `team`, `external-org`, `external-system`.
 - **Devices:** `sensor`, `controller`.
+- **Robotics and physical:** `robot`, `amr`, `forklift`, `machine`.
 - **Flow and time:** `decision`, `document`, `clock`, `timer`, `alert`, `message`, `dag`,
   `gantt-chart`.
 - **DDD and EventStorming,** in the standard colours: `domain-event` (orange), `command`
