@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/AH-Merii/claude-plugins/compare/field-notes-v0.2.0...field-notes-v0.3.0) (2026-11-23)
+
+
+### Features
+
+* **field-notes:** draw a library in cached forks of one base session ([#86](https://github.com/AH-Merii/claude-plugins/issues/86)) ([ad67460](https://github.com/AH-Merii/claude-plugins/commit/ad67460aeee7d965c68fabd9fa931c3325e8a901))
+
 ## [0.2.0](https://github.com/AH-Merii/claude-plugins/compare/field-notes-v0.1.0...field-notes-v0.2.0) (2026-11-20)
 
 

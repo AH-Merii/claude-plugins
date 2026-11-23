@@ -1,7 +1,7 @@
 {
   "name": "architecture-diagrams",
   "displayName": "architecture-diagrams",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Choose, draw, review and publish architecture and DDD diagrams in one consistent icon-first style, with pluggable drawing tools and icon sets and a Mermaid fallback",
   "author": {
     "name": "AH-Merii (AbdulHamid Merii)",
